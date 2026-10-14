@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "agents": {
+    "backend": {
+      "claude": [
+        "mattpocock-skills:codebase-design",
+        "mattpocock-skills:diagnosing-bugs"
+      ]
+    },
+    "frontend-web": {
+      "claude": [
+        "mattpocock-skills:codebase-design",
+        "mattpocock-skills:diagnosing-bugs",
+        "mattpocock-skills:prototype"
+      ]
+    },
+    "integration-engineer": {
+      "claude": [
+        "mattpocock-skills:diagnosing-bugs"
+      ]
+    },
+    "database-data-engineer": {
+      "claude": [
+        "mattpocock-skills:diagnosing-bugs"
+      ]
+    },
+    "python-engineer": {
+      "claude": [
+        "mattpocock-skills:diagnosing-bugs"
+      ]
+    },
+    "qa-automation": {
+      "claude": [
+        "mattpocock-skills:diagnosing-bugs"
+      ]
+    },
+    "sre-observability": {
+      "claude": [
+        "mattpocock-skills:diagnosing-bugs"
+      ]
+    },
+    "architect": {
+      "claude": [
+        "mattpocock-skills:codebase-design"
+      ]
+    },
+    "engineering-lead": {
+      "claude": [
+        "mattpocock-skills:codebase-design"
+      ]
+    },
+    "ux-ui-designer": {
+      "claude": [
+        "mattpocock-skills:prototype"
+      ]
+    },
+    "technical-writer": {
+      "claude": [
+        "mattpocock-skills:writing-for-agents"
+      ]
+    }
+  },
+  "overrides": {
+    "mattpocock-skills:diagnosing-bugs": "Asking is only a fallback: without a feedback loop the agent stops and reports to the orchestrator; the hypothesis-ranking checkpoint is explicitly non-blocking.",
+    "mattpocock-skills:codebase-design": "Sub-agents appear only in the optional DESIGN-IT-TWICE reference; the core deep-module vocabulary starts no agents.",
+    "mattpocock-skills:writing-for-agents": "Mentions subagent dispatch only as a concept in writing guidance; the skill itself starts no agents."
+  }
+}
