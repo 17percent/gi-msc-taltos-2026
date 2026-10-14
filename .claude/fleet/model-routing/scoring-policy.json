@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "_comment": "Vendor- and model-independent scoring. Order: hard filters -> quality floor (evidence) -> cost -> tie-breakers. Cost never outranks the quality floor.",
+  "qualityOrder": [
+    "economy",
+    "balanced",
+    "high",
+    "premium"
+  ],
+  "reasoningOrder": [
+    "low",
+    "medium",
+    "high"
+  ],
+  "hardFilters": [
+    "observed-on-this-host-within-maxAgeDays",
+    "not-a-verified-failure-for-this-workload-class"
+  ],
+  "inventory": {
+    "maxAgeDays": 14
+  },
+  "evidence": {
+    "minSamples": 2,
+    "minPassRate": 0.8,
+    "levels": {
+      "exact": 3,
+      "class": 2,
+      "general": 1,
+      "none": 0
+    }
+  },
+  "floorMinEvidence": {
+    "economy": 0,
+    "balanced": 0,
+    "high": 2,
+    "premium": 2
+  },
+  "floorUnmet": "best-evidenced candidate with confidence=low; no evidenced candidate at all -> inherit",
+  "escalation": {
+    "riskHigh": {
+      "floor": 1,
+      "reasoning": 1
+    },
+    "riskElevated": {
+      "floorAtLeast": "balanced"
+    },
+    "complexityCritical": {
+      "floor": 1,
+      "reasoning": 1
+    },
+    "complexityComplex": {
+      "reasoning": 1
+    },
+    "complexityRoutine": {
+      "reasoning": -1
+    },
+    "falseNegativeVeryHigh": {
+      "floorAtLeast": "high"
+    }
+  },
+  "riskFromTaskText": "loop_tier plan_keywords with tier L (auth, secrets, crypto, PII, SQL, ERP, payment, interop, public contract) -> risk=high",
+  "packetLine": "ROUTING: risk=<normal|elevated|high> complexity=<routine|normal|complex|critical> (optional, from the orchestrator)",
+  "cost": {
+    "metric": "observed AI credits per call on this host (assistant usage records)",
+    "minCallsForKnown": 5,
+    "unknown": "ranked after known-cost candidates of the same evidence level (never assumed cheaper)",
+    "ranking": {
+      "very-high": "cost-first",
+      "high": "cost-first",
+      "medium": "evidence-capped-then-cost",
+      "low": "evidence-first"
+    }
+  },
+  "fallbacks": 2,
+  "finalFallback": "inherit",
+  "familyTransfer": "owner decision 2026-10-12: a model with no evidence of its own inherits the best POSITIVE evidence of an OLDER version of the same family (id without its numeric tokens, e.g. vendor-pro-5 -> vendor-pro-5.5), confidence low; within a family the newer version is ranked before an older one it matches by evidence, even with unknown cost. Failures never transfer; own evidence (pass or fail) always overrides the transfer."
+}

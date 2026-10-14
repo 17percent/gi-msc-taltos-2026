@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "_comment": "Workload profiles: shared requirement defaults (used for user-added agents) and the evidence class within which model evidence transfers (exact workload > same class > any workload).",
+  "enums": {
+    "qualityFloor": [
+      "economy",
+      "balanced",
+      "high",
+      "premium"
+    ],
+    "baseReasoning": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "costSensitivity": [
+      "low",
+      "medium",
+      "high",
+      "very-high"
+    ],
+    "latencySensitivity": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "falseNegativeCost": [
+      "low",
+      "medium",
+      "high",
+      "very-high"
+    ],
+    "toolUseIntensity": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "codingIntensity": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "researchIntensity": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "preferredContext": [
+      "standard",
+      "large",
+      "task-dependent"
+    ],
+    "visionMode": [
+      "none",
+      "task-dependent",
+      "required"
+    ]
+  },
+  "profiles": {
+    "routine-coding": {
+      "evidenceClass": "engineering",
+      "description": "implementing well-scoped code changes",
+      "defaults": {
+        "qualityFloor": "balanced",
+        "baseReasoning": "low",
+        "costSensitivity": "high",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "complex-engineering": {
+      "evidenceClass": "engineering",
+      "description": "multi-component or infrastructure engineering",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "high"
+      }
+    },
+    "test-engineering": {
+      "evidenceClass": "engineering",
+      "description": "writing and running tests",
+      "defaults": {
+        "qualityFloor": "balanced",
+        "baseReasoning": "low",
+        "costSensitivity": "high",
+        "falseNegativeCost": "high"
+      }
+    },
+    "incident-reliability": {
+      "evidenceClass": "engineering",
+      "description": "observability, incidents, reliability",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "high"
+      }
+    },
+    "technical-planning": {
+      "evidenceClass": "planning",
+      "description": "dispatch plans and task breakdowns",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "deep-architecture": {
+      "evidenceClass": "planning",
+      "description": "architecture options, trade-offs, ADRs",
+      "defaults": {
+        "qualityFloor": "premium",
+        "baseReasoning": "medium",
+        "costSensitivity": "low",
+        "falseNegativeCost": "high"
+      }
+    },
+    "product-analysis": {
+      "evidenceClass": "planning",
+      "description": "requirements and process analysis",
+      "defaults": {
+        "qualityFloor": "balanced",
+        "baseReasoning": "medium",
+        "costSensitivity": "high",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "product-decision": {
+      "evidenceClass": "planning",
+      "description": "scope and priority decisions",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "system-analysis": {
+      "evidenceClass": "planning",
+      "description": "process and data-flow modelling",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "high",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "ux-design": {
+      "evidenceClass": "planning",
+      "description": "user flows and UI design",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "high",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "security-review": {
+      "evidenceClass": "review",
+      "description": "independent security review",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "high",
+        "costSensitivity": "low",
+        "falseNegativeCost": "very-high"
+      }
+    },
+    "independent-code-review": {
+      "evidenceClass": "review",
+      "description": "independent code review",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "high"
+      }
+    },
+    "independent-decision-review": {
+      "evidenceClass": "review",
+      "description": "devil's advocate on big decisions",
+      "defaults": {
+        "qualityFloor": "premium",
+        "baseReasoning": "high",
+        "costSensitivity": "low",
+        "falseNegativeCost": "high"
+      }
+    },
+    "quality-gate": {
+      "evidenceClass": "review",
+      "description": "release quality gates",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "very-high"
+      }
+    },
+    "release-governance": {
+      "evidenceClass": "review",
+      "description": "release readiness and rollback",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "medium",
+        "falseNegativeCost": "very-high"
+      }
+    },
+    "product-review": {
+      "evidenceClass": "review",
+      "description": "human-centred product review",
+      "defaults": {
+        "qualityFloor": "high",
+        "baseReasoning": "medium",
+        "costSensitivity": "high",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "external-research": {
+      "evidenceClass": "research",
+      "description": "evidence-based external research",
+      "defaults": {
+        "qualityFloor": "premium",
+        "baseReasoning": "medium",
+        "costSensitivity": "low",
+        "falseNegativeCost": "high"
+      }
+    },
+    "trend-research": {
+      "evidenceClass": "research",
+      "description": "time-boxed trend scouting",
+      "defaults": {
+        "qualityFloor": "balanced",
+        "baseReasoning": "medium",
+        "costSensitivity": "very-high",
+        "falseNegativeCost": "medium"
+      }
+    },
+    "writing": {
+      "evidenceClass": "writing",
+      "description": "documentation and prose",
+      "defaults": {
+        "qualityFloor": "balanced",
+        "baseReasoning": "low",
+        "costSensitivity": "very-high",
+        "falseNegativeCost": "low"
+      }
+    }
+  }
+}

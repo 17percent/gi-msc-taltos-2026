@@ -1,0 +1,3 @@
+# Claude Code: temporary worktrees of parallel agent runs, and per-user local settings
+.claude/worktrees/
+.claude/settings.local.json

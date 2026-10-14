@@ -1,0 +1,14 @@
+{
+  "name": "agentic-fleet-model-inventory",
+  "displayName": "Agentic Fleet: model inventory",
+  "description": "Optional companion of the agentic fleet: writes the chat models this VS Code offers into the fleet's local model-routing cache. Inventory only, no routing, no model call.",
+  "version": "0.1.0",
+  "publisher": "agentic-fleet",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ]
+}

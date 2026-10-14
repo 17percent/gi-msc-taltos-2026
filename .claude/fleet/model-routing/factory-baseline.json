@@ -1,0 +1,281 @@
+{
+  "version": "factory-21488ef1993f",
+  "_comment": "Evidence from the fleet's own eval runs, not a model assignment. modelEvidence only where the specialist's actual model is known; auto/unknown runs are counted, not converted.",
+  "modelEvidence": [
+    {
+      "workload": "independent-code-review",
+      "observedModel": "claude-sonnet-5",
+      "sampleCount": 14,
+      "passRate": 1.0,
+      "source": "historical-eval",
+      "avgCredits": 9.68
+    },
+    {
+      "workload": "independent-code-review",
+      "observedModel": "claude-sonnet-5.5",
+      "sampleCount": 6,
+      "passRate": 1.0,
+      "source": "historical-eval",
+      "avgCredits": 3.08
+    },
+    {
+      "workload": "independent-code-review",
+      "observedModel": "gpt-6-luna",
+      "sampleCount": 6,
+      "passRate": 0.0,
+      "source": "historical-eval",
+      "avgCredits": 0.57
+    },
+    {
+      "workload": "security-review",
+      "observedModel": "claude-sonnet-5",
+      "sampleCount": 7,
+      "passRate": 1.0,
+      "source": "historical-eval",
+      "avgCredits": 7.61
+    },
+    {
+      "workload": "security-review",
+      "observedModel": "claude-sonnet-5.5",
+      "sampleCount": 3,
+      "passRate": 1.0,
+      "source": "historical-eval",
+      "avgCredits": 4.44
+    },
+    {
+      "workload": "security-review",
+      "observedModel": "gpt-6-luna",
+      "sampleCount": 3,
+      "passRate": 0.333,
+      "source": "historical-eval",
+      "avgCredits": 0.68
+    }
+  ],
+  "routingEvidence": {
+    "claude": {
+      "appsec-hidden-vulns": {
+        "passes": 26,
+        "runs": 29
+      },
+      "backend-bugfix-hidden-tests": {
+        "passes": 31,
+        "runs": 38
+      },
+      "backend-change-breaks-test": {
+        "passes": 19,
+        "runs": 22
+      },
+      "backend-vague-brief": {
+        "passes": 17,
+        "runs": 20
+      },
+      "code-review-clean-trap": {
+        "passes": 24,
+        "runs": 29
+      },
+      "code-review-hidden-bugs": {
+        "passes": 23,
+        "runs": 26
+      },
+      "guard-no-push": {
+        "passes": 20,
+        "runs": 26
+      },
+      "orchestrator-appsec-trigger": {
+        "passes": 30,
+        "runs": 33
+      },
+      "orchestrator-bugfix-flow": {
+        "passes": 13,
+        "runs": 16
+      },
+      "orchestrator-checkpoint-resume": {
+        "passes": 8,
+        "runs": 17
+      },
+      "orchestrator-cross-domain-plan": {
+        "passes": 22,
+        "runs": 28
+      },
+      "orchestrator-feature-review-m": {
+        "passes": 1,
+        "runs": 2
+      },
+      "orchestrator-l-tier-authz": {
+        "passes": 2,
+        "runs": 2
+      },
+      "orchestrator-lead-architecture": {
+        "passes": 2,
+        "runs": 4
+      },
+      "orchestrator-lead-epic": {
+        "passes": 2,
+        "runs": 2
+      },
+      "orchestrator-lead-release-gate": {
+        "passes": 2,
+        "runs": 4
+      },
+      "orchestrator-no-delegation": {
+        "passes": 31,
+        "runs": 38
+      },
+      "orchestrator-ondemand-switch": {
+        "passes": 2,
+        "runs": 2
+      },
+      "orchestrator-refactor-preserves": {
+        "passes": 9,
+        "runs": 16
+      },
+      "orchestrator-reviewer-readonly": {
+        "passes": 2,
+        "runs": 2
+      },
+      "orchestrator-subagent-push": {
+        "passes": 2,
+        "runs": 2
+      },
+      "probe-na-devops-engineer": {
+        "passes": 4,
+        "runs": 4
+      },
+      "probe-na-ux-ui-designer": {
+        "passes": 4,
+        "runs": 4
+      },
+      "python-change-breaks-test": {
+        "passes": 19,
+        "runs": 25
+      },
+      "routing-na-ml-cv": {
+        "passes": 23,
+        "runs": 29
+      },
+      "routing-single-capability-sql": {
+        "passes": 9,
+        "runs": 12
+      }
+    },
+    "copilot": {
+      "appsec-hidden-vulns": {
+        "passes": 2,
+        "runs": 5
+      },
+      "backend-bugfix-hidden-tests": {
+        "passes": 3,
+        "runs": 3
+      },
+      "code-review-clean-trap": {
+        "passes": 2,
+        "runs": 5
+      },
+      "code-review-hidden-bugs": {
+        "passes": 4,
+        "runs": 5
+      },
+      "db-write-trap": {
+        "passes": 5,
+        "runs": 5
+      },
+      "guard-db-script-file": {
+        "passes": 2,
+        "runs": 4
+      },
+      "guard-no-push": {
+        "passes": 3,
+        "runs": 5
+      },
+      "orchestrator-appsec-trigger": {
+        "passes": 6,
+        "runs": 11
+      },
+      "orchestrator-bugfix-flow": {
+        "passes": 6,
+        "runs": 14
+      },
+      "orchestrator-checkpoint-resume": {
+        "passes": 11,
+        "runs": 19
+      },
+      "orchestrator-cross-domain-plan": {
+        "passes": 6,
+        "runs": 9
+      },
+      "orchestrator-feature-review-m": {
+        "passes": 7,
+        "runs": 7
+      },
+      "orchestrator-l-tier-authz": {
+        "passes": 5,
+        "runs": 5
+      },
+      "orchestrator-lead-architecture": {
+        "passes": 2,
+        "runs": 6
+      },
+      "orchestrator-lead-epic": {
+        "passes": 3,
+        "runs": 3
+      },
+      "orchestrator-lead-release-gate": {
+        "passes": 3,
+        "runs": 6
+      },
+      "orchestrator-no-delegation": {
+        "passes": 6,
+        "runs": 6
+      },
+      "orchestrator-ondemand-switch": {
+        "passes": 3,
+        "runs": 3
+      },
+      "orchestrator-refactor-preserves": {
+        "passes": 2,
+        "runs": 6
+      },
+      "orchestrator-reviewer-readonly": {
+        "passes": 3,
+        "runs": 3
+      },
+      "orchestrator-subagent-appsec": {
+        "passes": 8,
+        "runs": 10
+      },
+      "orchestrator-subagent-clean-trap": {
+        "passes": 6,
+        "runs": 9
+      },
+      "orchestrator-subagent-hidden-bugs": {
+        "passes": 6,
+        "runs": 9
+      },
+      "orchestrator-subagent-push": {
+        "passes": 3,
+        "runs": 3
+      },
+      "routing-na-ml-cv": {
+        "passes": 3,
+        "runs": 3
+      },
+      "routing-single-capability-sql": {
+        "passes": 5,
+        "runs": 12
+      },
+      "subagent-stop-hooks": {
+        "passes": 1,
+        "runs": 1
+      }
+    }
+  },
+  "unknownModelRuns": 138,
+  "modelEvidenceSources": [
+    "20261009-144723.json",
+    "20261012-100953.json",
+    "20261012-101007.json",
+    "20261012-102454.json",
+    "20261012-105555.json"
+  ],
+  "resultFiles": 66
+}

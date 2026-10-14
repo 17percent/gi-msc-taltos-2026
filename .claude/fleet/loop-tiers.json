@@ -1,0 +1,13 @@
+{
+  "base_candidates": ["main"],
+  "path_signals": {
+    "auth": ["L", "(?i)^(?!Prototypes/).*(auth(?!or(?!iz))|identity|login|oauth|jwt|permission|credential|password)"],
+    "access": ["L", "(?i)(allowlist|csrf|oidc|(^|/)sessions?(/|\\.)|(^|/)roles?(/|\\.))"],
+    "save-path": ["L", "(?i)(^|/)apps/backend/.*(revisions?|locks?|heartbeat|events?)"]
+  },
+  "plan_keywords": {
+    "access": ["L", "(?i)\\b(allowlist\\w*|csrf|session\\w*|munkamenet\\w*|oidc|entra|hozz[áa]f[ée]r[ée]s\\w*|j[óo]v[áa]hagy[áa]si l[ée]p[ée]s\\w*|review[- ]workflow)"],
+    "save-path": ["L", "(?i)\\b(rev[íi]zi[óo]\\w*|revision\\w*|baseRevisionId|heartbeat|z[áa]rol[áa]s\\w*|ment[ée]si tranzakci\\w*|save transaction|append-only|esem[ée]nynapl[óo]\\w*|audit ?log\\w*)"]
+  },
+  "appsec_signals": ["auth", "secrets", "crypto", "authz", "deserialization", "process-exec", "native-interop", "interop", "pii", "payment", "access"]
+}

@@ -1,0 +1,89 @@
+{
+ "root": "C:\\Users\\Mates\\SZTE\\msc\\Szakdoga",
+ "file_source": "git",
+ "files": 33,
+ "truncated": false,
+ "extensions_top": {
+  ".js": 13,
+  ".md": 10,
+  ".html": 4,
+  ".css": 4,
+  ".json": 2
+ },
+ "top_level_dirs": {
+  "Prototypes": 27,
+  "Arch": 4,
+  "(root)": 2
+ },
+ "dotnet_target_frameworks": {},
+ "dotnet_project_sdks": {},
+ "detected": {
+  "docs: claude.md": [
+   "Arch/CLAUDE.md",
+   "CLAUDE.md"
+  ],
+  "docs: readme.md": [
+   "README.md"
+  ]
+ },
+ "projects": {
+  "projects": 0,
+  "references": {},
+  "truncated": false,
+  "most_referenced": {},
+  "test_projects": [],
+  "cycles": []
+ },
+ "conventions": {
+  "style_files": [],
+  "msbuild_settings": {},
+  "editorconfig": {},
+  "instruction_files": [
+   "Arch/CLAUDE.md",
+   "CLAUDE.md"
+  ],
+  "note": "read the instruction files (outside any agentic-fleet block) and check them against the fleet rules for conflicts"
+ },
+ "gate_candidates": [],
+ "ci": [],
+ "glossary_candidates": [],
+ "hotspots": {
+  "since_months": 6,
+  "commits": 12,
+  "areas": [
+   {
+    "area": "Prototypes/tudasbazis-prototype",
+    "commits": 10,
+    "fix_commits": 0
+   },
+   {
+    "area": "Prototypes",
+    "commits": 4,
+    "fix_commits": 0
+   },
+   {
+    "area": "(root)",
+    "commits": 1,
+    "fix_commits": 0
+   },
+   {
+    "area": "Arch",
+    "commits": 1,
+    "fix_commits": 0
+   }
+  ],
+  "note": "score = 3 x fix commits + commits; confirm with the owner before turning any area into an L-tier signal"
+ },
+ "git": {
+  "current_branch": "main",
+  "branches": [
+   "main",
+   "my-remote",
+   "my-remote/main"
+  ]
+ },
+ "graphify": {
+  "graph": false
+ },
+ "note": "Detection is evidence, not truth: confirm uncertain items with the owner. File contents of secrets/config values were not read."
+}
