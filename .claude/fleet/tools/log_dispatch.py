@@ -51,6 +51,36 @@ def read_transcript(path):
     return tokens, tools, stamps
 
 
+def transcript_extras(path):
+    """(cache-read tokens, last result-packet STATUS) from a Claude transcript. Cache reads are most of a long run's
+    token sum but cost ~a tenth of fresh input (measured 2026-10-14: 77% of a 580k backend run), so the row shows them apart;
+    the STATUS fallback covers an agent that answered something else after its result packet (measured: status=?)."""
+    cached, status, seen = 0, "?", set()
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    msg = json.loads(line).get("message")
+                except (ValueError, AttributeError):
+                    continue
+                if not isinstance(msg, dict) or msg.get("role") != "assistant":
+                    continue
+                if msg.get("id") and msg["id"] not in seen and isinstance((msg.get("usage") or {}).get("cache_read_input_tokens"), int):
+                    seen.add(msg["id"])
+                    cached += msg["usage"]["cache_read_input_tokens"]
+                for block in msg.get("content") or []:
+                    if not isinstance(block, dict):
+                        continue
+                    text = block.get("text") if block.get("type") == "text" else (
+                        (block.get("input") or {}).get("message") if block.get("type") == "tool_use"   # Claude Code hands the
+                        and block.get("name") == "SubagentHandback" else None)                        # result back by a tool
+                    st = result_status(text if isinstance(text, str) else "")
+                    status = st if st != "?" else status
+    except (OSError, TypeError):
+        pass
+    return cached, status
+
+
 def from_copilot(data):
     """GitHub Copilot subagentStop payload (measured 2026-10-08: {sessionId, cwd, transcriptPath, agentId, agentName,
     response, stopReason}) -> the Claude Code SubagentStop shape this hook reads. Copilot's transcript is its own event
@@ -186,6 +216,11 @@ def main():
     root = os.environ.get("CLAUDE_PROJECT_DIR") or data.get("cwd") or os.getcwd()
     if not re.match(r"^[A-Za-z0-9_.-]+$", agent) or not is_fleet_agent(root, agent):
         return  # only fleet/project agents, not built-ins like Explore or general-purpose
+    if (not data.get("copilot") and not data.get("agent_transcript_path")
+            and os.path.isfile(os.path.join(root, ".github", "hooks", "agentic-fleet.json"))):
+        # measured 2026-10-14 (--tool both): VS Code's Copilot also runs the Claude settings.json hook, with a Claude-shaped
+        # payload but no transcript; its own .github hook already writes the measured row, so this one would be a blank twin
+        return
     log = os.path.join(root, ".claude", "fleet", "dispatch-log.md")
     if not os.path.isfile(log):
         return
@@ -239,8 +274,14 @@ def main():
                 tools = ev.get("totalToolCalls", tools)
                 if isinstance(ev.get("durationMs"), (int, float)):
                     secs = f"{ev['durationMs'] / 1000:.0f} s"
+    status, split = result_status(data.get("last_assistant_message")), ""
+    if path and not data.get("copilot"):
+        cached, last_status = transcript_extras(path)
+        status = status if status != "?" else last_status
+        if tokens and cached:
+            split = f" fresh={tokens - cached} cached={cached}"
     row = (f"| {datetime.now().strftime('%Y-%m-%d %H:%M')} | {flow} | {agent} | {tokens if tokens else 'UNKNOWN'} "
-           f"| {tools} | {secs} | effort={level} model={model}{credits}{' via=copilot' if data.get('copilot') else ''} status={result_status(data.get('last_assistant_message'))}{task} |\n")
+           f"| {tools} | {secs} | effort={level} model={model}{credits}{' via=copilot' if data.get('copilot') else ''} status={status}{split}{task} |\n")
     with open(log, "a", encoding="utf-8", newline="\n") as fh:
         fh.write(row)
 

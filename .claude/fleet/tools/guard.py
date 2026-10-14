@@ -458,22 +458,70 @@ def route_specialist(raw, data, root, ti):
     the model and the hook writes it into the `task` call (preToolUse modifiedArgs: no approval, no terminal command).
     An explicit model in the call, fleet OFF, routing disabled, an unknown agent or any error -> untouched (inherit)."""
     agent = str(ti.get("agent_type") or ti.get("agentType") or "")
-    if not agent or ti.get("model") or not fleet_active(root, data.get("session_id") or ""):
+    if not agent or not fleet_active(root, data.get("session_id") or ""):
         return
     try:
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        import model_router
-        r = model_router.route(root, agent, str(ti.get("prompt") or ""), "copilot-cli")
-        model = ((r or {}).get("primary") or {}).get("model")
-        if not model:
-            return
         args = raw.get("toolArgs")
         args = json.loads(args) if isinstance(args, str) else dict(args or {})
-        args["model"] = model
-    except Exception:
+    except (ValueError, TypeError):
         return
-    print(json.dumps({"modifiedArgs": args}))
+    if not isinstance(args, dict):
+        return
+    changed = False
+    if not ti.get("model"):
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import model_router
+            r = model_router.route(root, agent, str(ti.get("prompt") or ""), "copilot-cli")
+            model = ((r or {}).get("primary") or {}).get("model")
+            if model:
+                args["model"], changed = model, True
+        except Exception:
+            pass
+    # owner decision 2026-10-13: the Copilot main agent did not name an allowed project skill in its packet (measured), so
+    # the hook reminds the specialist of its allowlist in the packet itself (a reminder, not enforcement)
+    skills = project_skills(root, agent, "copilot")
+    prompt = args.get("prompt")
+    if skills and isinstance(prompt, str) and SKILLS_NOTE not in prompt:
+        args["prompt"], changed = skills_note(prompt, skills, "skill"), True
+    if changed:
+        print(json.dumps({"modifiedArgs": args}))
+        sys.exit(0)
+
+
+SKILLS_NOTE = "Project skills allowed for you (owner-approved, /configure-fleet-skills):"
+
+
+def skills_note(prompt, skills, tool):
+    return (prompt.rstrip() + f"\n\n{SKILLS_NOTE} " + ", ".join(f"`{s}`" for s in skills)
+            + f". If one fits this task, call it with the `{tool}` tool before you start; no other skill.")
+
+
+def claude_skill_note(data, root, ti):
+    """Claude Code: the same packet reminder as on Copilot (owner decision 2026-10-14: the policy rule alone was not
+    followed, measured 1 of 2 runs), via PreToolUse updatedInput on the Agent call."""
+    agent = str(ti.get("subagent_type") or "")
+    prompt = ti.get("prompt")
+    if not agent or not isinstance(prompt, str) or SKILLS_NOTE in prompt or not fleet_active(root, data.get("session_id") or ""):
+        return
+    skills = project_skills(root, agent, "claude")
+    if not skills:
+        return
+    # ponytail: updatedInput needs a decision; "allow" only skips the permission prompt of this Agent call (no prompt by
+    # default anyway), deny rules still apply
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
+                                             "permissionDecisionReason": "fleet: project-skill reminder added to the packet",
+                                             "updatedInput": dict(ti, prompt=skills_note(prompt, skills, "Skill"))}}))
     sys.exit(0)
+
+
+def project_skills(root, agent, tool):
+    try:
+        with open(os.path.join(root, ".claude", "fleet", "project", "skills.json"), encoding="utf-8-sig") as fh:
+            names = ((json.load(fh).get("agents") or {}).get(agent) or {}).get(tool) or []
+        return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
+    except (OSError, ValueError, AttributeError):
+        return []
 
 
 def subagent_context(root):
@@ -708,6 +756,8 @@ def main():
             workflow_reminder(data, root, tool, ti)
             if FORMAT == "copilot" and tool == "Agent":
                 route_specialist(raw, data, root, ti)
+            elif FORMAT == "claude" and tool in ("Agent", "Task"):
+                claude_skill_note(data, root, ti)
         return
     cwd = data.get("cwd") or root
     ro = read_only(agent_file)

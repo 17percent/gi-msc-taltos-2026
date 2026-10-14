@@ -11,6 +11,7 @@ You tailor the installed 28-agent fleet to the project in the current directory 
 
 ## Non-negotiable rules
 
+- **Skills for specialists are not this skill's job either:** which installed skills an agent may call is `/configure-fleet-skills` (`.claude/fleet/project/skills.json`).
 - **Model routing is not this skill's job:** which model a Copilot specialist runs on is `/configure-copilot-models` (host/model/cost routing); this skill tailors the stack and domain only.
 - **Never delete or rename an agent**; never touch `tools:`, `model:`, `effort:`, `maxTurns:`, `omitClaudeMd:` or the hooks. Only an agent's `description` and body text may change.
 - **Keep everything generic and good**: identity/SOUL, method, runtime contract, result packet, safety rules (guard, no database writes, approval before push, real questions to the owner, no secrets). Change only what is **wrong or irrelevant for this project**, and add concise project sections.

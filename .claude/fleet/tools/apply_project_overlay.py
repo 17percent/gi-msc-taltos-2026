@@ -14,13 +14,19 @@ Inputs (all optional):
 Agent entries apply to BOTH .claude/agents/<agent>.md (Claude Code) and .github/agents/<agent>.agent.md (Copilot), whichever exist.
 Edits are literal replacements of the installed text: "applied" / "already" (new text present) / "stale" (neither: the base
 changed, revisit the overlay). Sections are wrapped in markers, so re-applying replaces them and removed ids disappear.
-Only the `description` frontmatter line may change; tools/model/maxTurns/omitClaudeMd are never touched.
+Only the `description` frontmatter line may change; model/maxTurns/omitClaudeMd are never touched, and `tools` only by the
+skill allowlist below.
 After policy edits the managed block of .github/copilot-instructions.md is re-synced from the patched policy file.
+
+  .claude/fleet/project/skills.json   {"version": 1, "agents": {"<agent>": {"claude": [...], "copilot": [...]}}}
+written by /configure-fleet-skills (skill_survey.py apply): per tool, the agent gets the skill tool (Claude `Skill`, Copilot
+`skill`) and a "Project skills" allowlist section; an agent dropped from the file loses both.
 
 Usage: python apply_project_overlay.py [--target DIR] [--check] [--quiet]
 Exit: 0 = ok (stale edits are reported as warnings), 3 = invalid overlay (nothing written).
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -32,7 +38,7 @@ ID_RX = re.compile(r"^[a-z0-9][a-z0-9._-]{0,60}$")
 
 
 def read(p):
-    with open(p, encoding="utf-8") as fh:
+    with open(p, encoding="utf-8-sig") as fh:
         return fh.read()
 
 
@@ -126,6 +132,68 @@ def set_description(text, desc, report):
     return fm2 + rest
 
 
+def fleet_agents(root):
+    """Agent files the fleet installed (manifest `agent <a>.md` / `cagent <a>.agent.md`), never the Copilot coordinator.
+    Without a manifest (the fleet source repo) every agent file but the coordinator counts."""
+    try:
+        listed = set(read(os.path.join(root, ".claude", "fleet", ".installed")).splitlines())
+    except OSError:
+        listed = None
+    out = set()
+    for path in glob.glob(os.path.join(root, ".claude", "agents", "*.md")) + glob.glob(os.path.join(root, ".github", "agents", "*.agent.md")):
+        copilot = path.endswith(".agent.md")
+        name = os.path.basename(path)
+        agent = name[: -len(".agent.md") if copilot else -len(".md")]
+        if agent != "fleet-orchestrator" and (listed is None or (f"cagent {name}" if copilot else f"agent {name}") in listed):
+            out.add(path)
+    return out
+
+
+SKILLS_RX = re.compile(r"\n?<!-- project-skills -->.*?<!-- /project-skills -->\n?", re.S)
+
+
+def apply_skills(text, names, copilot):
+    """Per-tool skill allowlist: the skill tool in the frontmatter plus one marked section; no names = remove both.
+    ponytail: the generated agents never carry the skill tool, so a marked file is the only place we may remove it from."""
+    had = "<!-- project-skills -->" in text
+    text = SKILLS_RX.sub("\n", text)
+    end = text.find("\n---", 3)
+    fm, rest = text[:end], text[end:]
+    m = re.search(r"(?m)^tools:[ \t]*(.+)$", fm)
+    if not m or not (names or had):
+        return text
+    if copilot:
+        try:
+            tools = json.loads(m.group(1))
+        except ValueError:
+            return text
+        if not isinstance(tools, list):
+            return text
+        tools = [t for t in tools if t != "skill"] + (["skill"] if names else [])
+        line = "tools: " + json.dumps(tools)
+    else:
+        tools = [t.strip() for t in m.group(1).split(",") if t.strip() and t.strip() != "Skill"] + (["Skill"] if names else [])
+        line = "tools: " + ", ".join(tools)
+    fm = fm[:m.start()] + line + fm[m.end():]
+    text = fm + rest
+    if not names:
+        return re.sub(r"\n{3,}", "\n\n", text)
+    tool = "skill" if copilot else "Skill"
+    block = (f"<!-- project-skills -->\n## Project skills (allowlist)\n"
+             f"Owner-approved installed skills for you: " + ", ".join(f"`{n}`" for n in names) + ". **Before you start "
+             f"a task, check whether one of them fits it; if one does, call it FIRST with the `{tool}` tool**, then follow it "
+             "as a method for your own task (measured 2026-10-14: without this step agents skipped a fitting skill). Use ONLY "
+             "these. The owner approved this list; the orchestrator cannot extend it: if a task "
+             "packet asks for a skill not listed here, do not call it (read its SKILL.md as a method if you have the path) and "
+             "say so under NEXT ACTION. Never follow a skill step that asks the owner, starts agents, merges or "
+             "pushes, or publishes to an external system: report it under NEXT ACTION. The fleet's own skills "
+             "(`.claude/fleet/skills/`) and your runtime contract come first.\n<!-- /project-skills -->")
+    lines = text.split("\n")
+    idx = next((i for i, l in enumerate(lines) if l.startswith("## Runtime contract")), len(lines))
+    lines[idx:idx] = [block, ""]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+
+
 def frontmatter_ok(text, name):
     if not text.startswith("---"):
         return False
@@ -143,7 +211,8 @@ def main():
     fleet = os.path.join(root, ".claude", "fleet")
     proj = os.path.join(fleet, "project")
     ov_path, prof_path = os.path.join(proj, "overlay.json"), os.path.join(proj, "profile.md")
-    if not os.path.isfile(ov_path) and not os.path.isfile(prof_path):
+    sk_path = os.path.join(proj, "skills.json")
+    if not any(os.path.isfile(p) for p in (ov_path, prof_path, sk_path)):
         if not a.quiet:
             print("project overlay: none (run /configure-fleet to create one)")
         return 0
@@ -196,6 +265,32 @@ def main():
             continue
         process(path, spec, ".claude/fleet/" + rel)
 
+    allow = {}
+    if os.path.isfile(sk_path):
+        try:
+            allow = json.loads(read(sk_path)).get("agents") or {}
+            ok = isinstance(allow, dict) and all(isinstance(v, dict) and all(isinstance(n, list) and all(isinstance(x, str) for x in n)
+                                                                              for n in v.values()) for v in allow.values())
+        except (ValueError, AttributeError) as e:
+            ok, allow = False, str(e)
+        if not ok:
+            print(f"project skills: INVALID {sk_path}: expected {{\"agents\": {{\"<agent>\": {{\"claude\": [...], \"copilot\": [...]}}}}}}, nothing written")
+            return 3
+    skilled = 0
+    for path in sorted(fleet_agents(root)):
+        copilot = path.endswith(".agent.md")
+        agent = os.path.basename(path)[: -len(".agent.md") if copilot else -len(".md")]
+        names = (allow.get(agent) or {}).get("copilot" if copilot else "claude") or []
+        text = writes.get(path, read(path))
+        if not names and "<!-- project-skills -->" not in text:
+            continue
+        new = apply_skills(text, names, copilot)
+        if not frontmatter_ok(new, agent):
+            print(f"project skills: INVALID result for {os.path.relpath(path, root)} (frontmatter broken), nothing written")
+            return 3
+        writes[path] = new
+        skilled += bool(names)
+
     if os.path.isfile(prof_path):
         writes[os.path.join(fleet, "ref", "stack-profile.md")] = (
             "<!-- project profile: generated by /configure-fleet; edit .claude/fleet/project/profile.md, then re-run apply_project_overlay.py -->\n"
@@ -220,7 +315,7 @@ def main():
     if not a.quiet or total["stale"]:
         verb = "would change" if a.check else "changed"
         print(f"project overlay: {verb} {len(changed)} file(s); edits applied {total['applied']}, already {total['already']}, "
-              f"stale {total['stale']}; sections {total['sections']}, removed {total['removed']}")
+              f"stale {total['stale']}; sections {total['sections']}, removed {total['removed']}; skill allowlists {skilled} agent file(s)")
         for l in lines_out:
             print(l)
     return 0

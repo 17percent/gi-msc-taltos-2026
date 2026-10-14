@@ -1,48 +1,48 @@
 {
-    "hooks":  {
-                  "PreToolUse":  [
-                                     {
-                                         "matcher":  "Bash|PowerShell|Read|Grep|Edit|Write|MultiEdit|NotebookEdit",
-                                         "hooks":  [
-                                                       {
-                                                           "type":  "command",
-                                                           "shell":  "powershell",
-                                                           "command":  "\u0026 py -3 \"$env:CLAUDE_PROJECT_DIR\\.claude\\fleet\\tools\\guard.py\"",
-                                                           "timeout":  10
-                                                       }
-                                                   ]
-                                     }
-                                 ],
-                  "SubagentStop":  [
-                                       {
-                                           "hooks":  [
-                                                         {
-                                                             "type":  "command",
-                                                             "shell":  "powershell",
-                                                             "command":  "\u0026 py -3 \"$env:CLAUDE_PROJECT_DIR\\.claude\\fleet\\tools\\log_dispatch.py\"",
-                                                             "timeout":  15,
-                                                             "async":  true
-                                                         }
-                                                     ]
-                                       },
-                                       {
-                                           "hooks":  [
-                                                         {
-                                                             "type":  "command",
-                                                             "shell":  "powershell",
-                                                             "command":  "\u0026 py -3 \"$env:CLAUDE_PROJECT_DIR\\.claude\\fleet\\tools\\memory_hook.py\"",
-                                                             "timeout":  10
-                                                         }
-                                                     ]
-                                       }
-                                   ]
-              },
-    "permissions":  {
-                        "ask":  [
-                                    "Bash(git push:*)",
-                                    "Bash(gh pr merge:*)"
-                                ]
-                    },
-    "model":  "claude-sonnet-5-5",
-    "effortLevel":  "high"
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Agent|Task|Read|Grep|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "& py -3 \"$env:CLAUDE_PROJECT_DIR\\.claude\\fleet\\tools\\guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "& py -3 \"$env:CLAUDE_PROJECT_DIR\\.claude\\fleet\\tools\\log_dispatch.py\"",
+            "timeout": 15,
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "& py -3 \"$env:CLAUDE_PROJECT_DIR\\.claude\\fleet\\tools\\memory_hook.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(gh pr merge:*)"
+    ]
+  },
+  "model": "claude-sonnet-5-5",
+  "effortLevel": "high"
 }
