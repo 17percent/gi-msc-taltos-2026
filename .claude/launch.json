@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tudasbazis-prototype",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-m", "http.server", "8123", "--directory", "Prototypes/tudasbazis-prototype"],
+      "port": 8123
+    }
+  ]
+}
