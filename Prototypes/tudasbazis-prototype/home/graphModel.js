@@ -8,30 +8,22 @@
  * működő („coauthor") él logikája megvan, de ki van kapcsolva — lásd a
  * `LINK_BY_CATEGORY` / `LINK_BY_COAUTHOR` kapcsolókat.
  *
- * EGYSÉGES MÉRET. Minden csomópont sugara ugyanaz (`NODE_R`) — a méret nem
- * hordoz jelentést. A fokszám és az aktivitás csak RANGSOROL (felirat-prioritás,
- * kuráció). Korábban a méret aktivitásból, majd fokszámból jött; egyik sem vált
- * be, mert a méretkülönbség jelentést sugall ott, ahol a szín (kategória) és a
- * pozíció (klaszter) már hordozza azt.
+ * EGYSÉGES MÉRET (D28, D-2). Minden csomópont sugara ugyanaz (`NODE_R`) — a méret
+ * nem hordoz jelentést. A fokszám és az aktivitás csak RANGSOROL (felirat-
+ * prioritás, kuráció). Korábban a méret aktivitásból, majd fokszámból jött; egyik
+ * sem vált be, mert a méretkülönbség jelentést sugall ott, ahol a szín
+ * (kategória) már hordozza azt.
  *
- * A KATEGÓRIA ADJA A HELYET. A dokumentum az ELSŐDLEGES (első) kategóriájának
- * klaszterébe kerül, azon belül koncentrikus, egyenletesen osztott gyűrűkre —
- * kis kategória szabályos N-szög, nagyobb szabályos gyűrűs korong. A klaszter-
- * korongok nem érnek össze, így egyetlen csomópont sem lóg ki a klaszteréből.
- * A további kategóriák a színátmenetben és a facetekben látszanak, a köztük
- * futó élek pedig a klasztereket kötik össze.
- *
- * Ez SZÁNDÉKOS VISSZAFORDÍTÁSA a korábbi elvnek („a kategória nem fizikai
- * hely"): ott a helyet kizárólag a kapcsolat adta, erő-szimulációval. Az 50+
- * dokumentumos korpuszon ez nem működött — egy kategória tagjai szétszóródtak,
- * klaszter nem állt össze. A geometria most zárt formulából jön: nincs
- * erő-szimuláció, nincs Math.random, az átfedés-mentesség pedig KONSTRUKCIÓ
- * SZERINT teljesül, nem utólagos ütközésfeloldásból.
+ * AZ ELRENDEZÉS NEM ITT SZÜLETIK (D28). A helyet a renderer élő erő-szimulációja
+ * adja (`forceSim.js`: középre húzás, taszítás, rugó, ütközés — kategória-vonzás
+ * NINCS, D-1). A modell a topológiát (élek, fokszám), a faceteket, a keresést és
+ * a kategória-színeket adja, plusz egy DETERMINISZTIKUS kezdő x,y-t (phyllotaxis,
+ * lásd 5.). A korábbi zárt formulás klaszter/gyűrű-elrendezés kikerült.
  *
  * Publikus API:
  *   createGraphModel(raw, { tier: 0 })
  *     .getOverview({ includeInactive })   -> { nodes, edges }
- *     .getNeighborhood(id, { max: 32 })   -> { nodes, edges }
+ *     .getNeighborhood(id, { depth: 1 })  -> { nodes, edges, depthOf }   // BFS, mélység 1..5
  *     .search(q, { max: 60 })             -> { nodes, edges, matchIds }
  *     .applyFacets(facets)                -> { docIds, nodeIds, active }   // facets.categories: [name,...] (VAGY-kapcsolat)
  *     .nodeById(id) .nodeForDoc(docId) .categorySlots() .categoryLegend() .stats()
@@ -41,15 +33,13 @@
  * a térképről, csak halványan ott marad kontextusként — a „mi felel meg a
  * szűrőnek" kérdést továbbra is az `applyFacets` válaszolja meg (`nodeIds`).
  *
- * Kurálás: szomszédság ≤ 32, keresés ≤ 60 találat; EGYETLEN getter sem ad
- * vissza 150-nél több csomópontot.
+ * Kurálás: keresés ≤ 60 találat; EGYETLEN getter sem ad vissza 150-nél több
+ * csomópontot (a BFS-szomszédság is a 150-es sapka alatt marad).
  */
 (function (global) {
   'use strict';
 
-  var WORLD = 1000;                       // referencia-span: a szerkezet KÖZEPE ide kerül
-                                          // (a renderer a tartalom bboxához illeszt, ezért nem kemény határ)
-  var TAU = Math.PI * 2;
+  var WORLD = 1000;                       // referencia-span (a renderer a tartalom bboxához illeszt)
   var MAX_NODES = 150;                    // kemény sapka minden getterre
   var MAX_EDGES_PER_NODE = 5;             // fokszám-sapka (a legsúlyosabbak maradnak)
   var MAX_EDGES_RETURNED = 420;
@@ -62,11 +52,11 @@
   var LINK_BY_CATEGORY = true;
   var LINK_BY_COAUTHOR = false;
 
-  // EGYSÉGES csomópont-sugár (px az ÁTTEKINTÉS zoomján) — minden dokumentum
-  // ugyanilyen nagy, fokszámtól és aktivitástól függetlenül. A méret tehát nem
-  // hordoz jelentést: a jelentést a szín (kategória), a pozíció (klaszter) és az
-  // élek adják. A renderer ezt FELSŐ korlátnak tekinti: ha a rendelkezésre álló
-  // térköz kevesebb, kisebbre rajzol (lásd `nodeScreenR`).
+  // EGYSÉGES csomópont-sugár — minden dokumentum ugyanilyen nagy, fokszámtól és
+  // aktivitástól függetlenül (D-2). A méret tehát nem hordoz jelentést: a
+  // jelentést a szín (kategória) és az élek adják. Az átfedés-mentességet NEM ez
+  // garantálja, hanem a szimuláció ütközés-ereje (sugár 60 világ-egység, lásd
+  // `forceSim.js`); a renderer a rajzolt sugarat ebből √zoom-mal skálázza.
   var NODE_R = 10;
 
   // Kategória-paletta slotjai (tokens.css --catcolor-1..8). Egy kategória slotja
@@ -74,18 +64,9 @@
   // egy kategória dokumentumot kap vagy elveszít.
   var CAT_PALETTE_SIZE = 8;
 
-  // ---------- kategória-klaszteres, determinisztikus elrendezés ----------
-  // A dokumentum az ELSŐDLEGES (első) kategóriájának klaszterébe kerül, a
-  // klaszteren belül koncentrikus, egyenletesen osztott gyűrűkre. Nincs
-  // erő-szimuláció: a geometria zárt formulából jön, ezért ütközésmentes
-  // KONSTRUKCIÓ SZERINT, és újratöltés után bitre ugyanaz.
-  var DOC_PAD = 8;                        // két csomópont pereme közti minimális rés
-  var RING_BASE = 6;                      // az 1. gyűrű ennyi helyet visz, a k. gyűrű k×ennyit
-  var CLUSTER_PAD = 10;                   // a klaszter-korong pereme a legkülső csomóponton túl
-  var CLUSTER_GAP = 34;                   // két klaszter-korong közti minimális rés
-  var CLUSTER_STEP = 12;                  // a klaszter-kereső spirál lépése (finomabb = tömörebb pakolás)
-  var CLUSTER_TRIES = 20000;              // védőkorlát a spirál-keresésre
-  var GOLDEN_ANGLE = 2.399963229728653;   // arany szög — egyenletes spirál-fedés
+  // Kezdő phyllotaxis (a d3-force alapértelmezése; lásd 5. és `forceSim.js`).
+  var INITIAL_RADIUS = 10;
+  var INITIAL_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
   // egyszerű diakritika-hajtogatás (magyar + gyakori latin) a kereséshez
   var FOLD_FROM = 'áàâäãåéèêëíìîïóòôöõúùûüőűçñ';
@@ -134,7 +115,7 @@
       if (rawUsers[ui] && rawUsers[ui].id) userName[rawUsers[ui].id] = fold(rawUsers[ui].name || '');
     }
 
-    // ---------- 1. kategóriák — facet ÉS klaszter-hovatartozás (lásd 5.) ----------
+    // ---------- 1. kategóriák — facet + szín (paletta-slot) ----------
     var cats = [];                                // { id, name, key, description, docs: [docIndex] }
     var catByName = {};
     var ci, c;
@@ -351,174 +332,23 @@
       items[i].degree = deg[i];
       items[i].r = NODE_R;
     }
-    // ---------- 5. elrendezés: kategória-klaszterek, determinisztikus geometria ----------
-    // A dokumentum az ELSŐDLEGES (első) kategóriájának klaszterébe kerül. Egy
-    // klaszter tagjai koncentrikus, egyenletesen osztott gyűrűkön állnak: kis
-    // kategória így szabályos N-szöget ad, nagyobb szabályos gyűrűs korongot.
-    // A klaszter-korongok nem érnek össze, ezért egyetlen csomópont sem lóg ki
-    // a saját klaszteréből, és nem is keveredik a szomszédéba.
-    //
-    // Ez SZÁNDÉKOSAN visszafordítja a modul korábbi elvét („a kategória nem
-    // fizikai hely"): ott a helyet kizárólag a kapcsolat adta egy erő-
-    // szimulációval, ami 50+ dokumentumnál átlátszatlan gubanchoz vezetett —
-    // egy kategória tagjai szétszóródtak, klaszter nem állt össze. Most a
-    // kategória ADJA a helyet; a további kategóriák a színátmenetben és a
-    // facetekben látszanak, a köztük futó élek pedig a klasztereket kötik össze.
-    //
-    // Nincs erő-szimuláció és nincs utólagos ütközésfeloldás: a geometria zárt
-    // formulából jön, az átfedés-mentesség KONSTRUKCIÓ SZERINT teljesül (lásd a
-    // klaszteren belüli `step`-et és a korongok közti `CLUSTER_GAP`-et).
-
-    // 5/a. csoportosítás elsődleges kategória szerint
-    var clusters = [], clusterByKey = {}, cl, pKey;
-    for (i = 0; i < n; i++) {
-      pKey = items[i].cats[0].key;
-      cl = clusterByKey[pKey];
-      if (!cl) {
-        cl = { key: pKey, name: items[i].cats[0].name, list: [], cx: 0, cy: 0, radius: 0 };
-        clusterByKey[pKey] = cl;
-        clusters.push(cl);
-      }
-      cl.list.push(i);
-    }
-
-    // 5/b. klaszteren belüli gyűrűk. A tagokat fokszám szerint rendezzük, így a
-    // legjobban bekötött dokumentum kerül a klaszter közepére — a nézet
-    // középpontja jelentést hordoz, nem véletlen.
-    function ringLayout(cluster) {
-      var list = cluster.list, m = list.length, j;
-      list.sort(function (x, y) {
-        if (items[y].degree !== items[x].degree) return items[y].degree - items[x].degree;
-        if (items[y].activity !== items[x].activity) return items[y].activity - items[x].activity;
-        return items[x].doc.id < items[y].doc.id ? -1 : 1;
-      });
-
-      var rMax = 0;
-      for (j = 0; j < m; j++) if (items[list[j]].r > rMax) rMax = items[list[j]].r;
-      var step = 2 * rMax + DOC_PAD;              // bármely két tag közti min. középpont-távolság
-
-      if (m === 1) {
-        items[list[0]].lx = 0; items[list[0]].ly = 0;
-        cluster.radius = rMax + CLUSTER_PAD;
-        return;
-      }
-
-      // Gyűrű-kiosztás: ha minden tag elfér EGY gyűrűn, szabályos N-szöget adunk.
-      // Fölötte középpont + növekvő kapacitású gyűrűk (k. gyűrű: k × RING_BASE).
-      var sizes = [], remaining = m, ringNo = 1;
-      var hasCenter = m > RING_BASE;
-      if (hasCenter) { sizes.push(1); remaining -= 1; }
-      while (remaining > 0) {
-        var take = Math.min(RING_BASE * ringNo, remaining);
-        sizes.push(take);
-        remaining -= take;
-        ringNo++;
-      }
-      // Ne maradjon 1-2 elemű külső gyűrű: az nem szabályos alakzatnak látszik,
-      // hanem elkószált csomópontnak. A csonka maradékot az előző gyűrűbe
-      // olvasztjuk — az egyenletes szögosztás miatt az továbbra is szabályos
-      // (csak több csúcsú) sokszög lesz. (8 tag: [1,6,1] helyett [1,7].)
-      var minRing = Math.ceil(RING_BASE / 2);
-      if (sizes.length >= (hasCenter ? 3 : 2) && sizes[sizes.length - 1] < minRing) {
-        var tail = sizes.pop();
-        sizes[sizes.length - 1] += tail;
-      }
-
-      var cursor = 0, prevR = 0, ri, cnt, ringR, a0, ang, s;
-      for (ri = 0; ri < sizes.length; ri++) {
-        cnt = sizes[ri];
-        if (ri === 0 && hasCenter) {
-          items[list[cursor]].lx = 0; items[list[cursor]].ly = 0;
-          cursor++;
-          prevR = 0;
-          continue;
-        }
-        // A gyűrű sugara: (1) a szomszédok a gyűrűn legalább `step`-re legyenek
-        // egymástól, (2) a gyűrű a korábbitól is `step`-re legyen.
-        s = Math.sin(Math.PI / cnt);
-        ringR = cnt > 1 ? step / (2 * s) : step;
-        if (ringR < prevR + step) ringR = prevR + step;
-        // páros/páratlan gyűrűk félfázissal, hogy a csomópontok összeérjenek
-        a0 = -Math.PI / 2 + (ri % 2) * (Math.PI / cnt);
-        for (j = 0; j < cnt; j++) {
-          ang = a0 + TAU * j / cnt;
-          items[list[cursor]].lx = Math.cos(ang) * ringR;
-          items[list[cursor]].ly = Math.sin(ang) * ringR;
-          cursor++;
-        }
-        prevR = ringR;
-      }
-      cluster.radius = prevR + rMax + CLUSTER_PAD;
-    }
-
-    for (ci = 0; ci < clusters.length; ci++) ringLayout(clusters[ci]);
-
-    // 5/c. klaszter-középpontok: a legnagyobb korong a közepére, a többi az
-    // arany-szög szerinti spirál ELSŐ ütközésmentes pontjára. Determinisztikus
-    // (nincs Math.random), és a méret szerint csökkenő sorrend miatt a nagy
-    // klaszterek kerülnek középre, a kicsik köréjük.
-    clusters.sort(function (a2, b2) {
-      if (b2.radius !== a2.radius) return b2.radius - a2.radius;
-      return a2.key < b2.key ? -1 : 1;
+    // ---------- 5. kezdő pozíció: determinisztikus phyllotaxis ----------
+    // Az ELRENDEZÉST nem a modell adja, hanem a renderer erő-szimulációja
+    // (`forceSim.js`, D28). A modell csak a KEZDŐ x,y-t adja: a d3 alapértelmezett
+    // phyllotaxis-spirálját, a legjobban bekötött dokumentummal a közepén
+    // (fokszám, aktivitás, id szerinti sorrend). Nincs Math.random, ezért újratöltés
+    // után ugyanaz a kezdőállapot — és így ugyanaz a nyugalmi elrendezés.
+    var seedOrder = [];
+    for (i = 0; i < n; i++) seedOrder.push(i);
+    seedOrder.sort(function (x, y) {
+      if (items[y].degree !== items[x].degree) return items[y].degree - items[x].degree;
+      if (items[y].activity !== items[x].activity) return items[y].activity - items[x].activity;
+      return items[x].doc.id < items[y].doc.id ? -1 : 1;
     });
-
-    var placed = [], t, cang, crad, tx, ty, okSpot, pj, other;
-    for (ci = 0; ci < clusters.length; ci++) {
-      cl = clusters[ci];
-      if (!placed.length) { cl.cx = 0; cl.cy = 0; placed.push(cl); continue; }
-      okSpot = false;
-      for (t = 1; t <= CLUSTER_TRIES; t++) {
-        cang = t * GOLDEN_ANGLE;
-        crad = CLUSTER_STEP * Math.sqrt(t);
-        tx = Math.cos(cang) * crad; ty = Math.sin(cang) * crad;
-        okSpot = true;
-        for (pj = 0; pj < placed.length; pj++) {
-          other = placed[pj];
-          if (Math.sqrt((tx - other.cx) * (tx - other.cx) + (ty - other.cy) * (ty - other.cy))
-              < cl.radius + other.radius + CLUSTER_GAP) { okSpot = false; break; }
-        }
-        if (okSpot) { cl.cx = tx; cl.cy = ty; break; }
-      }
-      if (!okSpot) {
-        // Védőág: a spirál kifutott. Rakjuk a mostani legkülső korong mögé —
-        // így sem lesz átfedés, csak a pakolás lesz lazább.
-        var far = 0;
-        for (pj = 0; pj < placed.length; pj++) {
-          var dd = Math.sqrt(placed[pj].cx * placed[pj].cx + placed[pj].cy * placed[pj].cy)
-                 + placed[pj].radius;
-          if (dd > far) far = dd;
-        }
-        cang = ci * GOLDEN_ANGLE;
-        crad = far + cl.radius + CLUSTER_GAP;
-        cl.cx = Math.cos(cang) * crad; cl.cy = Math.sin(cang) * crad;
-      }
-      placed.push(cl);
-    }
-
-    // 5/d. világ-koordináták: klaszter-eltolás + gyűrű-pozíció, majd az egész
-    // szerkezetet a világ közepére igazítjuk. Skálázás NINCS: az mind a
-    // sugarakhoz mért térközöket, mind a gyűrű-geometriát elrontaná. A renderer
-    // a TARTALOM befoglaló téglalapjához illeszti a kamerát, ezért a 0..1000
-    // világ csak referencia-span — a koordináták túlnyúlhatnak nagy korpusznál.
-    for (ci = 0; ci < clusters.length; ci++) {
-      cl = clusters[ci];
-      for (k = 0; k < cl.list.length; k++) {
-        it = items[cl.list[k]];
-        it.px = cl.cx + it.lx;
-        it.py = cl.cy + it.ly;
-      }
-    }
-    var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-    for (i = 0; i < n; i++) {
-      it = items[i];
-      if (it.px - it.r < bx0) bx0 = it.px - it.r;
-      if (it.py - it.r < by0) by0 = it.py - it.r;
-      if (it.px + it.r > bx1) bx1 = it.px + it.r;
-      if (it.py + it.r > by1) by1 = it.py + it.r;
-    }
-    if (isFinite(bx0)) {
-      var offX = WORLD / 2 - (bx0 + bx1) / 2, offY = WORLD / 2 - (by0 + by1) / 2;
-      for (i = 0; i < n; i++) { items[i].px += offX; items[i].py += offY; }
+    for (k = 0; k < seedOrder.length; k++) {
+      var pr = INITIAL_RADIUS * Math.sqrt(0.5 + k), pa = k * INITIAL_ANGLE;
+      items[seedOrder[k]].px = pr * Math.cos(pa);
+      items[seedOrder[k]].py = pr * Math.sin(pa);
     }
 
     // ---------- 6. csomópontok ----------
@@ -539,10 +369,8 @@
         id: nodeIdOf(i),
         label: it.doc.title || it.doc.id,
         type: 'document',
-        // A koordináta NEM kap záró `clamp`-et: a klaszter-geometria pont attól
-        // ütközésmentes, hogy senki nem tolja utólag. A világ-négyzet ezért már
-        // csak referencia-span (a renderer a tartalom bboxához illeszt), nagy
-        // korpusznál a koordináták túlnyúlhatnak rajta.
+        // KEZDŐ pozíció (phyllotaxis, lásd 5.): a renderer szimulációja innen indul
+        // az első betöltéskor; utána a renderer id szerint megőrzi a saját pozícióit.
         x: it.px,
         y: it.py,
         // A renderer ebből rangsorolja a feliratokat — a FOKSZÁM adja, hogy a
@@ -632,28 +460,38 @@
       return buildResult(ids, null, includeInactive);
     }
 
+    // Körönkénti BFS a kiválasztott dokumentumtól (D28, D-3): `depth` = hány
+    // élnyi lépés (1..MAX_DEPTH, alap 1). Csak a szűrőben AKTÍV csomópontokon
+    // halad át (a kiesett csomópont inert — rajta keresztül sem vezet út). Egy
+    // körön belül a sorrend: a szülő élsúly szerint rendezett szomszédlistája,
+    // így determinisztikus. `depthOf[id]` = a csomópont BFS-távolsága.
+    // `max` opcionális sapka (alap: MAX_NODES).
+    var MAX_DEPTH = 5;
     function getNeighborhood(id, opts) {
-      var max = (opts && opts.max) || 32;
+      var depth = Math.round((opts && opts.depth) || 1);
+      if (depth < 1) depth = 1; else if (depth > MAX_DEPTH) depth = MAX_DEPTH;
+      var max = Math.min(MAX_NODES, (opts && opts.max) || MAX_NODES);
       var node = byId[id];
       if (!node) return getOverview();
 
-      var ids = [], seen = {}, i2;
+      var ids = [], seen = {}, depthOf = {}, i2, d2;
       pushUnique(ids, seen, node.id);
-      var nb = adj[node.id] || [];
-      for (i2 = 0; i2 < nb.length && ids.length <= max; i2++) {
-        if (resolveNode(nb[i2].id)) pushUnique(ids, seen, nb[i2].id);
-      }
-      // másodfokú szomszédok, ha még van hely a rangsorban
-      if (ids.length < max) {
-        var first = ids.slice(1);
-        for (var f = 0; f < first.length && ids.length <= max; f++) {
-          var nb2 = adj[first[f]] || [];
-          for (i2 = 0; i2 < nb2.length && ids.length <= max; i2++) {
-            if (resolveNode(nb2[i2].id)) pushUnique(ids, seen, nb2[i2].id);
+      depthOf[node.id] = 0;
+      var frontier = [node.id];
+      for (d2 = 1; d2 <= depth && frontier.length && ids.length < max; d2++) {
+        var next = [];
+        for (var f = 0; f < frontier.length && ids.length < max; f++) {
+          var nb = adj[frontier[f]] || [];
+          for (i2 = 0; i2 < nb.length && ids.length < max; i2++) {
+            if (!resolveNode(nb[i2].id)) continue;
+            if (pushUnique(ids, seen, nb[i2].id)) { depthOf[nb[i2].id] = d2; next.push(nb[i2].id); }
           }
         }
+        frontier = next;
       }
-      return buildResult(ids, null);
+      var res = buildResult(ids, null);
+      res.depthOf = depthOf;
+      return res;
     }
 
     function search(query, opts) {

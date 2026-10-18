@@ -413,6 +413,12 @@ lenne), de a kategória nélküli doksik gyűjtője („Egyéb") igen, mert az I
 `proto-badge` nyom nélkül eltűnt; a vizuális átnézés (mindkét téma, 360px-ig) a
 felhasználónál van.
 
+**8. Élő Atlasz: erő-szimuláció (D28, 2026-10-18).** A zárt formulás klaszter/gyűrű-elrendezés helyett élő, d3-force-egyenértékű szimuláció (`home/forceSim.js`): középre húzás, 1/d taszítás, rugó, ütközés (r = 60). Kategória-vonzás nincs (D-1), a méret egységes (D-2). A renderer birtokolja a szimulációt, fix 60 Hz-es lépéssel; ha minden nyugszik, a ciklus leáll.
+- Csomópont-húzás (5 px-es küszöb), hover-halványítás (a nem szomszédok 0,2-re), és log2-zoomos címkealfa. A zoom a nézet-arány: az áttekintés = 1x.
+- A fókusz helyben marad, BFS-mélységgel (1–3). A Megjelenítés és erők panel a térkép jobb felső sarkában van, a beállítás a localStorage-ban (`tb-atlas-settings`) marad meg.
+- A keresés sem szűkíti a rajzolt halmazt, a nem-találatok halványak. Ezért a gépelés nem rendezi át a térképet.
+- Tesztek: `node --test Prototypes/tudasbazis-prototype/tests/` (Node beépített modulok, vm + csonkolt kanvasz, kézi rAF).
+
 ## Verdikt (kitöltendő átnézés után)
 
 - Mi működik jól: …

@@ -4,28 +4,62 @@
  * címke. Kezeli a kamerát (pan/zoom, tween), a viewport-cullingot, a címke-
  * ütközést és a rács-alapú hit-testet.
  *
- * NINCS domén-/klaszter-kör és nincs LOD-szint (0/1/2): a klasztereket a modell
- * GEOMETRIÁJA adja, itt nincs külön rajzolt burok. A részletesség (címke-budget,
- * alfa, él-fényerő) FOLYTONOSAN skálázódik a zoommal, nem ugrik szinteken.
+ * ÉLŐ ELRENDEZÉS (D28). A pozíciót a renderer saját erő-szimulációja adja
+ * (`forceSim.js`), mert a pozíció NÉZET-állapot. A szimulációt a meglévő rAF-
+ * ciklus hajtja, FIX 60 Hz-es lépéssel és akkumulátorral (képkocka-független;
+ * legfeljebb `MAX_SIM_STEPS` lépés / képkocka, a maradék eldobva). A pozíciók id
+ * szerint megmaradnak `setData` között: ugyanaz a csomópont- és élhalmaz NEM
+ * indítja újra a szimulációt (szűrés, keresés, kiválasztás nem rendezi át a
+ * térképet); új halmaznál az ismert csomópontok a helyükön maradnak, az újak a
+ * szomszédaik mellé kerülnek, és α = 0,3-ra melegszik.
+ * A modell x,y-ját csak a LEGELSŐ betöltés használja kezdőállapotnak
+ * (determinisztikus phyllotaxis); ott egy rövid szinkron előfuttatás után
+ * (α ≤ `PRESETTLE_ALPHA`) a térkép élőben nyugszik meg.
  *
- * CSOMÓPONT-MÉRET: minden csomópont egyforma, és a zoommal LINEÁRISAN skálázódik
- * (mint a távolságok), ezért a csomópont/térköz arány zoom-független. A rajzolt
- * sugárnak felső korlátja a legszűkebb csomópont-pár félút-távolsága, így
- * SEMMILYEN zoom-állapotban nem lehet átfedés — sem a kattinthatósági padló,
- * sem a hover/kijelölés nagyítása nem tudja átlépni. Lásd `nodeScreenR` /
- * `capScreenR` / `computeMinGap`.
+ * A CIKLUS LEÁLL, ha semmi nem mozog: kihűlt szimuláció (α < 0,001, nincs húzás),
+ * nyugvó kamera (tween + áttekintés-követés), beállt hover-halványítás. Egyetlen
+ * kivétel: kijelölt/hoverelt csomópont glória-pulzálása, ami eddig is folyamatos
+ * animáció volt — amíg az látszik, a ciklus fut.
+ * Reduced motion: NINCS ciklus. Minden felmelegítés után a szimuláció szinkron
+ * fut a nyugalomig, és egyetlen statikus képkocka készül; a húzás így is működik.
+ *
+ * INTERAKCIÓ. A csomópont húzható: 5 px alatt a mozdulat kattintás (kiválasztás),
+ * fölötte a csomópont a mutatóhoz rögzül (fx/fy), a szimuláció melegen marad,
+ * elengedéskor kb. 4 s alatt megnyugszik. A háttér húzása továbbra is pásztáz.
+ * A húzás csak elrendezés-finomítás: minden funkció elérhető húzás nélkül
+ * (kattintás, billentyűzet, lista — WCAG 2.5.7).
+ * Hover: a hoverelt (vagy húzott) csomópont és közvetlen szomszédai teljes
+ * alfával, minden más 0,2-re halványul, IDŐALAPÚ easinggel: k = 1 − 0,9^(dt/16,67).
+ *
+ * CÍMKÉK. Alfa = clamp(log₂(zoom) + 1 − T, 0, 1) (Obsidian „text fade threshold").
+ * A „zoom" itt a NÉZET-ARÁNY: `camZ / ovZoom`, vagyis az áttekintés illesztése
+ * = 1×. Így T = 0 mellett az áttekintésben a (budget szerinti) címkék teljesen
+ * látszanak, 0,5× alatt eltűnnek — ez kijelzőmérettől és korpusztól független,
+ * ellentétben a nyers px/világ-egység skálával, ami a bbox-illesztés miatt
+ * korpuszonként mást jelentene. A budget és az ütközés-vágás változatlan.
+ *
+ * CSOMÓPONT-MÉRET: egységes (D-2). A rajzolt sugár a modell sugara × √zoom
+ * (Obsidian-szerű), kattinthatósági padlóval. Az átfedés-mentességet a
+ * szimuláció ütközés-ereje adja (nyugalomban a középpontok ≥ ~2·60 világ-
+ * egységre), a rajzolt sugár felső korlátja pedig ennek a fele az aktuális
+ * skálán (`restCapR`) — így NYUGALOMBAN semmilyen zoomon nincs átfedés. Húzás
+ * és megnyugvás közben átmeneti átfedés lehet (D28 kimondott ára).
+ * (A korábbi `capScreenR`/`computeMinGap` mérés kikerült.)
  *
  * Nem dönt állapotot: a kiemelést és a kamerát a view vezérli. Színt SOSEM éget be —
  * a design tokeneket olvassa (getComputedStyle), így témával EGYÜTT vált.
  *
  * Publikus API:
- *   createAtlasRenderer(canvas, { intensity, reducedMotion, onHover, onSelect, onViewport })
+ *   createAtlasRenderer(canvas, { intensity, reducedMotion, onHover, onSelect, onViewport, forces, labelFade })
  *     .setData({ nodes, edges })
  *     .setHighlight({ selectedId, hoverId, matchIds })   // csak vizuális, kamerát nem mozgat
- *     .focusOn(id, { animate: true })                    // fit-to-bounds a csomópontra + szomszédaira
+ *     .focusOn(id, { animate: true, depth: 1 })          // fit-to-bounds a csomópont `depth` mélységű környezetére
  *     .toOverview({ animate: true })                     // sólyom-nézet
  *     .setDimmed(idsOrNull) .setExcluded(idsOrNull) .getNodeScreenRect(id)
+ *     .setSettings({ forces, labelFade })                // erő-paraméterek (→ α = 0,3) és címke-küszöb T
+ *     .getDebugState()                                   // diagnosztika/teszt: α, pozíciók, halványítás
  *     .start() .stop() .resize() .refreshColors() .destroy()
+ *   createAtlasRenderer.labelAlpha(zoom, T)               // tiszta függvény (a fenti képlet)
  *
  * Két, KÜLÖNBÖZŐ erősségű háttérbe-tolás — ne keverd őket:
  *   `setDimmed`   — lágy elhalkítás (keresés nem-találatai, fókusz szomszédságán
@@ -71,15 +105,31 @@
 
   // Kattinthatósági padló: a KIRAJZOLT sugár nem esik ez alá attól, hogy a térkép-
   // panel kicsi vagy a kamera kizoomolt. A hit-test ezen felül még +6 px-t ad.
-  // FIGYELEM: a padló nem előzi meg a felső korlátot (`capScreenR`) — ha a valódi
-  // térköz szűkebb, a korlát nyer, mert az átfedés-mentesség az erősebb szabály.
+  // FIGYELEM: a padló nem előzi meg a felső korlátot (`restCapR`) — ha a nyugalmi
+  // térköz az adott skálán szűkebb, a korlát nyer (az átfedés-mentesség az erősebb).
   var MIN_NODE_R = 7;
-  // Ennyi px rés maradjon KÉT KÖR PEREME között a legszűkebb párnál is. A rajzolt
-  // sugár felső korlátja ebből jön (lásd `nodeScreenR`) — ez a garancia arra,
-  // hogy semmilyen zoom-állapotban ne legyen átfedés.
+  // Ennyi px rés maradjon két kör pereme között a nyugalmi (ütközési) térköznél.
   var NODE_GAP_KEEP = 1.5;
   var CAT_PALETTE_SIZE = 8;
   var SPRITE_PX = 64;                      // a többkategóriás színátmenet sprite mérete
+
+  // ---------- élő szimuláció (D28) ----------
+  var SIM_STEP_MS = 1000 / 60;             // fix 60 Hz-es szimulációs lépés
+  var MAX_SIM_STEPS = 4;                   // lépés-sapka képkockánként (lassú gépen nem „spirálozik")
+  var PRESETTLE_ALPHA = 0.1;               // első betöltés: szinkron előfuttatás eddig az α-ig
+  var REDUCED_DRAG_TICKS = 24;             // reduced motion: lépések húzás-mozdulatonként (szinkron)
+  var DRAG_THRESHOLD = 5;                  // px — alatta kattintás, fölötte húzás
+  var HOVER_FADE = 0.2;                    // nem-szomszéd alfa hover közben
+  var FADE_BASE = 0.9;                     // k = 1 − 0,9^(dt/16,67)
+  var FRAME_MS = 16.67;
+  var FOLLOW_BASE = 0.85;                  // áttekintés-követés simítása (időalapú, mint a fade)
+
+  // címkealfa = clamp(log₂(zoom) + 1 − T, 0, 1) — zoom = nézet-arány (áttekintés = 1×)
+  function labelAlpha(zoom, T) {
+    if (!(zoom > 0)) return 0;
+    var a = Math.log(zoom) / Math.LN2 + 1 - (+T || 0);
+    return a < 0 ? 0 : a > 1 ? 1 : a;
+  }
 
   function createAtlasRenderer(canvas, options) {
     options = options || {};
@@ -103,6 +153,7 @@
     var cap = 0;                            // lefoglalt kapacitás
     var nCount = 0;
     var nx, ny, nr, nw, ntype, nsx, nsy, nscr, nvis, nmatch, ndim, nout, nlabelW;
+    var nfade, nfadeT, nhov, simIdx;        // hover-halványítás (jelen/cél), hover-szomszéd jelző, sim-index
     var nid = [], nlabel = [], ncat = [];    // ncat[i] = kategória paletta-slotok tömbje
     var idIndex = {};
     var order;                              // Int32Array — súly szerint csökkenő festési/címke-sorrend
@@ -119,11 +170,20 @@
 
     // világ-befoglaló + kamera
     var bMinX = 0, bMinY = 0, bMaxX = WORLD_SPAN, bMaxY = WORLD_SPAN;
-    // A legszűkebb csomópont-pár középpont-távolsága VILÁG-egységben. A rajzolt
-    // sugár felső korlátja ebből jön, ezért MÉRJÜK az adatból, nem a modelltől
-    // kérjük: így a garancia akkor is áll, ha a modell elrendezése változik.
-    var minGapWorld = WORLD_SPAN;
     var fitBase = 1;                        // px / világ-egység zoom 1-en
+
+    // élő szimuláció — a renderer birtokolja (a pozíció nézet-állapot)
+    var createSim = global.createForceSim;
+    var COLLIDE_R = createSim && createSim.CONSTANTS ? createSim.CONSTANTS.COLLIDE_R : 60;
+    var sim = null, simSig = '';
+    var posCache = {};                      // id -> { x, y }: a pozíció túléli a setData-t
+    var hasCache = false;
+    // fizikai paraméterek (nem csúszka-pozíciók) — a csúszka→paraméter leképezés a forceSim-é
+    var forceParams = options.forces || (createSim ? createSim.sliderToParams(createSim.DEFAULT_SLIDERS) : null);
+    var labelT = +options.labelFade || 0;   // címke-küszöb (T)
+    var simAcc = 0;                         // fix lépésű akkumulátor (ms)
+    var hoverK = 0;                         // 0..1 — a hover-halványítás simított erőssége (élekhez)
+    var dragIdx = -1;                       // a húzott csomópont (renderer-index)
     var ovZoom = 1, ovX = WORLD_SPAN / 2, ovY = WORLD_SPAN / 2;
     var camX = WORLD_SPAN / 2, camY = WORLD_SPAN / 2, camZ = 1;
     var frX = camX, frY = camY, frZ = camZ;  // tween-kezdet
@@ -182,6 +242,28 @@
       return [128, 128, 128];
     }
 
+    // CSS-hossz → px. Ismert egység: px, rem (gyökér betűmérete), em (a kanvasz
+    // betűmérete, ennek híján a gyökéré); egység nélkül px. Hibás / nem pozitív
+    // érték → fallback.
+    function fontSizeOf(el) {
+      try {
+        var v = parseFloat(getComputedStyle(el).fontSize);
+        return v > 0 ? v : 0;
+      } catch (e) { return 0; }
+    }
+    function cssLengthPx(str, fallback) {
+      str = (str || '').replace(/^\s+|\s+$/g, '');
+      var m = str.match(/^(-?\d*\.?\d+)\s*(px|rem|em)?$/i);
+      if (!m) return fallback;
+      var n = parseFloat(m[1]), unit = (m[2] || 'px').toLowerCase(), base;
+      if (unit === 'rem' || unit === 'em') {
+        base = (unit === 'em' ? fontSizeOf(canvas) : 0) ||
+               (document.documentElement ? fontSizeOf(document.documentElement) : 0) || 16;
+        n *= base;
+      }
+      return n > 0 && isFinite(n) ? n : fallback;
+    }
+
     function parseMs(str, fallback) {
       if (!str) return fallback;
       var v = parseFloat(str);
@@ -230,7 +312,9 @@
       col.border = readVar('--border', '#DDD6C8');
       col.borderStrong = readVar('--border-strong', '#BFB7A6');
       col.fontBody = readVar('--font-body', 'Inter, sans-serif');
-      col.docFontPx = Math.round(parseFloat(readVar('--text-xs', '12')) || 12);
+      // A token rem-ben van (`--text-xs: .75rem`): px-re KELL oldani, különben
+      // `Math.round(0.75)` = 1 px-es (láthatatlan) címke lesz.
+      col.docFontPx = Math.round(cssLengthPx(readVar('--text-xs', ''), 12));
       col.fontDocBase = '500 ' + col.docFontPx + 'px ' + col.fontBody;
       fontCache = {};
       // kategória-paletta a tokenekből (témával vált) — a sprite-cache dobandó
@@ -268,6 +352,8 @@
       nvis = new Uint8Array(cap); nmatch = new Uint8Array(cap);
       ndim = new Uint8Array(cap); nout = new Uint8Array(cap);
       nlabelW = new Float32Array(cap);
+      nfade = new Float32Array(cap); nfadeT = new Float32Array(cap); nhov = new Uint8Array(cap);
+      simIdx = new Int32Array(cap);
       order = new Int32Array(cap);
       nbStart = new Int32Array(cap + 1);
     }
@@ -289,6 +375,14 @@
 
       ensureNodeCap(n);
       idIndex = {};
+      // Folyamatban lévő húzás: a rögzítést ELŐBB oldjuk (amíg `nid` még a régi),
+      // különben azonos halmaznál a szimuláció örökre rögzítve, melegen maradna
+      // (α ≡ 0,3, a ciklus sosem áll le), mert a pointerup már nem találja.
+      if (dragIdx >= 0) {
+        if (sim) sim.unpin(nid[dragIdx]);
+        dragIdx = -1;
+        dragging = false; dragMoved = false;
+      }
       nid.length = 0; nlabel.length = 0; ncat.length = 0;
       nCount = 0;
 
@@ -306,8 +400,10 @@
         nw[nCount] = +nd.weight || 0;
         ntype[nCount] = typeCode(nd.type);
         nmatch[nCount] = 0; ndim[nCount] = 0; nout[nCount] = 0; nlabelW[nCount] = -1;
+        nfade[nCount] = 1; nfadeT[nCount] = 1; nhov[nCount] = 0;
         nCount++;
       }
+      dragIdx = -1;                         // új adathalmaznál nincs folyamatban lévő húzás
       outActive = false;      // az új adathalmazra a hívó újra kiadja a setExcluded-et
 
       // festési ÉS címke-sorrend: súly szerint csökkenő (a súlyosabb kerül felülre,
@@ -336,12 +432,13 @@
       }
       buildAdjacency();
 
+      syncSimulation();
       computeBounds();
-      computeMinGap();
       buildGrid();
       selIdx = selectedId != null && idIndex[selectedId] != null ? idIndex[selectedId] : -1;
       hovIdx = hoverId != null && idIndex[hoverId] != null ? idIndex[hoverId] : -1;
       markSelectedEdges();
+      updateHoverTargets(true);
 
       // Amíg a felhasználó nem mozgatta a kamerát (nincs pan/zoom/fókusz), az
       // ÚJ adathalmaz áttekintésére illesztünk. Ez azért kell, mert a szűrés
@@ -372,7 +469,10 @@
       }
     }
 
-    function computeBounds() {
+    // `freezeOverview`: húzás közben a befoglaló (rács, pásztázás-határ) frissül, de
+    // az áttekintés-illesztés NEM — különben a kamera a mutató alól húzná ki a
+    // csomópontot, és a nézet-arány (méret, címke) is remegne.
+    function computeBounds(freezeOverview) {
       if (!nCount) {
         bMinX = 0; bMinY = 0; bMaxX = WORLD_SPAN; bMaxY = WORLD_SPAN;
       } else {
@@ -387,24 +487,101 @@
         var padH = Math.max(40, (bMaxY - bMinY) * 0.08);
         bMinX -= padW; bMaxX += padW; bMinY -= padH; bMaxY += padH;
       }
+      if (freezeOverview) return;
       ovX = (bMinX + bMaxX) / 2;
       ovY = (bMinY + bMaxY) / 2;
       ovZoom = fitZoom(bMinX, bMinY, bMaxX, bMaxY, 1);
     }
 
-    // A legszűkebb csomópont-pár középpont-távolsága. O(n²), de n ≤ 150 (MAX_VISIBLE),
-    // és csak `setData`-nkor fut — ez néhány tízezer összehasonlítás, nem per-frame.
-    function computeMinGap() {
-      minGapWorld = WORLD_SPAN;
-      var i, k, dx, dy, d2;
-      for (i = 0; i < nCount; i++) {
-        for (k = i + 1; k < nCount; k++) {
-          dx = nx[i] - nx[k]; dy = ny[i] - ny[k];
-          d2 = dx * dx + dy * dy;
-          if (d2 < minGapWorld * minGapWorld) minGapWorld = Math.sqrt(d2);
-        }
+    // ---------- szimuláció: felépítés / megtartás / szinkron ----------
+    // A halmaz-szignatúra (id-k + élek, rendezve) dönti el, kell-e új szimuláció.
+    // Azonos halmaznál a futó szimuláció marad — a szűrés/keresés/kiválasztás így
+    // nem rendezi át a térképet.
+    function dataSignature() {
+      var ids = nid.slice(0).sort(), es = [], i, a, b;
+      for (i = 0; i < eCount; i++) {
+        a = nid[ea[i]]; b = nid[eb[i]];
+        es.push(a < b ? a + '>' + b : b + '>' + a);
       }
-      if (!(minGapWorld > 0)) minGapWorld = WORLD_SPAN;
+      es.sort();
+      return ids.join('\u0001') + '\u0002' + es.join('\u0001');
+    }
+
+    function syncSimulation() {
+      if (!createSim) return;               // nincs szimulációs modul: a modell x,y-ja marad
+      var sig = dataSignature();
+      var i;
+      if (sim && sig === simSig) {
+        // ugyanaz a halmaz, de a nézet-unió SORRENDJE eltérhet → az index újraépül
+        for (i = 0; i < nCount; i++) simIdx[i] = sim.indexOf(nid[i]);
+        copyFromSim();
+        return;
+      }
+
+      var first = !hasCache;
+      // determinisztikus sorrend: id szerint (független attól, milyen sorrendben
+      // érkezik a nézet-unió)
+      var order2 = [];
+      for (i = 0; i < nCount; i++) order2.push(i);
+      order2.sort(function (x, y) { return nid[x] < nid[y] ? -1 : nid[x] > nid[y] ? 1 : 0; });
+      var simNodes = [], c;
+      for (i = 0; i < order2.length; i++) {
+        var ri = order2[i];
+        c = posCache[nid[ri]];
+        // a modell kezdő x,y-ja csak a LEGELSŐ betöltésnél számít; később az új
+        // csomópontot a szimuláció a szomszédai mellé helyezi
+        simNodes.push(c ? { id: nid[ri], x: c.x, y: c.y }
+                        : first ? { id: nid[ri], x: nx[ri], y: ny[ri] } : { id: nid[ri] });
+      }
+      var simEdges = [];
+      for (i = 0; i < eCount; i++) simEdges.push({ source: nid[ea[i]], target: nid[eb[i]] });
+
+      sim = createSim({ nodes: simNodes, edges: simEdges, params: forceParams, alpha: first ? 1 : 0.3 });
+      simSig = sig;
+      simAcc = 0;
+      for (i = 0; i < nCount; i++) simIdx[i] = sim.indexOf(nid[i]);
+
+      if (reduced) sim.settle();
+      else if (first) { while (sim.alpha() > PRESETTLE_ALPHA && sim.tick(1)) { /* előfuttatás */ } }
+      copyFromSim();
+    }
+
+    // sim → renderer-tömbök + id-cache. Allokáció csak új id-nél.
+    function copyFromSim() {
+      if (!sim) return;
+      var p = sim.positions, i, s, c;
+      for (i = 0; i < nCount; i++) {
+        s = simIdx[i];
+        if (s < 0) continue;
+        nx[i] = p[s * 2]; ny[i] = p[s * 2 + 1];
+        c = posCache[nid[i]];
+        if (!c) { c = posCache[nid[i]] = { x: 0, y: 0 }; }
+        c.x = nx[i]; c.y = ny[i];
+      }
+      if (nCount) hasCache = true;
+    }
+
+    // pozíció-változás után: tömbök, befoglaló, rács
+    function afterSimMove() {
+      copyFromSim();
+      computeBounds(dragIdx >= 0);
+      buildGrid();
+    }
+
+    function setSettings(s) {
+      s = s || {};
+      var changed = false;
+      if (s.labelFade != null && isFinite(+s.labelFade)) { labelT = +s.labelFade; changed = true; }
+      if (s.forces && createSim) {
+        forceParams = s.forces;
+        if (sim) {
+          sim.setParams(forceParams);
+          sim.reheat(0.3);                    // erő-csúszka → felmelegítés (spec §1.2)
+          if (reduced) { sim.settle(); afterSimMove(); snapFollow(); }
+        }
+        changed = true;
+      }
+      if (changed) requestDraw();
     }
 
     // fit-to-bounds: mekkora zoom mellett fér be a téglalap (margóval)
@@ -459,7 +636,42 @@
         }
       }
       markSelectedEdges();
+      updateHoverTargets(false);
       requestDraw();
+    }
+
+    // Hover-halványítás célértékei: a hoverelt (húzás közben a húzott) csomópont és
+    // KÖZVETLEN szomszédai 1, minden más `HOVER_FADE`. Hover nélkül mindenki 1.
+    // `snap`: azonnal a célra (új adat, reduced motion) — különben a képkockák
+    // időalapú easinggel közelítenek (`stepFades`).
+    function hoverFocusIdx() { return dragIdx >= 0 ? dragIdx : hovIdx; }
+    function updateHoverTargets(snap) {
+      var h = hoverFocusIdx(), i, j;
+      for (i = 0; i < nCount; i++) nhov[i] = 0;
+      if (h >= 0) {
+        nhov[h] = 1;
+        for (j = nbStart[h]; j < nbStart[h + 1]; j++) nhov[nbList[j]] = 1;
+      }
+      for (i = 0; i < nCount; i++) {
+        nfadeT[i] = h < 0 || nhov[i] ? 1 : HOVER_FADE;
+        if (snap || reduced) nfade[i] = nfadeT[i];
+      }
+      if (snap || reduced) hoverK = h >= 0 ? 1 : 0;
+    }
+
+    // időalapú közelítés: k = 1 − 0,9^(dt/16,67); visszaad: mozog-e még valami
+    function stepFades(dt) {
+      var k = 1 - Math.pow(FADE_BASE, dt / FRAME_MS), moving = false, i, d;
+      for (i = 0; i < nCount; i++) {
+        d = nfadeT[i] - nfade[i];
+        if (d > 0.002 || d < -0.002) { nfade[i] += d * k; moving = true; }
+        else nfade[i] = nfadeT[i];
+      }
+      var hk = hoverFocusIdx() >= 0 ? 1 : 0;
+      d = hk - hoverK;
+      if (d > 0.002 || d < -0.002) { hoverK += d * k; moving = true; }
+      else hoverK = hk;
+      return moving;
     }
 
     function markSelectedEdges() {
@@ -501,6 +713,7 @@
       if (outActive && hovIdx >= 0 && nout[hovIdx]) {
         hoverId = null; hovIdx = -1;
         markSelectedEdges();
+        updateHoverTargets(false);
       }
       requestDraw();
     }
@@ -546,20 +759,60 @@
       panClamp();
     }
 
+    // Áttekintés-követés: amíg a felhasználó nem mozgatta a kamerát, az az élő
+    // elrendezés befoglalójához igazodik. Folyó tween alatt a tween CÉLJA frissül;
+    // nyugvó kameránál időalapú simítás (nincs ugrás, ha a befoglaló hirtelen vált,
+    // pl. húzás elengedésekor). Visszaad: mozog-e még.
+    function stepFollow(dt) {
+      if (camTouched || !camReady) return false;
+      if (camT < 1) { toX = ovX; toY = ovY; toZ = ovZoom; return true; }
+      var dx = ovX - camX, dy = ovY - camY, rz = ovZoom / camZ;
+      var scale = fitBase * camZ;
+      if (Math.abs(dx * scale) < 0.25 && Math.abs(dy * scale) < 0.25 && Math.abs(rz - 1) < 0.0005) {
+        camX = ovX; camY = ovY; camZ = ovZoom; frX = toX = camX; frY = toY = camY; frZ = toZ = camZ;
+        return false;
+      }
+      var k = 1 - Math.pow(FOLLOW_BASE, dt / FRAME_MS);
+      camX += dx * k; camY += dy * k; camZ *= Math.pow(rz, k);
+      frX = toX = camX; frY = toY = camY; frZ = toZ = camZ;
+      return true;
+    }
+    function snapFollow() {
+      if (camTouched) return;
+      camX = ovX; camY = ovY; camZ = ovZoom;
+      frX = toX = camX; frY = toY = camY; frZ = toZ = camZ; camT = 1;
+    }
+
+    // A csomópont `depth` mélységű környezete (BFS a renderer szomszédságán; a
+    // szűrőből kiesett csomópont inert, rajta át nem vezet út) — fit-to-bounds.
+    var bfsQueue = null, bfsSeen = null;
     function focusOn(id, opts) {
       var animate = !(opts && opts.animate === false);
+      var depth = Math.max(1, Math.round((opts && opts.depth) || 1));
       var i = idIndex[id];
       if (i == null) return;
       var x1 = nx[i], x2 = nx[i], y1 = ny[i], y2 = ny[i];
-      var s = nbStart[i], e = nbStart[i + 1], j, k;
-      for (j = s; j < e; j++) {
-        k = nbList[j];
-        if (nx[k] < x1) x1 = nx[k];
-        if (nx[k] > x2) x2 = nx[k];
-        if (ny[k] < y1) y1 = ny[k];
-        if (ny[k] > y2) y2 = ny[k];
+      if (!bfsQueue || bfsQueue.length < cap) { bfsQueue = new Int32Array(cap); bfsSeen = new Uint8Array(cap); }
+      var j, k, q, head = 0, tail = 0, level = 0, levelEnd;
+      for (j = 0; j < nCount; j++) bfsSeen[j] = 0;
+      bfsQueue[tail++] = i; bfsSeen[i] = 1;
+      while (level < depth && head < tail) {
+        levelEnd = tail;
+        for (; head < levelEnd; head++) {
+          q = bfsQueue[head];
+          for (j = nbStart[q]; j < nbStart[q + 1]; j++) {
+            k = nbList[j];
+            if (bfsSeen[k] || (outActive && nout[k])) continue;
+            bfsSeen[k] = 1; bfsQueue[tail++] = k;
+            if (nx[k] < x1) x1 = nx[k];
+            if (nx[k] > x2) x2 = nx[k];
+            if (ny[k] < y1) y1 = ny[k];
+            if (ny[k] > y2) y2 = ny[k];
+          }
+        }
+        level++;
       }
-      var minSpan = 150;                     // magányos csomópont se zoomoljon a végtelenbe
+      var minSpan = 400;                     // magányos csomópont se zoomoljon a végtelenbe (≈ L + 2·ütközési sugár)
       if (x2 - x1 < minSpan) { var mx = (x1 + x2) / 2; x1 = mx - minSpan / 2; x2 = mx + minSpan / 2; }
       if (y2 - y1 < minSpan) { var my = (y1 + y2) / 2; y1 = my - minSpan / 2; y2 = my + minSpan / 2; }
       var pad = Math.max(30, (x2 - x1) * 0.18);
@@ -579,8 +832,9 @@
     function updateVisualParams() {
       var e = smooth01((zoomRatio() - 1) / ZOOM_DETAIL_SPAN);
       P.docAlpha = 0.80 + 0.20 * e;
-      // (A csomópont-méret NEM innen jön: lásd `nodeScreenR` — lineáris a zoomban.)
-      P.docLabel = 0.15 + 0.85 * e;
+      // (A csomópont-méret NEM innen jön: lásd `nodeScreenR` — √zoom.)
+      // A címke-ALFA a log₂-képletből jön (`labelAlpha`), itt csak a budget.
+      P.docLabel = labelAlpha(zoomRatio(), labelT);
       P.docLabelTop = Math.round(5 + 40 * e);
       // az alapháló áttekintésben is olvasható marad (0,75), közelítve erősödik
       P.edge = 0.75 + 0.25 * e;
@@ -608,44 +862,31 @@
     }
 
     // ---------- projekció ----------
+    // A rajzolt méret a nézet-aránnyal √-esen nő (Obsidian: R·√zoom): közelítve
+    // nem lesz „bogyó", kizoomolva nem lesz pont. Az átfedést nem ez zárja ki,
+    // hanem `restCapR`.
     function zoomFactor() {
-      // A modell `r`-je AZ ÁTTEKINTÉSBEN érvényes px-méret, és a zoommal
-      // LINEÁRISAN skálázódik — pontosan úgy, ahogy a távolságok. Így a
-      // csomópont/térköz arány MINDEN zoom-állapotban ugyanaz, tehát ha
-      // áttekintésben nincs átfedés, akkor semelyik zoomon sincs.
-      //
-      // Korábban ez `sqrt(zoomRatio)` volt („közelítve ne legyen bogyó"), a
-      // távolságok viszont lineárisan nőttek: kizoomolva (a tényleges alsó
-      // határ `ovZoom × 0.55`) a körök relatíve felnagyultak, és összeértek.
-      return Math.max(0.05, zoomRatio());
+      return Math.sqrt(Math.max(0.0025, zoomRatio()));
     }
 
     // A csomópont KIRAJZOLT sugara. Három lépés, ebben a sorrendben:
-    //   1. a modell mérete, lineárisan a zoommal (lásd `zoomFactor`)
+    //   1. a modell mérete × √zoom (lásd `zoomFactor`)
     //   2. kattinthatósági padló (`MIN_NODE_R`), hogy kis panelen se legyen pont
-    //   3. FELSŐ korlát a valódi térköz feléből — ez a garancia: a rajzolt sugár
-    //      soha nem több, mint a legszűkebb csomópont-pár félút-távolsága, így a
-    //      körök nem érhetnek össze. A padló emiatt nem tud átfedést okozni.
-    // A `P.docScale` szándékosan NEM szerepel: az a zoommal 1,0→1,3 között nőtt,
-    // ami megtörte volna a lineáris arányt (közelítve összenyomta a köröket).
+    //   3. FELSŐ korlát a nyugalmi térköz feléből (`restCapR`)
     function nodeScreenR(i, scale) {
       var r = nr[i] * zoomFactor();
       if (r < MIN_NODE_R) r = MIN_NODE_R;
-      return capScreenR(r);
+      return restCapR(r, scale);
     }
 
-    // A legszűkebb csomópont-pár középpont-távolsága KÉPERNYŐ-pixelben.
-    function minGapPx() {
-      return minGapWorld * fitBase * camZ;
-    }
-
-    // A felső korlát külön is kell: a hover/kijelölés NAGYÍTJA a kört, és azt a
-    // nagyítást is le kell vágni, különben épp a kiemelt csomópont érne össze a
-    // szomszédjával. A kiemelés így is egyértelmű marad — gyűrű, glória és szín
-    // jelzi, nem a testméret.
-    function capScreenR(r) {
-      var cap = minGapPx() * 0.5 - NODE_GAP_KEEP;
-      if (cap > 0 && r > cap) r = cap;
+    // Nyugalomban az ütközés-erő a középpontokat ≥ ~2·COLLIDE_R világ-egységre
+    // tartja, ezért a rajzolt sugár felső korlátja ennek a fele az aktuális skálán
+    // (kis ráhagyással a lágy ütközés miatt). Ez váltja ki a korábbi mért
+    // `minGap`-et: a garancia a SZIMULÁCIÓ invariánsán áll, nem a pillanatnyi
+    // elrendezésen. A hover/kijelölés nagyítását is ez vágja le.
+    function restCapR(r, scale) {
+      var capR = COLLIDE_R * 0.95 * (scale > 0 ? scale : fitBase * camZ) - NODE_GAP_KEEP;
+      if (capR > 0 && r > capR) r = capR;
       return r > 0.5 ? r : 0.5;
     }
 
@@ -733,6 +974,12 @@
         if (vsig !== lastVpSig) { lastVpSig = vsig; scheduleViewport(); }
       }
 
+      // Hover-halványítás az éleken: a hoverelt (húzott) csomópontba futó él
+      // teljes, minden más él 0,2 felé halványul — a csomópontokkal azonos, simított
+      // ütemben (`hoverK`).
+      var hFocus = hoverFocusIdx();
+      var edgeFadeOther = 1 - (1 - HOVER_FADE) * hoverK;
+
       // 1) élek — két menet (alap / kiemelt), hogy a strokeStyle ne váltogasson
       ctx.lineWidth = 1;
       if (P.edge > 0.02) {
@@ -746,6 +993,7 @@
           // szűrőből kiesett végpont: az él is visszahúzódik — a kapcsolat látszik,
           // de nem versenyez a szűrt halmaz éleivel
           if (outActive && (nout[ea[i]] || nout[eb[i]])) al *= EDGE_A_EXCLUDED;
+          if (ea[i] !== hFocus && eb[i] !== hFocus) al *= edgeFadeOther;
           ctx.globalAlpha = al;
           ctx.beginPath();
           ctx.moveTo(nsx[ea[i]], nsy[ea[i]]);
@@ -765,6 +1013,7 @@
         var alB = Math.min(0.95, (EDGE_A_HI + wB * EDGE_A_HI_WEIGHT) * cfg.edge);
         // a kijelölt szomszédsága is visszafogott, ha a másik vége kiesett a szűrőből
         if (outActive && (nout[ea[i]] || nout[eb[i]])) alB *= EDGE_A_EXCLUDED;
+        if (ea[i] !== hFocus && eb[i] !== hFocus) alB *= edgeFadeOther;
         ctx.globalAlpha = alB;
         ctx.beginPath();
         ctx.moveTo(nsx[ea[i]], nsy[ea[i]]);
@@ -789,7 +1038,7 @@
       for (j = 0; j < nCount && labelUsed < budget; j++) {
         idx = order[j];
         if (!nvis[idx] || idx === selIdx || idx === hovIdx) continue;
-        if (P.docLabel <= 0.05) continue;
+        if (P.docLabel * nfade[idx] < 0.06) continue;
         if (!nmatch[idx]) {
           if (docLabels >= P.docLabelTop) continue;
           docLabels++;
@@ -811,6 +1060,7 @@
       // belőle. A jelentést nem a szín hordozza, hanem a KITÖLTÉS eltűnése — a
       // kategória-színt sem viszi tovább, így a paletta csak a szűrt halmazt
       // írja le. A méret változatlan — az minden csomóponton egységes.
+      a *= nfade[i];                          // hover-halványítás (1 = nincs)
       if (outActive && nout[i]) {
         ctx.globalAlpha = Math.min(0.55, a * 0.5);
         ctx.strokeStyle = col.textSubtle;
@@ -823,7 +1073,7 @@
 
       if (isHov && !reduced) r *= 1 + 0.09 * pulse * cfg.pulse;
       if (isSel) r *= 1.12;
-      r = capScreenR(r);                      // a nagyítás sem érhet át a szomszédra
+      r = restCapR(r, fitBase * camZ);        // a nagyítás sem érhet át a szomszédra
 
       // A kitöltés a KATEGÓRIÁ(I)T tükrözi: egy kategória = tömör szín, több
       // kategória = finom átmenet a színei között (sprite). Ha nincs kategória-
@@ -887,7 +1137,9 @@
 
     function labelFor(i, budget, forced) {
       if (labelUsed >= budget) return;
-      var alpha = Math.max(P.docLabel, forced ? 0.9 : 0);
+      // A kiemelt (kijelölt/hoverelt) csomópont címkéje minden zoomon teljes alfával
+      // látszik; a többié a log₂-képletből jön, a hover-halványítással szorozva.
+      var alpha = forced ? 1 : P.docLabel * nfade[i];
       if (alpha < 0.06) return;
       if (dimActive && ndim[i] && !forced) alpha *= 0.35;
 
@@ -987,8 +1239,27 @@
     }
 
     // ---------- interakció ----------
+    // Egy mutató-gesztus háromféle lehet, a lenyomás helye és az elmozdulás dönt:
+    //   · ≤ DRAG_THRESHOLD px → kattintás (kiválasztás / üres helyen kizoomolás)
+    //   · csomóponton indult, > küszöb → CSOMÓPONT-HÚZÁS (fx/fy a mutatóhoz)
+    //   · üres helyen indult, > küszöb → pásztázás (mint eddig)
+    // A húzás sosem választ ki. A szűrőből kiesett csomópont inert: nem húzható.
     var dragging = false, dragMoved = false, downX = 0, downY = 0, lastPX = 0, lastPY = 0, downId = -1;
-    var DRAG_SLOP = 4;
+    var grabDX = 0, grabDY = 0;
+
+    function screenToWorldX(px) { return (px - W / 2) / (fitBase * camZ) + camX; }
+    function screenToWorldY(py) { return (py - H / 2) / (fitBase * camZ) + camY; }
+
+    function setHoverIdx(hit) {
+      var id = hit >= 0 ? nid[hit] : null;
+      if (id === hoverId) return;
+      hoverId = id;
+      hovIdx = hit;
+      markSelectedEdges();
+      updateHoverTargets(false);
+      requestDraw();
+      onHover(id);
+    }
 
     function onPointerDown(e) {
       if (e.button != null && e.button !== 0) return;
@@ -1002,34 +1273,67 @@
       }
     }
 
+    function beginNodeDrag() {
+      dragIdx = downId;
+      grabDX = nx[dragIdx] - screenToWorldX(downX);
+      grabDY = ny[dragIdx] - screenToWorldY(downY);
+      setHoverIdx(dragIdx);                 // húzás közben a húzott csomópont a kiemelt
+      updateHoverTargets(false);
+    }
+
+    function moveNodeDrag(px, py) {
+      if (dragIdx < 0 || !sim) return;
+      var wx = screenToWorldX(px) + grabDX, wy = screenToWorldY(py) + grabDY;
+      sim.pin(nid[dragIdx], wx, wy);        // α = αTarget = 0,3, amíg tartod
+      if (reduced) sim.tick(REDUCED_DRAG_TICKS);
+      afterSimMove();
+      requestDraw();
+    }
+
+    function endNodeDrag() {
+      if (dragIdx < 0) return;
+      var id = nid[dragIdx];
+      dragIdx = -1;
+      if (sim) {
+        sim.unpin(id);                      // αTarget = 0 → kb. 4 s alatt megnyugszik
+        if (reduced) sim.settle();
+        afterSimMove();
+        if (reduced) snapFollow();
+      }
+      updateHoverTargets(false);
+      requestDraw();
+    }
+
     function onPointerMove(e) {
       var rect = canvas.getBoundingClientRect();
       var px = e.clientX - rect.left, py = e.clientY - rect.top;
       if (dragging) {
-        if (!dragMoved && (Math.abs(px - downX) > DRAG_SLOP || Math.abs(py - downY) > DRAG_SLOP)) dragMoved = true;
+        if (!dragMoved) {
+          var mdx = px - downX, mdy = py - downY;
+          if (mdx * mdx + mdy * mdy > DRAG_THRESHOLD * DRAG_THRESHOLD) {
+            dragMoved = true;
+            if (downId >= 0 && sim && fitBase * camZ > 0) beginNodeDrag();
+          }
+        }
         if (dragMoved) {
-          var scale = fitBase * camZ;
-          if (scale > 0) {
-            camTouched = true;
-            camX -= (px - lastPX) / scale;
-            camY -= (py - lastPY) / scale;
-            camT = 1; frX = toX = camX; frY = toY = camY; frZ = toZ = camZ;
-            panClamp();
-            requestDraw();
+          if (dragIdx >= 0) {
+            moveNodeDrag(px, py);
+          } else {
+            var scale = fitBase * camZ;
+            if (scale > 0) {
+              camTouched = true;
+              camX -= (px - lastPX) / scale;
+              camY -= (py - lastPY) / scale;
+              camT = 1; frX = toX = camX; frY = toY = camY; frZ = toZ = camZ;
+              panClamp();
+              requestDraw();
+            }
           }
         }
         lastPX = px; lastPY = py;
         return;
       }
-      var hit = hitTest(px, py);
-      var id = hit >= 0 ? nid[hit] : null;
-      if (id !== hoverId) {
-        hoverId = id;
-        hovIdx = hit;
-        markSelectedEdges();
-        requestDraw();
-        onHover(id);
-      }
+      setHoverIdx(hitTest(px, py));
     }
 
     function onPointerUp(e) {
@@ -1038,7 +1342,9 @@
       if (canvas.releasePointerCapture && e.pointerId != null) {
         try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
       }
+      if (dragIdx >= 0) { endNodeDrag(); dragMoved = false; return; }
       if (dragMoved) { dragMoved = false; return; }     // húzás sosem választ ki
+      if (e.type === 'pointercancel' || e.type === 'lostpointercapture') return;   // megszakított gesztus nem kattintás
       var rect = canvas.getBoundingClientRect();
       var hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
       if (hit < 0) hit = downId;
@@ -1046,12 +1352,8 @@
     }
 
     function onPointerLeave() {
-      if (hoverId !== null) {
-        hoverId = null; hovIdx = -1;
-        markSelectedEdges();
-        requestDraw();
-        onHover(null);
-      }
+      if (dragging) return;                 // pointer capture: húzás közben a kilépés nem hover-vég
+      if (hoverId !== null) setHoverIdx(-1);
     }
 
     function onWheel(e) {
@@ -1076,18 +1378,53 @@
       requestDraw();
     }
 
-    // ---------- rAF ----------
-    var raf = 0, running = false, lastT = 0;
+    // ---------- rAF (igény szerinti ciklus) ----------
+    // `running` = a térkép látható és élő (start/stop). A képkockát `kick()` kéri;
+    // a ciklus addig kér újat, amíg valami mozog (`needsFrame`), utána LEÁLL.
+    var raf = 0, running = false, lastT = 0, lastMoving = false;
+
+    function stepSimulation(dt) {
+      if (!sim || sim.isSettled()) { simAcc = 0; return false; }
+      simAcc += dt;
+      var steps = 0;
+      while (simAcc >= SIM_STEP_MS && steps < MAX_SIM_STEPS) {
+        sim.tick(1);
+        simAcc -= SIM_STEP_MS;
+        steps++;
+      }
+      if (steps >= MAX_SIM_STEPS) simAcc = 0;   // lemaradás: eldobjuk, nem „spirálozunk"
+      if (steps) afterSimMove();
+      return true;
+    }
+
+    function needsFrame() {
+      if (sim && !sim.isSettled()) return true;
+      if (camT < 1 || lastMoving) return true;
+      // a kijelölt/hoverelt csomópont glória-pulzálása folyamatos animáció
+      if (!reduced && (selIdx >= 0 || hovIdx >= 0)) return true;
+      return false;
+    }
 
     function frameFn(ts) {
+      raf = 0;
       if (!running) return;
       if (!lastT) lastT = ts;
       var dt = ts - lastT;
       if (dt > 50) dt = 50;
       lastT = ts;
       phase += dt;
+      stepSimulation(dt);
       stepCamera(dt);
+      var follow = stepFollow(dt);
+      var fades = stepFades(dt);
+      lastMoving = follow || fades;
       drawFrame();
+      if (needsFrame()) raf = global.requestAnimationFrame(frameFn);
+      else lastT = 0;                         // a következő indításnál ne számoljon „ugrást"
+    }
+
+    function kick() {
+      if (!running || raf) return;
       raf = global.requestAnimationFrame(frameFn);
     }
 
@@ -1095,19 +1432,21 @@
       if (reduced) { drawFrame(); return; }
       if (running) return;
       running = true; lastT = 0;
-      raf = global.requestAnimationFrame(frameFn);
+      kick();
     }
 
     function stop() {
       running = false;
       if (raf) global.cancelAnimationFrame(raf);
-      raf = 0;
+      raf = 0; lastT = 0;
     }
 
-    // reduced-motion: nincs ciklus — egyetlen statikus képkocka, azonnali állapottal
+    // Futó ciklusnál a következő képkockát kéri; reduced motion / leállított
+    // ciklus mellett azonnal, szinkron rajzol (egyetlen statikus képkocka).
     var inDraw = false;
     function requestDraw() {
-      if (running || inDraw) return;         // újrabelépés-védelem
+      if (running) { kick(); return; }
+      if (inDraw) return;                    // újrabelépés-védelem
       inDraw = true;
       if (reduced) camT = 1;
       drawFrame();
@@ -1125,6 +1464,9 @@
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerUp);
+    // elveszett capture (pl. a böngésző elvette a gesztust, vagy a pointerup nem
+    // érkezett meg) = megszakítás: a húzás lezárul, nincs kiválasztás
+    canvas.addEventListener('lostpointercapture', onPointerUp);
     canvas.addEventListener('pointerleave', onPointerLeave);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     document.addEventListener('visibilitychange', onVisibility);
@@ -1136,9 +1478,38 @@
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('lostpointercapture', onPointerUp);
       canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('wheel', onWheel);
       document.removeEventListener('visibilitychange', onVisibility);
+    }
+
+    // Diagnosztika / teszt-varrat: csak OLVAS, allokál — ne hívd képkockánként.
+    function getDebugState() {
+      var nodes = [], i, scale = fitBase * camZ;
+      for (i = 0; i < nCount; i++) {
+        nodes.push({
+          id: nid[i], x: nx[i], y: ny[i],
+          fade: nfade[i], fadeTarget: nfadeT[i],
+          pinned: !!(sim && sim.isPinned(nid[i])),
+          screenX: (nx[i] - camX) * scale + W / 2, screenY: (ny[i] - camY) * scale + H / 2,
+          screenR: nodeScreenR(i, scale)
+        });
+      }
+      return {
+        alpha: sim ? sim.alpha() : 0,
+        settled: sim ? sim.isSettled() : true,
+        loopActive: !!raf,
+        running: running,
+        zoom: zoomRatio(),
+        labelAlpha: labelAlpha(zoomRatio(), labelT),
+        labelFade: labelT,
+        hoverId: hoverId,
+        dragId: dragIdx >= 0 ? nid[dragIdx] : null,
+        camTouched: camTouched,
+        params: sim ? sim.params() : forceParams,
+        nodes: nodes
+      };
     }
 
     // init
@@ -1159,9 +1530,12 @@
       stop: stop,
       resize: resize,
       refreshColors: refreshColors,
+      setSettings: setSettings,
+      getDebugState: getDebugState,
       destroy: destroy
     };
   }
 
+  createAtlasRenderer.labelAlpha = labelAlpha;
   global.createAtlasRenderer = createAtlasRenderer;
 })(window);

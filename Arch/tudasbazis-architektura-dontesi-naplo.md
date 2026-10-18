@@ -204,6 +204,16 @@ Könnyű, textarea-alapú szerkesztő élő előnézettel — illik a markdown-f
 4. **Csomag-zárási fegyelem:** minden csomag CI-zöld tesztekkel + a naplópontok visszaellenőrzésével zárul; új igény csak a naplón át (D21).
 **Az MVP mind a 13 pontja csomaghoz rendelt** (lefedettségi tábla a dokumentumban); a verziótörténet/diff (MVP 3.) a korábban implicit helyéről explicit csomagot kapott (WP7).
 
+### D28 — Élő Atlasz: élő erő-szimulációs elrendezés, Obsidian-szerű interakcióval *(új, 2026-10-18)*
+**Döntés:** az Atlasz térképének elrendezését élő, d3-force-egyenértékű erő-szimuláció adja (középre húzás, taszítás, rugó, ütközés). Saját implementáció, könyvtár nélkül, determinisztikus kezdőállapottal. A csomópontok húzhatók; hoverre kiemelődnek a szomszédok, a többi halványul; a címkék zoomfüggően jelennek meg; az erők egy beállításpanelen hangolhatók. A paraméterek az Obsidian gráfnézetének elemzéséből jönnek (`Prototypes/atlasz-obsidian-graf-elemzes.md`).
+**Részdöntések:**
+- A klaszterezettséget kizárólag az élek adják, kategória-vonzás erő nincs (tiszta Obsidian-erők).
+- A csomópont-méret egységes marad.
+- A fókusz helyben marad: a kiválasztott dokumentum állítható mélységű (BFS) környezete kiemelt, a többi halvány, nem tűnik el.
+**Felülírja:** a `taltos-home-handoff.md` §9 Tier 0 előírását („klaszterezett, nem force-directed”) és a `graphModel.js` zárt formulás klaszter-elrendezését.
+**Kimondott ár:** a „konstrukció szerint nincs átfedés” garancia „nyugalomban nincs átfedés” garanciára gyengül. Egy korábbi erő-szimulációs változat 50+ dokumentumnál klaszter nélküli gubancot adott; ezt a kockázatot vállaljuk, a hangolás a panelen történik. A csomópont-húzás csak elrendezés-finomítás: a térkép minden funkciója húzás nélkül is elérhető (WCAG 2.5.7).
+**Scope (D21):** a prototípusra (`Prototypes/tudasbazis-prototype/home/`) vonatkozik; a React SPA-ba (D23) átvételhez külön naplópont kell.
+
 ## 4. Adatmodell-vázlat (PostgreSQL)
 
 - `documents` — **stabil `id` (UUID, a rendszer generálja, soha nem változik; a frontmatterben is tárolva)**; út a repóban (attribútum, átnevezéskor változhat — az id nem!), cím, státusz, tulajdonos, **sablon-jelölés (is_template)**, utolsó commit hash, indexelt tartalom (`tsvector`, magyar konfiguráció + `pg_trgm` a ragozás-tűrő kereséshez), soft delete jelölés (archívum, D8)

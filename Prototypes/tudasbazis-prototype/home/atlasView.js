@@ -34,6 +34,140 @@
     '<svg class="catfilter__caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
     'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 
+  var ICON_SLIDERS =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/>' +
+    '<circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>';
+
+  // ---------------- „Megjelenítés és erők" beállítások (D28) ----------------
+  // A csúszka-POZÍCIÓK élnek itt (és a localStorage-ban); a fizikai paramétert a
+  // `createForceSim.sliderToParams` képezi le — egyetlen leképezés a panelnek, a
+  // tárolásnak és a teszteknek.
+  //   labels: a „Címkék megjelenése" csúszka. Jobbra = MÁR TÁVOLABBRÓL is látszanak,
+  //           ezért a renderer küszöbe T = −labels (Obsidian „text fade threshold").
+  //   depth:  a fókusz BFS-mélysége (1..3).
+  var SETTINGS_KEY = 'tb-atlas-settings';
+  var SETTINGS_VERSION = 1;
+  var VIEW_SLIDERS = {
+    labels: { min: -3, max: 3, step: 0.5, def: 0 },
+    depth: { min: 1, max: 3, step: 1, def: 1 }
+  };
+
+  function forceSliderSpec() {
+    var fs = global.createForceSim && global.createForceSim.SLIDERS;
+    return fs || {
+      center: { min: 0, max: 1, step: 0.01, def: 0.52 },
+      repel: { min: 0, max: 20, step: 0.1, def: 10 },
+      linkStrength: { min: 0, max: 1, step: 0.01, def: 1 },
+      linkDistance: { min: 30, max: 500, step: 1, def: 250 }
+    };
+  }
+
+  function settingsSpec() {
+    var f = forceSliderSpec();
+    return {
+      center: f.center, repel: f.repel, linkStrength: f.linkStrength, linkDistance: f.linkDistance,
+      labels: VIEW_SLIDERS.labels, depth: VIEW_SLIDERS.depth
+    };
+  }
+
+  function defaultSettings() {
+    var spec = settingsSpec(), out = {};
+    for (var k in spec) if (Object.prototype.hasOwnProperty.call(spec, k)) out[k] = spec[k].def;
+    return out;
+  }
+
+  // ismeretlen/hibás érték → alapérték; tartományon kívüli → a szélére
+  function sanitizeSettings(obj) {
+    var spec = settingsSpec(), out = defaultSettings(), k, v;
+    if (!obj || typeof obj !== 'object') return out;
+    for (k in spec) {
+      if (!Object.prototype.hasOwnProperty.call(spec, k)) continue;
+      v = +obj[k];
+      if (obj[k] == null || !isFinite(v)) continue;
+      out[k] = v < spec[k].min ? spec[k].min : v > spec[k].max ? spec[k].max : v;
+    }
+    out.depth = Math.round(out.depth);
+    return out;
+  }
+
+  // localStorage nélkül (privát mód, tiltás, kvóta) is működik: ilyenkor az
+  // alapértékekkel indul, és a változás csak a munkamenetben él.
+  function loadSettings(storage) {
+    try {
+      var raw = storage && storage.getItem(SETTINGS_KEY);
+      if (!raw) return defaultSettings();
+      var parsed = JSON.parse(raw);
+      if (!parsed || parsed.v !== SETTINGS_VERSION) return defaultSettings();
+      return sanitizeSettings(parsed);
+    } catch (e) {
+      return defaultSettings();
+    }
+  }
+  function saveSettings(storage, s) {
+    try {
+      if (!storage) return false;
+      var o = { v: SETTINGS_VERSION };
+      for (var k in s) if (Object.prototype.hasOwnProperty.call(s, k)) o[k] = s[k];
+      storage.setItem(SETTINGS_KEY, JSON.stringify(o));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function forcesOf(s) {
+    return global.createForceSim
+      ? global.createForceSim.sliderToParams({ center: s.center, repel: s.repel, linkStrength: s.linkStrength, linkDistance: s.linkDistance })
+      : null;
+  }
+
+  function fmtNum(v, digits) {
+    var str = (+v).toFixed(digits);
+    return str.replace('.', ',').replace('-', '−');
+  }
+
+  // csúszka-sorok leírása: felirat, súgó, kijelzett érték (magyar formátummal)
+  var SLIDER_ROWS = [
+    { key: 'center', group: 'forces', label: 'Középre húzás', hint: 'Mennyire tart a térkép a közép felé.',
+      fmt: function (v) { return fmtNum(v, 2); } },
+    { key: 'repel', group: 'forces', label: 'Taszítás', hint: 'Mennyire tolják el egymást a dokumentumok.',
+      fmt: function (v) { return fmtNum(v, 1); } },
+    { key: 'linkStrength', group: 'forces', label: 'Kapcsolatok ereje', hint: 'Mennyire húzzák össze a kapcsolatok a dokumentumokat.',
+      fmt: function (v) { return fmtNum(v, 2); } },
+    { key: 'linkDistance', group: 'forces', label: 'Kapcsolat hossza', hint: 'Milyen távol álljanak egymástól a kapcsolt dokumentumok.',
+      fmt: function (v) { return fmtNum(v, 0); } },
+    { key: 'labels', group: 'view', label: 'Címkék megjelenése', hint: 'Jobbra húzva a címkék már távolabbról is látszanak.',
+      fmt: function (v) { return (v > 0 ? '+' : '') + fmtNum(v, 1); } },
+    { key: 'depth', group: 'view', label: 'Fókusz mélysége', hint: 'Kiválasztáskor ennyi lépésnyi kapcsolat marad kiemelve.',
+      fmt: function (v) { return fmtNum(v, 0) + ' lépés'; } }
+  ];
+
+  function settingsPanelHtml() {
+    var spec = settingsSpec(), html = '', groups = { forces: 'Erők', view: 'Megjelenítés' }, g, i, r;
+    for (g in groups) {
+      if (!Object.prototype.hasOwnProperty.call(groups, g)) continue;
+      html += '<fieldset class="atlas__settings-group"><legend class="atlas__settings-legend">' + groups[g] + '</legend>';
+      for (i = 0; i < SLIDER_ROWS.length; i++) {
+        r = SLIDER_ROWS[i];
+        if (r.group !== g) continue;
+        var sp = spec[r.key], id = 'atlas-set-' + r.key;
+        html += '<div class="atlas__slider">' +
+          '<label class="atlas__slider-label" for="' + id + '">' + r.label + '</label>' +
+          '<output class="atlas__slider-value mono" for="' + id + '" data-out="' + r.key + '"></output>' +
+          '<input class="atlas__range" type="range" id="' + id + '" data-set="' + r.key + '" ' +
+                 'min="' + sp.min + '" max="' + sp.max + '" step="' + sp.step + '" ' +
+                 'aria-describedby="' + id + '-hint">' +
+          '<p class="atlas__slider-hint" id="' + id + '-hint">' + r.hint + '</p>' +
+        '</div>';
+      }
+      html += '</fieldset>';
+    }
+    html += '<button class="btn btn--ghost btn--sm atlas__settings-reset" type="button" data-act="reset-settings">' +
+            'Alapértékek visszaállítása</button>';
+    return html;
+  }
+
   function el(html) {
     var t = document.createElement('template');
     t.innerHTML = html.trim();
@@ -84,6 +218,14 @@
           '<div class="atlas__map">' +
             '<canvas class="atlas__field" aria-hidden="true"></canvas>' +
             '<canvas class="atlas__graph" aria-hidden="true"></canvas>' +
+            '<div class="atlas__tools">' +
+              '<button class="btn btn--sm atlas__tools-toggle" type="button" aria-expanded="false" ' +
+                      'aria-controls="atlas-settings" data-act="toggle-settings">' +
+                ICON_SLIDERS + '<span>Megjelenítés és erők</span>' +
+              '</button>' +
+              '<div class="atlas__settings" id="atlas-settings" role="group" ' +
+                   'aria-label="Megjelenítés és erők" hidden>' + settingsPanelHtml() + '</div>' +
+            '</div>' +
             '<div class="atlas__hud">' +
               '<div class="atlas__legend" data-legend hidden>' +
                 '<p class="atlas__legend-title">Kategóriák</p>' +
@@ -126,6 +268,14 @@
     var emptyEl = root.querySelector('.atlas__empty');
     var statusEl = root.querySelector('.atlas__status');
     var resultsEl = root.querySelector('.atlas__results');
+    var settingsToggle = root.querySelector('[data-act="toggle-settings"]');
+    var settingsEl = root.querySelector('.atlas__settings');
+    var settingsReset = root.querySelector('[data-act="reset-settings"]');
+
+    // a felhasználó kényelmi beállításai (localStorage, ha elérhető)
+    var storage = null;
+    try { storage = global.localStorage || null; } catch (e) { storage = null; }
+    var settings = loadSettings(storage);
 
     // token-vezérelt időzítés
     var cs = getComputedStyle(root);
@@ -404,7 +554,9 @@
         intensity: 'balanced',
         reducedMotion: reduced,
         onHover: function (id) { store.setHover(nodeToDoc(id)); },
-        onSelect: onMapSelect
+        onSelect: onMapSelect,
+        forces: forcesOf(settings),
+        labelFade: -settings.labels
         // `onViewport` szándékosan nincs: a lista nem követi a kamerát (lásd fentebb)
       });
     } catch (err) {
@@ -559,8 +711,12 @@
       var view, docIds, matchIds = null, focusIds = null;
 
       if (q) {
-        view = model.search(q, { max: 60 });
-        matchIds = view.matchIds || [];
+        var sres = model.search(q, { max: 60 });
+        matchIds = sres.matchIds || [];
+        // A keresés sem SZŰKÍTI a rajzolt halmazt: a nem-találatok halványan
+        // ott maradnak (setDimmed). Ez az élő szimuláció miatt kell — ugyanaz a
+        // halmaz = ugyanaz a szimuláció, így a gépelés nem rendezi át a térképet.
+        view = mergeViews(sres, model.getOverview());
         docIds = [];
         for (var i = 0; i < matchIds.length; i++) {
           var n = model.nodeById(matchIds[i]);
@@ -569,8 +725,11 @@
       } else if (s.selectedId) {
         var nid = docToNode(s.selectedId);
         var overview = model.getOverview();
-        var nb = nid ? model.getNeighborhood(nid, { max: 32 }) : null;
-        view = nb ? mergeViews(overview, nb) : overview;
+        // a fókusz környezete: BFS a beállított mélységig (D28, D-3: helyben, halványítással)
+        var nb = nid ? model.getNeighborhood(nid, { depth: settings.depth }) : null;
+        // A fókusz-halmaz ELŐL: a renderer csak az első MAX_VISIBLE csomópontot veszi
+        // át, így 150+ dokumentumnál az áttekintés nem szoríthatja ki a kijelöltet.
+        view = nb ? mergeViews(nb, overview) : overview;
         focusIds = nb ? nb.nodes.map(function (nd) { return nd.id; }) : null;
         docIds = facetRes.docIds.slice();
       } else {
@@ -587,6 +746,7 @@
         excludedIds = idsOutside(view.nodes, facetRes.nodeIds);
       }
 
+      view.matchIds = matchIds;
       lastView = view;
       if (map) {
         map.setData({ nodes: view.nodes, edges: view.edges });
@@ -599,7 +759,8 @@
         // nem-találatok, kiválasztásnál a szomszédságon KÍVÜLI csomópontok
         // halványulnak — soha nem tűnnek el a rajzolt adatból.
         var dimIds = null;
-        if (matchIds && matchIds.length) dimIds = idsOutside(view.nodes, matchIds);
+        // keresésnél találat nélkül MINDEN halvány (a térkép nem ürül ki)
+        if (q) dimIds = idsOutside(view.nodes, matchIds || []);
         else if (focusIds && focusIds.length) dimIds = idsOutside(view.nodes, focusIds);
         map.setDimmed(dimIds);
         // a szűrőn kívüliek erősebb háttérbe-tolása (üres karika + inert)
@@ -682,7 +843,7 @@
       } else if (now === 'focused') {
         emptyEl.hidden = true;
         var nid = docToNode(ctx.selectedId);
-        if (map && nid) map.focusOn(nid, { animate: true });
+        if (map && nid) map.focusOn(nid, { animate: true, depth: settings.depth });
       } else if (now === 'searching') {
         emptyEl.hidden = true;
       } else if (now === 'empty') {
@@ -866,6 +1027,90 @@
 
     zoomOutBtn.addEventListener('click', backToOverview);
 
+    // ---------------- „Megjelenítés és erők" panel ----------------
+    // Összecsukható (gomb + aria-expanded). Minden csúszka-mozdulat azonnal hat:
+    // az erő-csúszka felmelegíti a szimulációt (α = 0,3; reduced motionnél a
+    // renderer szinkron a nyugalomig futtat), a címke-csúszka újrarajzol, a
+    // mélység-csúszka a fókusz kiemelését (és kamera-illesztését) frissíti.
+    var settingsInputs = settingsEl.querySelectorAll('input[data-set]');
+
+    function paintSettings() {
+      for (var i = 0; i < settingsInputs.length; i++) {
+        var key = settingsInputs[i].getAttribute('data-set');
+        settingsInputs[i].value = String(settings[key]);
+        paintSettingValue(key);
+      }
+    }
+    function paintSettingValue(key) {
+      var out = settingsEl.querySelector('[data-out="' + key + '"]');
+      if (!out) return;
+      for (var i = 0; i < SLIDER_ROWS.length; i++) {
+        if (SLIDER_ROWS[i].key === key) { out.textContent = SLIDER_ROWS[i].fmt(settings[key]); return; }
+      }
+    }
+
+    function applySettings(changedKey) {
+      if (!map || !map.setSettings) return;
+      var isForce = !changedKey || changedKey === 'center' || changedKey === 'repel' ||
+                    changedKey === 'linkStrength' || changedKey === 'linkDistance';
+      var patch = {};
+      if (isForce) patch.forces = forcesOf(settings);
+      if (!changedKey || changedKey === 'labels') patch.labelFade = -settings.labels;
+      if (patch.forces || patch.labelFade != null) map.setSettings(patch);
+      if ((!changedKey || changedKey === 'depth') && store.state.selectedId && !store.state.query.trim()) {
+        recompute({ silent: true });
+        var fid = docToNode(store.state.selectedId);
+        if (fid) map.focusOn(fid, { animate: true, depth: settings.depth });
+      }
+    }
+
+    function onSettingsInput(e) {
+      var inp = e.target.closest ? e.target.closest('input[data-set]') : null;
+      if (!inp) return;
+      var key = inp.getAttribute('data-set');
+      var next = {};
+      for (var k in settings) if (Object.prototype.hasOwnProperty.call(settings, k)) next[k] = settings[k];
+      next[key] = +inp.value;
+      next = sanitizeSettings(next);
+      if (next[key] === settings[key]) return;
+      settings = next;
+      paintSettingValue(key);
+      applySettings(key);
+    }
+    function onSettingsChange(e) {
+      if (e.target.closest && e.target.closest('input[data-set]')) saveSettings(storage, settings);
+    }
+    function onSettingsReset() {
+      settings = defaultSettings();
+      paintSettings();
+      applySettings(null);
+      saveSettings(storage, settings);
+    }
+
+    function setSettingsOpen(open, refocus) {
+      settingsEl.hidden = !open;
+      settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      root.dataset.settings = open ? 'open' : 'closed';
+      if (!open && refocus) settingsToggle.focus();
+    }
+    function onSettingsToggle() { setSettingsOpen(settingsEl.hidden, false); }
+    // Escape a panelben: a panel csukódik (a fókusz a gombra kerül), és NEM
+    // zoomol ki a térkép — egy Escape egy lépést von vissza.
+    function onSettingsKeydown(e) {
+      if (e.key === 'Escape' && !settingsEl.hidden) {
+        e.stopPropagation();
+        setSettingsOpen(false, true);
+      }
+    }
+
+    paintSettings();
+    settingsEl.addEventListener('input', onSettingsInput);
+    settingsEl.addEventListener('change', onSettingsChange);
+    settingsReset.addEventListener('click', onSettingsReset);
+    settingsToggle.addEventListener('click', onSettingsToggle);
+    settingsEl.addEventListener('keydown', onSettingsKeydown);
+    settingsToggle.addEventListener('keydown', onSettingsKeydown);
+
     newBtn.addEventListener('click', function () { if (cb.onNew) cb.onNew(); });
 
     // Esc a térképen = kizoomolás (a térkép nem lehet billentyűzet-csapda)
@@ -942,6 +1187,12 @@
       catFilterEl.removeEventListener('keydown', onCatFilterKeydown);
       catPanel.removeEventListener('keydown', onCatFilterKeydown);
       document.removeEventListener('click', onDocClickForCatFilter);
+      settingsEl.removeEventListener('input', onSettingsInput);
+      settingsEl.removeEventListener('change', onSettingsChange);
+      settingsReset.removeEventListener('click', onSettingsReset);
+      settingsToggle.removeEventListener('click', onSettingsToggle);
+      settingsEl.removeEventListener('keydown', onSettingsKeydown);
+      settingsToggle.removeEventListener('keydown', onSettingsKeydown);
       global.removeEventListener('resize', positionCategoryPanel);   // ha épp nyitva volt
       global.removeEventListener('scroll', positionCategoryPanel, true);
       // a portálozott panel a body-ban van — a root eltávolítása nem vinné magával
@@ -962,5 +1213,11 @@
     };
   }
 
+  // beállítás-tároló (tiszta függvények) — a tesztek ezen át ellenőrzik a
+  // localStorage nélküli és hibás tartalmú esetet is
+  mountAtlas.settingsStore = {
+    KEY: SETTINGS_KEY, load: loadSettings, save: saveSettings,
+    sanitize: sanitizeSettings, defaults: defaultSettings, forcesOf: forcesOf
+  };
   global.mountAtlas = mountAtlas;
 })(window);

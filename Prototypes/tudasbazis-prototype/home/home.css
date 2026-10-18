@@ -162,6 +162,113 @@
 }
 .atlas[data-view="focused"] .atlas__zoomout { opacity: 1; pointer-events: auto; }
 
+/* ============ „Megjelenítés és erők" panel (D28) ============ */
+/* A térkép jobb felső sarkában, a HUD-dal ellentétes oldalon (a jelmagyarázat és
+   az „Áttekintés" gomb bal alul marad). Összecsukható: alapból csak a gomb látszik.
+   A panel a TÉRKÉP magasságán belül marad, és ha nem fér el (900px alatt a térkép
+   a színpad ~35%-a), a panel maga görget — a térkép `overflow:hidden`-je nem vágja le.
+   Szegély: `thin` kulcsszó, hogy a komponens-CSS-ben ne legyen nyers px. */
+.atlas__tools {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: var(--z-raised);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  max-width: calc(100% - var(--space-8));
+  max-height: calc(100% - var(--space-8));
+  pointer-events: none;            /* a sarok üres része ne nyelje el a térkép-gesztust */
+}
+.atlas__tools > * { pointer-events: auto; }
+.atlas__tools-toggle {
+  flex: none;
+  box-shadow: var(--shadow-sm);
+}
+.atlas__tools-toggle[aria-expanded="true"] {
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.atlas__tools-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.atlas__settings {
+  flex: 0 1 auto;
+  min-height: 0;
+  width: min(calc(var(--space-24) * 3), 100%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface);
+  border: thin solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+.atlas__settings[hidden] { display: none; }
+
+.atlas__settings-group {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.atlas__settings-legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.atlas__slider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
+}
+.atlas__slider-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text);
+}
+.atlas__slider-value {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.atlas__range {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: var(--space-6);           /* érintési cél: a sáv vékony, a vezérlő nem */
+  margin: 0;
+  accent-color: var(--primary);
+  background: transparent;
+  cursor: pointer;
+}
+.atlas__range:focus-visible {
+  outline: none;
+  border-radius: var(--radius-full);
+  box-shadow: var(--focus-ring);
+}
+.atlas__slider-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--text-subtle);
+}
+.atlas__settings-reset { width: 100%; }
+.atlas__settings-reset:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 /* ============ kategória-szűrő: multiszelekt dropdown ============ */
 /* A kategória a modellben már csak facet (nincs fizikai helye a térképen) —
    ez a vezérlő ezt tükrözi: több egyszerre kiválasztható, checkbox-listával,
@@ -415,6 +522,14 @@
   .atlas__stage { grid-template-rows: minmax(0, 28%) minmax(0, 1fr); }
   .atlas__new { margin-left: 0; }
   .atlas__facets { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: var(--space-1); }
+  /* kis térképen a panel sarokhoz közelebb ül, és a teljes szélességet kaphatja */
+  .atlas__tools {
+    top: var(--space-2);
+    right: var(--space-2);
+    max-width: calc(100% - var(--space-4));
+    max-height: calc(100% - var(--space-4));
+  }
+  .atlas__settings { padding: var(--space-3); }
 }
 @media (max-width: 400px) {
   .atlas__row { grid-template-columns: auto minmax(0, 1fr) auto; }
@@ -429,5 +544,9 @@
   .catfilter__control,
   .catfilter__caret,
   .catfilter__remove,
-  .catfilter__option { transition: none; }
+  .catfilter__option,
+  .atlas__tools-toggle,
+  .atlas__settings-reset { transition: none; }
+  .atlas__tools-toggle:hover:not(:disabled),
+  .atlas__settings-reset:hover:not(:disabled) { transform: none; }
 }
