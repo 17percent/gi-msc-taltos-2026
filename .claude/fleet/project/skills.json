@@ -58,6 +58,11 @@
       "claude": [
         "mattpocock-skills:writing-for-agents"
       ]
+    },
+    "technical-researcher": {
+      "claude": [
+        "reverse-engineer-anything"
+      ]
     }
   },
   "overrides": {

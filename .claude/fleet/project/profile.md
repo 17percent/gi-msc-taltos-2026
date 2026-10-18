@@ -133,6 +133,13 @@ Ha a feladat SQL-t érint (natív vagy Drizzle-generált), optimalizáld idő É
 | Tesztek (unit / integráció / e2e) | `qa-automation` | – |
 | Terv-dokumentumok, README, döntési napló | `technical-writer` (döntés: `architect` + tulajdonos) | – |
 | Architektúra-döntés, ADR | `architect` | `challenger` (nagy/irreverzibilis) |
+| Kész app/bináris viselkedésének visszafejtése (REA) | `technical-researcher` | – |
+
+## Projekt-eszközök (MCP)
+
+- **REA** (`rea-agents@6.7.0`, visszafejtés: JS/Electron, .NET, natív bináris, weboldal) — tulajdonosi döntés 2026-10-18. MCP-regisztráció: `claude mcp add --scope local rea -- cmd.exe /d /c npx -y rea-agents@6.7.0 mcp` (a `~/.claude.json`-ban, csak ebben a projektben; nem commitolt). Skill: `.claude/skills/reverse-engineer-anything/` (v6.7.0), engedélylistán: `technical-researcher` (`skills.json`). Csak a `technical-researcher` kapja az eszközöket: `tools:` sorában `mcp__rea__*`.
+- **Fleet-frissítés után kézzel vissza kell tenni** a `mcp__rea__*`-t a `.claude/agents/technical-researcher.md` `tools:` sorába: az overlay-applier csak a `Skill` eszközt kezeli, a többi eszközt egy újragenerált agent-fájlba nem írja vissza.
+- Csak olyan célpontra, amelynek elemzésére a tulajdonos jogosult (REA `DISCLAIMER.md`). Futásidejű rögzítés (böngésző-/Electron-/folyamat-capture) a célt a felhasználó jogaival futtatja: ehhez kérd a tulajdonos jóváhagyását.
 
 ## Nem releváns itt
 
