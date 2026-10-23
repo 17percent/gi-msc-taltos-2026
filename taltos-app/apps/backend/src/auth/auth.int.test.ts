@@ -216,9 +216,9 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
       expect(await seen()).toBe(now.getTime() + 61_000);
     });
 
-    it('az allowlistről levett felhasználó következő kérése 403, a munkamenet visszavonva (HTTP, pg-tárral)', async () => {
+    /** b sima Szerző (előbb a rendszerindító e-mail lép be, D54): nem gazda, nem admin, levehető. */
+    async function authorWithSession() {
       await allow(BOOTSTRAP, 'b@example.test');
-      // Előbb a rendszerindító e-mail (D54), így b sima Szerző: nem gazda, nem admin, a szinkron levehet.
       await store().login(identity(BOOTSTRAP), now);
       const login = await store().login(identity('b@example.test'), now);
       if (login.status !== 'ok') throw new Error('belépés sikertelen');
@@ -227,18 +227,37 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
         { ...TEST_CONFIG, bootstrapAdminEmail: BOOTSTRAP },
         { store: store(), oidc: new FakeOidc(), cookieSecret: 'k', clock: clock.now },
       );
+      const { token } = await new SessionService(store(), policy, clock.now).issue(login.userId);
+      const get = () =>
+        app.inject({
+          method: 'GET',
+          url: '/api/v1/me',
+          headers: { cookie: `taltos_sid=${token}` },
+        });
+      return { app, get };
+    }
+
+    it('a konfig-szinkron a levett felhasználó munkamenetét azonnal visszavonja: a következő kérés 401 (HTTP, pg-tárral)', async () => {
+      const { app, get } = await authorWithSession();
       try {
-        const { token } = await new SessionService(store(), policy, clock.now).issue(login.userId);
-        const get = () =>
-          app.inject({
-            method: 'GET',
-            url: '/api/v1/me',
-            headers: { cookie: `taltos_sid=${token}` },
-          });
         expect((await get()).statusCode).toBe(200);
         const sync = await syncAllowlist(drizzle(db.app), [BOOTSTRAP], now);
         expect(sync.removed).toBe(1);
-        expect((await get()).statusCode).toBe(403);
+        expect((await get()).statusCode).toBe(401);
+      } finally {
+        await app.close();
+      }
+    });
+
+    it('a máshonnan (nem a szinkronból) levett felhasználó következő kérése 403, a munkamenet visszavonva (HTTP, pg-tárral)', async () => {
+      const { app, get } = await authorWithSession();
+      try {
+        expect((await get()).statusCode).toBe(200);
+        // Pl. a második ütemes allowlist-felület: a sor kikerül, a munkamenet még él.
+        await q("UPDATE allowlist SET deleted_at = now() WHERE email = 'b@example.test'");
+        const removed = await get();
+        expect(removed.statusCode).toBe(403);
+        expect(removed.json()).toMatchObject({ code: 'not_on_allowlist' });
         expect((await get()).statusCode).toBe(401);
       } finally {
         await app.close();
