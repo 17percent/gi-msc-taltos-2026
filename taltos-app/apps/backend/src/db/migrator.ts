@@ -20,10 +20,17 @@ export const MIGRATIONS_FOLDER = join(
  */
 export async function runMigrations(pool: pg.Pool): Promise<void> {
   const client = await pool.connect();
+  let broken: Error | undefined;
   try {
     await client.query(`SET ROLE ${OWNER_ROLE}`);
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
   } finally {
-    client.release();
+    // A kapcsolat ne maradjon taltos_owner a készletben; ha a visszaváltás sem sikerül, eldobjuk a kapcsolatot.
+    try {
+      await client.query('RESET ROLE');
+    } catch (error) {
+      broken = error instanceof Error ? error : new Error(String(error));
+    }
+    client.release(broken);
   }
 }

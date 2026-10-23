@@ -38,13 +38,16 @@ export function loadDbConnection(role: DbRole, env: NodeJS.ProcessEnv = process.
   };
 }
 
+/** A kapcsolódás időkorlátja: a migrate és a seed hibával áll le ahelyett, hogy egy elérhetetlen DB-n lógna. */
+const CONNECTION_TIMEOUT_MS = 10_000;
+
 /**
  * Kapcsolatkészlet. A `pg.Pool` kapcsolatot csak az első lekérdezéskor nyit, ezért a készlet létrehozása
  * nem igényel elérhető adatbázist (a backend indulása nem függ tőle). A készlet hibaeseményét naplózzuk,
  * különben egy elveszett kapcsolat a folyamatot is leállítaná.
  */
 export function createPool(connection: DbConnection, max = 5): pg.Pool {
-  const pool = new pg.Pool({ ...connection, max });
+  const pool = new pg.Pool({ ...connection, max, connectionTimeoutMillis: CONNECTION_TIMEOUT_MS });
   pool.on('error', (error) => {
     console.error('Adatbázis-kapcsolat hiba (készlet):', error.message);
   });

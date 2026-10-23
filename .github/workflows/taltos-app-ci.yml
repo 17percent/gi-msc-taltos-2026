@@ -100,6 +100,10 @@ jobs:
       # hibának vehetné): 1. Postgres (az init-szkript lefut), 2. a kép építése és a migráció (a kilépési kód terjed),
       # 3. a backend és a frontend a függőségek (már lefutott migráció) kihagyásával.
       - run: docker compose -f compose.yaml up --detach --wait --wait-timeout 120 postgres
+      # A taltos_* szerepkörök megerősítése az init-szkript UTÁN (admin psql, helyi socket): nincs rolsuper/rolcreaterole/
+      # rolcreatedb/rolreplication/rolbypassrls, és a taltos_backend nem kap CREATE/TEMP jogot az adatbázison, CREATE-et a public sémán.
+      - name: szerepkörök ellenőrzése (B4 S23)
+        run: docker compose -f compose.yaml exec -T postgres psql -U taltos_admin -d taltos -v ON_ERROR_STOP=1 -f - < db/checks/roles-hardening.sql
       - run: docker compose -f compose.yaml build backend
       - name: migráció (egyszeri)
         shell: bash

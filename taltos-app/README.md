@@ -77,7 +77,7 @@ a `/static/` útvonalon (D15).
 PostgreSQL 18 az egyetlen adatréteg (D1); a séma forrása a [B4](../Arch/tudasbazis-db-sema-b4.md) (10. verzió,
 D51-kiegészítés). A séma Drizzle-ben él (`apps/backend/src/db/schema.ts`), a keresési infrastruktúra, az append-only
 triggerek, a review-invariánsok, a részleges indexek és a szerepkör-jogok kézi SQL-migrációk (B4 3. szakasz), egyetlen
-rendezett naplóban: `apps/backend/drizzle/0000_base_schema` (generált) és `0001`-`0005` (kézi).
+rendezett naplóban: `apps/backend/drizzle/0000_base_schema` (generált) és `0001`-`0006` (kézi).
 **`drizzle-kit push` TILOS** (a `search_vector`, a kompozit FK-k és a kézi indexek a TS-sémán kívül élnek).
 
 ### Szerepkörök: ki mit hoz létre (B4 S23)
@@ -111,7 +111,10 @@ docker compose --profile seed run --rm seed      # dummy adat (csak üres DB-re,
 db:migrate` / `db:seed`. Séma-módosítás után: `pnpm --filter @taltos/backend db:generate` (kézi SQL: `drizzle-kit
 generate --custom --name …`).
 - **Seed** (`pnpm --filter @taltos/backend db:seed`, `apps/backend/src/db/seed.ts`): determinisztikus (seedelt PRNG),
-  NODE_ENV=production esetén megtagadja a futást, és csak üres adatbázisra fut. A `taltos_backend` (app) szerepkörrel
+  **fail-closed**: csak `NODE_ENV=development` ÉS `TALTOS_ALLOW_SEED=1` együtt fut (hiányzó vagy elírt NODE_ENV mellett
+  sem), és csak üres adatbázisra. Helyben: `NODE_ENV=development TALTOS_ALLOW_SEED=1 pnpm --filter @taltos/backend db:seed`;
+  a Compose dev-only `seed` szolgáltatása beállítja a két változót, az éles `compose.yaml` nem tartalmazza. Az e-mail
+  címek a fenntartott `example.test` tartományban vannak (RFC 2606), így semmilyen levél nem érheti el valódi címzettet. A `taltos_backend` (app) szerepkörrel
   fut, így ugyanazokon a DB-invariánsokon megy át, mint a későbbi `ReviewService`. Tartalom: Általános tér (mindenki
   Szerző), három csapat-tér és egy projekt-tér, a prototípus kilenc kategóriájából képzett fajták, 1-3 témacímke
   dokumentumonként, vegyes review-állapotok konzisztens kérésekkel, review-er sorokkal, revíziókkal és eseményekkel.

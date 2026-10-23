@@ -13,11 +13,19 @@
   set -eu
   MIGRATOR_PW="$(tr -d '\r\n' < "${DB_MIGRATOR_PASSWORD_FILE:?hiányzik a DB_MIGRATOR_PASSWORD_FILE}")"
   APP_PW="$(tr -d '\r\n' < "${DB_APP_PASSWORD_FILE:?hiányzik a DB_APP_PASSWORD_FILE}")"
+  # Üres jelszóval nem hozunk létre login-szerepkört (az érték soha nem kerül a kimenetre).
+  [ -n "$MIGRATOR_PW" ] || { echo "HIBA: a migrátor jelszava (DB_MIGRATOR_PASSWORD_FILE) üres" >&2; exit 1; }
+  [ -n "$APP_PW" ] || { echo "HIBA: az alkalmazás jelszava (DB_APP_PASSWORD_FILE) üres" >&2; exit 1; }
   export MIGRATOR_PW APP_PW
 
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
 \getenv migrator_pw MIGRATOR_PW
 \getenv app_pw APP_PW
+
+-- A jelszavas CREATE ROLE utasítások ne kerüljenek a szerver naplójába (sem utasításként, sem hibaüzenet részeként).
+-- Superuser a munkamenetben beállíthatja; a beállítás csak erre az init-munkamenetre érvényes.
+SET log_statement = 'none';
+SET log_min_error_statement = 'panic';
 
 CREATE ROLE taltos_owner NOLOGIN;
 CREATE ROLE taltos_app NOLOGIN;

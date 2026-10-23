@@ -21,3 +21,4 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-23 16:28 | feature | appsec | 397029 | 47 | 337 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=94529 cached=302500 task=20261023-155753-wp1-schema-migrations-seed phase=4-REVIEW tier=L |
 | 2026-10-23 16:32 | feature | code-reviewer | 2237115 | 49 | 538 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=256153 cached=1980962 task=20261023-155753-wp1-schema-migrations-seed phase=4-REVIEW tier=L |
 | 2026-10-23 16:35 | feature | database-data-engineer | 32040436 | 193 | 5925 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=1888232 cached=30152204 task=20261023-155753-wp1-schema-migrations-seed phase=4-REVIEW tier=L |
+| 2026-10-23 16:58 | auto | database-data-engineer | 51577578 | 275 | 7329 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=2482720 cached=49094858 |

@@ -7,7 +7,7 @@ import { MIGRATIONS_FOLDER } from './migrator.js';
 /**
  * Adatbázis NÉLKÜLI ellenőrzés: minden migráció a Postgres saját parserén (libpg-query, WASM) átmegy, a PL/pgSQL
  * függvénytestek is szintaktikailag helyesek, és a drizzle-napló egyezik a fájlokkal. A tényleges végrehajtást a
- * TEST_DATABASE_URL-es integrációs teszt (migrations.int.test.ts) végzi.
+ * TEST_DATABASE_URL-es integrációs teszt (schema.int.test.ts) végzi.
  */
 const EXPECTED = [
   '0000_base_schema',
@@ -16,6 +16,7 @@ const EXPECTED = [
   '0003_review_invariants',
   '0004_partial_indexes',
   '0005_roles_and_grants',
+  '0006_function_search_path',
 ];
 
 const files = readdirSync(MIGRATIONS_FOLDER)
@@ -31,9 +32,28 @@ describe('migrációk (B4 3. szakasz) - szintaxis', () => {
     expect(files.map((f) => f.replace(/\.sql$/, ''))).toEqual(EXPECTED);
     const journal = JSON.parse(
       readFileSync(join(MIGRATIONS_FOLDER, 'meta', '_journal.json'), 'utf8'),
-    ) as { entries: { idx: number; tag: string }[] };
+    ) as { entries: { idx: number; tag: string; when: number }[] };
     expect(journal.entries.map((e) => e.tag)).toEqual(EXPECTED);
     expect(journal.entries.map((e) => e.idx)).toEqual(EXPECTED.map((_, i) => i));
+    // A drizzle a `when` alapján dönti el, mi van még hátra: szigorúan növekvőnek kell lennie.
+    const whens = journal.entries.map((e) => e.when);
+    expect(whens).toEqual([...whens].sort((a, b) => a - b));
+    expect(new Set(whens).size).toBe(whens.length);
+  });
+
+  it('a 0006 rögzített search_path-ot ad a 0001-0003 minden függvényének (S26)', () => {
+    const read = (name: string): string =>
+      readFileSync(join(MIGRATIONS_FOLDER, `${name}.sql`), 'utf8');
+    const created = ['0001_search_infrastructure', '0002_append_only', '0003_review_invariants']
+      .flatMap((name) => [...read(name).matchAll(/CREATE OR REPLACE FUNCTION\s+(\w+)\(/g)])
+      .map((m) => m[1] as string);
+    expect(created.length).toBeGreaterThanOrEqual(10);
+    const fixed = read('0006_function_search_path');
+    for (const fn of created) {
+      expect(fixed, fn).toMatch(
+        new RegExp(`ALTER FUNCTION\\s+${fn}\\([^)]*\\)\\s+SET search_path = pg_catalog, public;`),
+      );
+    }
   });
 
   it.each(EXPECTED)(
@@ -91,5 +111,11 @@ describe('migrációk (B4 3. szakasz) - szintaxis', () => {
     ]) {
       expect(all, needle).toContain(needle);
     }
+  });
+
+  it('a CI szerepkör-ellenőrző szkriptje (db/checks) szintaktikailag helyes', async () => {
+    const file = join(MIGRATIONS_FOLDER, '..', '..', '..', 'db', 'checks', 'roles-hardening.sql');
+    const { stmts = [] } = await parse(readFileSync(file, 'utf8'));
+    expect(stmts.length).toBeGreaterThan(0);
   });
 });

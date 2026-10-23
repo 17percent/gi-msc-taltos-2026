@@ -691,11 +691,19 @@ CREATE UNIQUE INDEX membership_requests_one_pending_uq
   set -eu
   MIGRATOR_PW="$(tr -d '\r\n' < "${DB_MIGRATOR_PASSWORD_FILE:?hiányzik a DB_MIGRATOR_PASSWORD_FILE}")"
   APP_PW="$(tr -d '\r\n' < "${DB_APP_PASSWORD_FILE:?hiányzik a DB_APP_PASSWORD_FILE}")"
+  # Üres jelszóval nem hozunk létre login-szerepkört (az érték soha nem kerül a kimenetre).
+  [ -n "$MIGRATOR_PW" ] || { echo "HIBA: a migrátor jelszava (DB_MIGRATOR_PASSWORD_FILE) üres" >&2; exit 1; }
+  [ -n "$APP_PW" ] || { echo "HIBA: az alkalmazás jelszava (DB_APP_PASSWORD_FILE) üres" >&2; exit 1; }
   export MIGRATOR_PW APP_PW
 
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
 \getenv migrator_pw MIGRATOR_PW
 \getenv app_pw APP_PW
+
+-- A jelszavas CREATE ROLE utasítások ne kerüljenek a szerver naplójába (sem utasításként, sem hibaüzenet részeként).
+-- Superuser a munkamenetben beállíthatja; a beállítás csak erre az init-munkamenetre érvényes.
+SET log_statement = 'none';
+SET log_min_error_statement = 'panic';
 
 CREATE ROLE taltos_owner NOLOGIN;
 CREATE ROLE taltos_app NOLOGIN;
@@ -762,6 +770,26 @@ GRANT UPDATE (proposed_revision_id) ON change_requests TO taltos_retention;   --
 GRANT UPDATE (oidc_sub, email, display_name, avatar_url, pseudonymized_at) ON users TO taltos_retention;
 ```
 
+**Rögzített `search_path` a függvényeken (D51, S26):** a 0001-0003 trigger- és guard-függvényei a hívó munkamenet `search_path`-ját öröklik, így egy másik sémában előre létrehozott, azonos nevű objektum eltéríthetné őket. A 0006 migráció `ALTER FUNCTION … SET search_path = pg_catalog, public`-kel rögzíti mindegyiknek (külön migráció, mert a 0001-0005 már alkalmazva van a dev és CI előzményekben; az új függvényeket innentől eleve `SET search_path` záradékkal kell létrehozni).
+
+```sql
+-- 0006_function_search_path.sql  (S26, D51; appsec F-9)
+-- A 0001-0003 trigger- és guard-függvényei rögzített search_path-szal futnak: a hívó munkamenet search_path-ja
+-- (pl. egy előre létrehozott, azonos nevű objektum egy másik sémában) nem módosíthatja, mely táblát és operátort oldják fel.
+-- A 0001-0005 már alkalmazva van a dev/CI előzményekben, ezért külön migráció (ALTER FUNCTION), nem szerkesztés.
+-- A függvények csak a public séma tábláit és a pg_catalog beépítettjeit használják; az átmeneti táblákat (new_rows, old_rows) névvel oldja fel a trigger.
+ALTER FUNCTION document_tag_text(uuid)                SET search_path = pg_catalog, public;
+ALTER FUNCTION document_tags_sync_after_insert()      SET search_path = pg_catalog, public;
+ALTER FUNCTION document_tags_sync_after_delete()      SET search_path = pg_catalog, public;
+ALTER FUNCTION forbid_mutation()                      SET search_path = pg_catalog, public;
+ALTER FUNCTION forbid_truncate()                      SET search_path = pg_catalog, public;
+ALTER FUNCTION reviewer_not_initiator()               SET search_path = pg_catalog, public;
+ALTER FUNCTION crr_at_most_two()                      SET search_path = pg_catalog, public;
+ALTER FUNCTION cr_exactly_two_at_submission()         SET search_path = pg_catalog, public;
+ALTER FUNCTION change_requests_guard()                SET search_path = pg_catalog, public;
+ALTER FUNCTION documents_frozen_guard()               SET search_path = pg_catalog, public;
+```
+
 ## 4. Séma-szintű mikrodöntések és indoklásuk
 
 | # | Döntés | Indoklás |
@@ -791,6 +819,7 @@ GRANT UPDATE (oidc_sub, email, display_name, avatar_url, pseudonymized_at) ON us
 | S23 | DB-szerepek (init-szkript + 0005): `taltos_owner` (a séma és minden tábla tulajdonosa; a migrátor `SET ROLE`-lal váltja), `taltos_app` (DML, DELETE csak S21 táblákon, nincs TRUNCATE, nincs UPDATE az `events`/`document_revisions` táblán), `taltos_retention` (törlés, `SET LOCAL ROLE`; a `document_tags` törlési trigger az invoker nevében frissíti a `documents`-et, ezért `UPDATE (tag_text) ON documents` joga is van); NOLOGIN csoportszerepkörök, a jelszavas `taltos_migrator` és `taltos_backend` login-szerepkört az init-szkript hozza létre a secretekből; a PUBLIC DB-jogai elvéve | Az append-only és a „fizikai DELETE tilos” csak akkor érvényes, ha az app nem tulajdonos és nem superuser: a tulajdonos kikapcsolhatná a triggereket. Az init-szkript előre létrehozza a szerepköröket, így a migrátornak nem kell `CREATEROLE`. |
 | S24 | `iteration` (D51): minden jóváhagyott kérés növeli a `documents.iteration`-t, és a `change_requests.iteration`-be kerül (a revíziólista „v1, v2 …” címkéje a Jóváhagyott kérés javasolt revíziójából jön); `delete` és `unarchive` is jóváhagyott változás, ezért a revíziók vN-je kihagyhat számot | Az append-only revíziók utólag nem címkézhetők; a sorszám a kérésen él. Értelmezés: a D45 „Jóváhagyott változások száma” minden fajtára érvényes. |
 | S25 | Indexterv (D51): megszűnt a `documents_space_idx` (a `documents_space_slug_uq` előtagja), a `documents_review_state_idx` (4 érték), az `events_type_idx`, a `space_members_user_idx` (a részleges index váltja); új: `change_requests` revízió-indexek (részleges), `subscriptions(document_id)`, `events(actor_id, created_at)`, `notifications(event_id)`, BRIN az `events` és a `notifications` időoszlopán, részleges indexek a `review_due_at`-re és a törölt kommentekre. A `document_links` indexei teljesek maradnak | A retenció FK-ellenőrzései a soft-deleted sorokat is nézik, ezért a részleges link-index nem szolgálná ki őket. A `favorites(document_id)` szándékosan nincs: csak a (kötegelt) retenció használná. Néhány ezer dokumentumnál a többi index mérés nélkül nem indokolt. |
+| S26 | A trigger- és guard-függvények rögzített `search_path = pg_catalog, public` mellett futnak (0006); az init-szkript a jelszavas utasítások előtt kikapcsolja az utasítás-naplózást és üres jelszóval nem hoz létre szerepkört | A hívó `search_path`-ja ne változtassa meg, mely táblát és operátort oldanak fel (S6, S7 védelmei erre épülnek); a szerepkör-jelszavak ne kerüljenek a szerver naplójába. Ár: a `SET` záradékos SQL-függvény nem inline-olható (itt csak triggerből hívott, elhanyagolható). |
 
 **Nyitott (a megfelelő WP előtt) - nem eldöntött, itt nincs rögzítve:**
 - **Yjs `generation` mező (WP6 előtt):** az `y-indexeddb` gyorsítótárú kliensek a szerveren újraépített Yjs-állapottal (backup-visszaállítás, `restore`) szöveget duplikálhatnak. Egy `document_collab_state.generation` és a Hocuspocus dokumentumnévbe építése megoldaná; a döntés nincs meg.

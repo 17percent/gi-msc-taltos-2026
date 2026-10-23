@@ -20,9 +20,9 @@ describe('seed-terv (D11, H5 WP1) - adatbázis nélkül', () => {
     expect(JSON.stringify(buildSeedPlan(7))).not.toBe(JSON.stringify(buildSeedPlan(8)));
   });
 
-  it('csak kitalált, @vallalat.hu címek; az első felhasználó a Rendszeradmin', () => {
+  it('csak kitalált, @example.test címek; az első felhasználó a Rendszeradmin', () => {
     expect(plan.users.length).toBeGreaterThanOrEqual(10);
-    expect(plan.users.every((u) => /^[a-z.]+@vallalat\.hu$/.test(u.email))).toBe(true);
+    expect(plan.users.every((u) => /^[a-z.]+@example\.test$/.test(u.email))).toBe(true);
     expect(plan.users.filter((u) => u.systemRole === 'system_admin')).toHaveLength(1);
     expect(new Set(plan.users.map((u) => u.email)).size).toBe(plan.users.length);
   });

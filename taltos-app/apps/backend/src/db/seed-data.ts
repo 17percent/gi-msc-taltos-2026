@@ -4,7 +4,7 @@ import { makeRng, type Rng } from './prng.js';
  * A fejlesztői dummy korpusz TERVE (D11, H5 WP1): tiszta függvény, adatbázis nélkül. A `seed.ts` hajtja végre
  * a `ReviewService` lépéseinek megfelelő tranzakciókban; a `seed-data.test.ts` ellenőrzi a terv belső konzisztenciáját.
  * Determinisztikus: ugyanaz a seed ugyanazt a tervet adja (azonosítók, időpontok, szövegek).
- * Csak kitalált nevek és `@vallalat.hu` címek szerepelnek benne; éles adat sosem kerül ide.
+ * Csak kitalált nevek és a fenntartott `example.test` tartomány (RFC 2606) címei szerepelnek benne, így semmilyen levél nem érhet el valódi címzettet; éles adat sosem kerül ide.
  */
 
 /** A korpusz időkezdete (rögzített, hogy a seed ne függjön az óra állásától). */
@@ -376,7 +376,7 @@ export function buildSeedPlan(seed = 20261023): SeedPlan {
   // Felhasználók: az első a Rendszeradmin.
   const users: SeedUser[] = USERS.map((u, i) => ({
     id: rng.uuid(),
-    email: `${u.local}@vallalat.hu`,
+    email: `${u.local}@example.test`,
     displayName: u.name,
     systemRole: i === 0 ? 'system_admin' : 'user',
     createdAt: at(-30 + i),

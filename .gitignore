@@ -1,3 +1,5 @@
 # Claude Code: temporary worktrees of parallel agent runs, and per-user local settings
 .claude/worktrees/
 .claude/settings.local.json
+# Agent fleet: per-session workflow checkpoints (flow_state.py), runtime state only
+.claude/fleet/state/

@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadDbConnection } from './connection.js';
+import { createPool, loadDbConnection } from './connection.js';
 
 describe('adatbázis-kapcsolat szerepkörönként (B4 S23, D13)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'taltos-db-'));
@@ -45,5 +45,20 @@ describe('adatbázis-kapcsolat szerepkörönként (B4 S23, D13)', () => {
     expect(() =>
       loadDbConnection('app', { DB_PORT: 'nem-szam', DB_APP_PASSWORD_FILE: secret('a2', 'x') }),
     ).toThrow('DB_PORT');
+  });
+
+  it('a kapcsolódásnak időkorlátja van, hogy a migrate és a seed ne lógjon el nem érhető adatbázison', async () => {
+    const pool = createPool({
+      host: 'localhost',
+      port: 5432,
+      database: 'taltos',
+      user: 'u',
+      password: 'p',
+    });
+    try {
+      expect(pool.options.connectionTimeoutMillis).toBe(10_000);
+    } finally {
+      await pool.end();
+    }
   });
 });

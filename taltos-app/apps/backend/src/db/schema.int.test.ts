@@ -108,12 +108,12 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
 
   // ── 1. Migráció üres adatbázisra ─────────────────────────────────────────────
   describe('migráció üres adatbázisról', () => {
-    it('mind a hat migráció lefutott, és újrafuttatva nem tesz semmit', async () => {
+    it('mind a hét migráció lefutott, és újrafuttatva nem tesz semmit', async () => {
       const count = () =>
         db.migrator.query<{ n: string }>('SELECT count(*) AS n FROM drizzle.__drizzle_migrations');
-      expect(Number((await count()).rows[0]?.n)).toBe(6);
+      expect(Number((await count()).rows[0]?.n)).toBe(7);
       await runMigrations(db.migrator);
-      expect(Number((await count()).rows[0]?.n)).toBe(6);
+      expect(Number((await count()).rows[0]?.n)).toBe(7);
     });
 
     it('megvan a B4 mind a 22 táblája, a generált search_vector és a pg_trgm', async () => {
@@ -166,6 +166,32 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
         rolcreatedb: boolean;
       }>('SELECT rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname = current_user');
       expect(me.rows[0]).toEqual({ rolsuper: false, rolcreaterole: false, rolcreatedb: false });
+    });
+  });
+
+  describe('szerepkör-megerősítés és függvény-keményítés (appsec F-7, F-9)', () => {
+    it('az app nem válthat taltos_owner-re, nem hozhat létre sémát, és nem kapcsolhatja ki a triggereket a session_replication_role-lal', async () => {
+      await rejectsWith(db.app.query('SET ROLE taltos_owner'), { code: '42501' });
+      await rejectsWith(db.app.query('CREATE SCHEMA app_teszt'), { code: '42501' });
+      await rejectsWith(db.app.query('SET session_replication_role = replica'), { code: '42501' });
+    });
+
+    it('minden saját trigger- és guard-függvény rögzített search_path-szal fut (0006, S26)', async () => {
+      const fns = await db.admin.query<{ n: string }>(
+        `SELECT count(*) AS n FROM pg_proc p
+           JOIN pg_namespace ns ON ns.oid = p.pronamespace
+           JOIN pg_language l ON l.oid = p.prolang
+          WHERE ns.nspname = 'public' AND l.lanname IN ('plpgsql', 'sql')`,
+      );
+      expect(Number(fns.rows[0]?.n)).toBeGreaterThanOrEqual(10);
+      const unpinned = await db.admin.query(
+        `SELECT p.proname FROM pg_proc p
+           JOIN pg_namespace ns ON ns.oid = p.pronamespace
+           JOIN pg_language l ON l.oid = p.prolang
+          WHERE ns.nspname = 'public' AND l.lanname IN ('plpgsql', 'sql')
+            AND NOT ('search_path=pg_catalog, public' = ANY (coalesce(p.proconfig, '{}'::text[])))`,
+      );
+      expect(unpinned.rows).toEqual([]);
     });
   });
 
@@ -391,15 +417,17 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
         ),
       );
       expect(await activeReviewers(crId)).toBe(2);
+      // Csere egyetlen tranzakcióban: ELŐSZÖR az új review-er beszúrása (átmenetileg három aktív sor), CSAK UTÁNA a régi
+      // lezárása. Ez igazolja, hogy a halasztott legfeljebb-kettő trigger a tranzakció végén értékel, nem soronként.
       await withTx(db.app, async (c) => {
-        await c.query(
-          `UPDATE change_request_reviewers SET ended_at = now(), end_reason = 'replaced'
-            WHERE change_request_id = $1 AND reviewer_id = $2`,
-          [crId, r3],
-        );
         await c.query(
           'INSERT INTO change_request_reviewers (change_request_id, reviewer_id) VALUES ($1, $2)',
           [crId, r1],
+        );
+        await c.query(
+          `UPDATE change_request_reviewers SET ended_at = now(), end_reason = 'replaced'
+            WHERE change_request_id = $1 AND reviewer_id = $2 AND ended_at IS NULL`,
+          [crId, r3],
         );
       });
       expect(await activeReviewers(crId)).toBe(2);
@@ -488,6 +516,44 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
       );
     });
 
+    it('a befagyás csak a pending → pending frissítést tiltja: a jóváhagyással járó, tartalmat is író átmenet (restore-alkalmazás) átmegy', async () => {
+      const { docId, revId } = await newDoc();
+      const { initiator, r1, r2 } = ids();
+      const crId = await withTx(db.app, async (c) => {
+        const id = await insertRequest(c, { docId, revId, initiator, reviewers: [r1, r2] });
+        await c.query("UPDATE documents SET review_state = 'pending' WHERE id = $1", [docId]);
+        return id;
+      });
+      // Pending maradva a tartalom nem változhat.
+      await rejectsWith(
+        db.app.query("UPDATE documents SET content = 'pending alatt' WHERE id = $1", [docId]),
+        { message: /document_frozen/ },
+      );
+      // A jóváhagyással járó átmenet (a WHEN nem teljesül: az új állapot már nem pending) a tartalmat is írhatja.
+      await withTx(db.app, async (c) => {
+        await c.query(
+          `UPDATE change_request_reviewers SET decision = 'approved', decided_at = now()
+            WHERE change_request_id = $1 AND ended_at IS NULL`,
+          [crId],
+        );
+        await c.query(
+          "UPDATE change_requests SET state = 'approved', decided_at = now(), iteration = 1 WHERE id = $1",
+          [crId],
+        );
+        await c.query(
+          `UPDATE documents SET review_state = 'approved', approved_revision_id = $2, iteration = 1,
+                  content = 'visszaállított tartalom'
+            WHERE id = $1`,
+          [docId, revId],
+        );
+      });
+      const row = await db.app.query<{ content: string; review_state: string }>(
+        'SELECT content, review_state FROM documents WHERE id = $1',
+        [docId],
+      );
+      expect(row.rows[0]).toEqual({ content: 'visszaállított tartalom', review_state: 'approved' });
+    });
+
     it('a címke-hozzárendelés a triggerrel frissíti a tag_text-et (beszúrás és törlés)', async () => {
       const { docId } = await newDoc();
       const tags = await db.app.query<{ id: string; name: string }>(
@@ -547,7 +613,7 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
         { code: '23514' },
       );
       await rejectsWith(
-        db.app.query("INSERT INTO allowlist (email) VALUES ('Nagy.Betu@vallalat.hu')"),
+        db.app.query("INSERT INTO allowlist (email) VALUES ('Nagy.Betu@example.test')"),
         { code: '23514' },
       );
       await rejectsWith(

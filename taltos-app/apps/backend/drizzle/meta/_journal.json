@@ -43,6 +43,13 @@
       "when": 1792764149985,
       "tag": "0005_roles_and_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792767282120,
+      "tag": "0006_function_search_path",
+      "breakpoints": true
     }
   ]
 }
