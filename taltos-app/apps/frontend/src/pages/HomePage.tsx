@@ -1,13 +1,118 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router';
 import { HEALTH_PATH, type HealthResponse } from '@taltos/shared';
+import { useAuth } from '../auth/auth-context';
+import { LoginLink, buttonBase, buttonOutline } from '../auth/buttons';
 
 type BackendState = { kind: 'checking' } | { kind: 'up'; version: string } | { kind: 'down' };
 
 /**
- * WP0 kezdőoldal: igazolja, hogy a frontend fut, és eléri a backendet. Belépés után
- * a főoldal a személyes feladat-dashboard lesz (D46, WP23); ez a lap addig helyőrző.
+ * Kezdőoldal. Belépés után a főoldal a személyes feladat-dashboard lesz (D46, WP23);
+ * addig a bejelentkezett felhasználó a backend-kapcsolat kártyát látja.
  */
 export function HomePage() {
+  const { state } = useAuth();
+  const [params] = useSearchParams();
+  const notAllowlisted =
+    state.kind === 'not-allowlisted' ||
+    (state.kind !== 'signed-in' && params.get('error') === 'not_on_allowlist');
+
+  if (state.kind === 'loading') {
+    return (
+      <p className="text-sm text-muted" role="status">
+        Betöltés…
+      </p>
+    );
+  }
+
+  if (state.kind === 'signed-in') {
+    return (
+      <section className="max-w-(--read-width)">
+        <h1 className="font-display text-4xl leading-tight font-semibold tracking-tight">
+          Az alkalmazás váza fut
+        </h1>
+        <p className="mt-4 text-muted">Szia, {state.me.displayName}! Be vagy jelentkezve.</p>
+        <BackendCard />
+      </section>
+    );
+  }
+
+  return (
+    <section className="max-w-(--read-width)">
+      {notAllowlisted ? <NotAllowlistedAlert /> : null}
+      {state.kind === 'error' ? <ErrorAlert /> : null}
+      <h1 className="mt-6 font-display text-4xl leading-tight font-semibold tracking-tight first:mt-0">
+        Jelentkezz be a Táltosba
+      </h1>
+      <p className="mt-4 text-muted">
+        A szervezeti tudást itt találod meg és itt írhatod tovább. Lépj be a munkahelyi fiókoddal.
+      </p>
+      <div className="mt-6">
+        <LoginLink>Bejelentkezés</LoginLink>
+      </div>
+    </section>
+  );
+}
+
+function Alert({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div
+      role="alert"
+      className="flex gap-3 rounded-md border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-danger-bg p-4"
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mt-0.5 size-5 shrink-0 text-danger"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8v4M12 16h.01" />
+      </svg>
+      <div className="min-w-0">
+        <p className="font-semibold text-text">{title}</p>
+        <div className="mt-1 text-sm text-text">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function NotAllowlistedAlert() {
+  return (
+    <Alert title="Ezzel a címmel még nem léphetsz be">
+      <p>
+        A megadott e-mail-cím nincs a jogosultak listáján. Kérd meg a Rendszeradminisztrátort, hogy
+        vegye fel a címedet. Ha másik fiókkal is dolgozol, próbálkozhatsz azzal.
+      </p>
+      <p className="mt-3">
+        <a href="/auth/login" className="font-semibold text-secondary underline">
+          Bejelentkezés másik fiókkal
+        </a>
+      </p>
+    </Alert>
+  );
+}
+
+function ErrorAlert() {
+  return (
+    <Alert title="Nem sikerült ellenőrizni a bejelentkezésedet">
+      <p>A szerver most nem válaszol. Töltsd újra az oldalt, vagy próbáld meg később.</p>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className={`${buttonBase} ${buttonOutline} mt-3`}
+      >
+        Oldal újratöltése
+      </button>
+    </Alert>
+  );
+}
+
+function BackendCard() {
   const [backend, setBackend] = useState<BackendState>({ kind: 'checking' });
 
   useEffect(() => {
@@ -25,20 +130,10 @@ export function HomePage() {
   }, []);
 
   return (
-    <section className="max-w-(--read-width)">
-      <p className="text-xs font-semibold tracking-wide text-muted uppercase">Fejlesztői váz</p>
-      <h1 className="mt-2 font-display text-4xl leading-tight font-semibold tracking-tight">
-        Az alkalmazás váza fut
-      </h1>
-      <p className="mt-4 text-muted">
-        Erre épülnek a következő munkacsomagok: bejelentkezés, színterek, közös szerkesztés és a két
-        review-eres jóváhagyás.
-      </p>
-      <div className="mt-8 rounded-lg border border-border bg-surface p-6 shadow-(--shadow-sm)">
-        <h2 className="text-sm font-semibold">Backend-kapcsolat</h2>
-        <BackendStatus state={backend} />
-      </div>
-    </section>
+    <div className="mt-8 rounded-lg border border-border bg-surface p-6 shadow-(--shadow-sm)">
+      <h2 className="text-sm font-semibold">Backend-kapcsolat</h2>
+      <BackendStatus state={backend} />
+    </div>
   );
 }
 
