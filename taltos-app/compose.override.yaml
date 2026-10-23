@@ -6,3 +6,22 @@ services:
     ports:
       - '127.0.0.1:8025:8025'
     restart: unless-stopped
+
+  # Dummy fejlesztői adat (D11, WP1): `docker compose --profile seed run --rm seed` (előtte egyszer `up --build`).
+  # A taltos_backend (app) szerepkörrel fut, NODE_ENV=development: élesben a seed megtagadja a futást.
+  seed:
+    image: taltos-backend
+    pull_policy: never
+    profiles: [seed]
+    command: ['node', 'dist/db/seed.js']
+    environment:
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_APP_PASSWORD_FILE: /run/secrets/db_app_password
+    secrets: [db_app_password]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: 'no'

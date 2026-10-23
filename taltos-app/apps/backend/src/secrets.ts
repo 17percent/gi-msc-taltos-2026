@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
  * a `<NÉV>_FILE` környezeti változó mutat rájuk. Közvetlen környezeti változóból, image-ből vagy
  * commitolható `.env`-ből soha nem olvasunk; az értéket sem logoljuk, sem hibaüzenetbe nem írjuk.
  */
-export type SecretName = 'DB_PASSWORD' | 'OIDC_CLIENT_SECRET' | 'SMTP_PASSWORD';
+export type SecretName =
+  'DB_MIGRATOR_PASSWORD' | 'DB_APP_PASSWORD' | 'OIDC_CLIENT_SECRET' | 'SMTP_PASSWORD';
 
 export function readSecret(
   name: SecretName,

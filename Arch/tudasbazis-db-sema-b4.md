@@ -673,11 +673,54 @@ CREATE UNIQUE INDEX membership_requests_one_pending_uq
   ON membership_requests (space_id, user_id) WHERE state = 'pending';
 ```
 
+**Szerepkörök létrehozása (D51, S23):** a `0005` előtt a Postgres init-szkriptje (`taltos-app/db/initdb/10-roles.sh`, az üres adatkönyvtárnál egyszer, superuserként) előre létrehozza a három NOLOGIN csoportot és a két jelszavas login-szerepkört (`taltos_migrator` a `taltos_owner` tagja, `taltos_backend` a `taltos_app` tagja; a jelszavak Compose secretek, `\getenv`-vel jutnak a psql-hez), elveszi a PUBLIC DB-jogait (`REVOKE ALL ON DATABASE … FROM PUBLIC`, majd `GRANT CONNECT` a csoportoknak és `GRANT CREATE` a `taltos_owner`-nek a `drizzle` séma és a `pg_trgm` miatt), és a `public` séma tulajdonosává a `taltos_owner`-t teszi. A migrátor (`apps/backend/src/db/migrator.ts`) a kapcsolat elején `SET ROLE taltos_owner`-t hajt végre, így minden objektum tulajdonosa a `taltos_owner`; ezért **`CREATEROLE` nem kell**, a 0005 `IF NOT EXISTS` blokkja csak védőháló más telepítésekre. Az integrációs tesztek (`test-db.ts`) ugyanezt a telepítést tükrözik.
+
+```sh
+#!/bin/sh
+# Egyszeri Postgres-inicializálás (B4 S23, D51). A postgres-konténer ÜRES adatkönyvtárnál futtatja,
+# superuserként; meglévő adatkönyvtárnál nem fut le újra. Itt jönnek létre:
+#   - a NOLOGIN csoportszerepkörök (taltos_owner, taltos_app, taltos_retention): a migrátor a kapcsolat elején
+#     SET ROLE taltos_owner-t hajt végre, ezért a csoportoknak a migráció ELŐTT létezniük kell;
+#   - a két jelszavas login-szerepkör: taltos_migrator (a taltos_owner tagja) és taltos_backend (a taltos_app tagja);
+#   - a séma-tulajdonjog és a DB-szintű jogok: a taltos_owner hozhat létre sémát, bővítményt (a pg_trgm megbízható)
+#     és objektumot.
+# A jogosultságok táblánkénti része a 0005 migráció. A jelszavak a Compose secretekből (fájl) jönnek (D13),
+# környezeti változón át adjuk a psql-nek (\getenv), így nem kerülnek a parancssorba.
+# Alrétegben fut, hogy a `set -eu` ne szivárogjon a postgres entrypoint shelljébe, ha az sourcolja a szkriptet.
+(
+  set -eu
+  MIGRATOR_PW="$(tr -d '\r\n' < "${DB_MIGRATOR_PASSWORD_FILE:?hiányzik a DB_MIGRATOR_PASSWORD_FILE}")"
+  APP_PW="$(tr -d '\r\n' < "${DB_APP_PASSWORD_FILE:?hiányzik a DB_APP_PASSWORD_FILE}")"
+  export MIGRATOR_PW APP_PW
+
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
+\getenv migrator_pw MIGRATOR_PW
+\getenv app_pw APP_PW
+
+CREATE ROLE taltos_owner NOLOGIN;
+CREATE ROLE taltos_app NOLOGIN;
+CREATE ROLE taltos_retention NOLOGIN;
+CREATE ROLE taltos_migrator LOGIN PASSWORD :'migrator_pw' IN ROLE taltos_owner;
+CREATE ROLE taltos_backend LOGIN PASSWORD :'app_pw' IN ROLE taltos_app;
+
+-- Csak a megnevezett szerepkörök csatlakozhatnak (a PUBLIC alapértelmezett CONNECT/TEMP joga elvéve).
+SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', current_database()) \gexec
+SELECT format('GRANT CONNECT ON DATABASE %I TO taltos_owner, taltos_app, taltos_retention', current_database()) \gexec
+-- A migráció sémát (drizzle) és bővítményt (pg_trgm) hoz létre.
+SELECT format('GRANT CREATE ON DATABASE %I TO taltos_owner', current_database()) \gexec
+
+ALTER SCHEMA public OWNER TO taltos_owner;
+SQL
+)
+```
+
 ```sql
 -- 0005_roles_and_grants.sql  (S23, D51; a retenciós jogok a WP33-ban finomítandók)
--- Három NOLOGIN csoportszerepkör. A jelszavas LOGIN-szerepkörök NEM itt jönnek létre: azokat a telepítés hozza létre
--- Compose secretekkel (D13), és csoporttagként kapcsolja be (pl. CREATE ROLE ... LOGIN IN ROLE taltos_app).
--- A migrációt futtató szerepkör CREATEROLE joggal rendelkezik és tagja a taltos_owner-nek.
+-- Három NOLOGIN csoportszerepkör: taltos_owner (séma-tulajdonos), taltos_app (alkalmazás), taltos_retention (2. ütem).
+-- A jelszavas LOGIN-szerepköröket (taltos_migrator, taltos_backend) NEM ez a migráció hozza létre: azokat a Postgres
+-- init-szkriptje (db/initdb) a Compose secretekből (D13). Az init-szkript a csoportszerepköröket is előre létrehozza, mert
+-- a migrátor a kapcsolat elején SET ROLE taltos_owner-t hajt végre; az alábbi blokk csak védőháló más telepítésekre
+-- (hiányzó szerepkör létrehozásához CREATEROLE jog kell). A migrátor tagja a taltos_owner-nek, a backend a taltos_app-nak.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'taltos_owner')     THEN CREATE ROLE taltos_owner NOLOGIN;     END IF;
@@ -714,6 +757,7 @@ GRANT INSERT ON events TO taltos_retention;                      -- retention_pu
 GRANT DELETE ON events, document_revisions, documents, document_collab_state, change_requests,
                 change_request_reviewers, comments, notifications, document_links,
                 favorites, subscriptions, document_tags, sessions TO taltos_retention;
+GRANT UPDATE (tag_text) ON documents TO taltos_retention;                    -- a document_tags törlés triggere frissíti (B4 S9)
 GRANT UPDATE (proposed_revision_id) ON change_requests TO taltos_retention;   -- javasolt revízió lecsatolása (D51 h)
 GRANT UPDATE (oidc_sub, email, display_name, avatar_url, pseudonymized_at) ON users TO taltos_retention;
 ```
@@ -744,7 +788,7 @@ GRANT UPDATE (oidc_sub, email, display_name, avatar_url, pseudonymized_at) ON us
 | S20 | Retenció és hivatkozások (D51 h, i): a javasolt revízió csak pending/approved kérésnél kötelező; az elutasított/visszavont kérés javasolt revíziójának törlése előtt a retenció a kérésen NULL-ra állítja (a guard trigger ezt az egy módosítást engedi). A `restored_from_revision_id` FK nélküli | A `document_revisions` 1 éves törlése nem ütközik FK-val; a lezárt kérés megmarad (WP22 mérőszámok). A checkpoint-revíziók osztályozása az oszlopokon nincs (append-only), a retenció a kérés-hivatkozásokból és az `approved_revision_id`-ből vezeti le (5. szakasz). |
 | S21 | Fizikai törlés kivételei (D51 j): `favorites`, `subscriptions`, `user_space_colors`, `document_tags`; az app DB-szerepe csak ezekre kap DELETE-jogot | Nincs auditértékük; a címketörténet a revízióban él. A `sessions` lejárt sorait a retenciós folyamat törli (2. ütem; a D51 j-ben nem szerepel, lásd Nyitott). |
 | S22 | Kompozit FK-k `(document_id, revision_id)` az `approved_revision_id`, a `base_revision_id` és a `proposed_revision_id` hivatkozásra; `UNIQUE (document_id, id)` a revíziókon | A sima FK csak létezést ellenőriz: hibás app-kódnál másik színtér revíziója lehetne „hivatalos”, és a nyers letöltés kiszivárogtatná. Ár: egy plusz egyedi index a revíziókon. |
-| S23 | DB-szerepek (0005): `taltos_owner` (séma-tulajdonos, migráció), `taltos_app` (DML, DELETE csak S21 táblákon, nincs TRUNCATE, nincs UPDATE az `events`/`document_revisions` táblán), `taltos_retention` (törlés, `SET LOCAL ROLE`); NOLOGIN csoportszerepkörök, a jelszavas login-szerepkörök a telepítésben, secretként | Az append-only és a „fizikai DELETE tilos” csak akkor érvényes, ha az app nem tulajdonos és nem superuser: a tulajdonos kikapcsolhatná a triggereket. |
+| S23 | DB-szerepek (init-szkript + 0005): `taltos_owner` (a séma és minden tábla tulajdonosa; a migrátor `SET ROLE`-lal váltja), `taltos_app` (DML, DELETE csak S21 táblákon, nincs TRUNCATE, nincs UPDATE az `events`/`document_revisions` táblán), `taltos_retention` (törlés, `SET LOCAL ROLE`; a `document_tags` törlési trigger az invoker nevében frissíti a `documents`-et, ezért `UPDATE (tag_text) ON documents` joga is van); NOLOGIN csoportszerepkörök, a jelszavas `taltos_migrator` és `taltos_backend` login-szerepkört az init-szkript hozza létre a secretekből; a PUBLIC DB-jogai elvéve | Az append-only és a „fizikai DELETE tilos” csak akkor érvényes, ha az app nem tulajdonos és nem superuser: a tulajdonos kikapcsolhatná a triggereket. Az init-szkript előre létrehozza a szerepköröket, így a migrátornak nem kell `CREATEROLE`. |
 | S24 | `iteration` (D51): minden jóváhagyott kérés növeli a `documents.iteration`-t, és a `change_requests.iteration`-be kerül (a revíziólista „v1, v2 …” címkéje a Jóváhagyott kérés javasolt revíziójából jön); `delete` és `unarchive` is jóváhagyott változás, ezért a revíziók vN-je kihagyhat számot | Az append-only revíziók utólag nem címkézhetők; a sorszám a kérésen él. Értelmezés: a D45 „Jóváhagyott változások száma” minden fajtára érvényes. |
 | S25 | Indexterv (D51): megszűnt a `documents_space_idx` (a `documents_space_slug_uq` előtagja), a `documents_review_state_idx` (4 érték), az `events_type_idx`, a `space_members_user_idx` (a részleges index váltja); új: `change_requests` revízió-indexek (részleges), `subscriptions(document_id)`, `events(actor_id, created_at)`, `notifications(event_id)`, BRIN az `events` és a `notifications` időoszlopán, részleges indexek a `review_due_at`-re és a törölt kommentekre. A `document_links` indexei teljesek maradnak | A retenció FK-ellenőrzései a soft-deleted sorokat is nézik, ezért a részleges link-index nem szolgálná ki őket. A `favorites(document_id)` szándékosan nincs: csak a (kötegelt) retenció használná. Néhány ezer dokumentumnál a többi index mérés nélkül nem indokolt. |
 
@@ -760,6 +804,9 @@ GRANT UPDATE (oidc_sub, email, display_name, avatar_url, pseudonymized_at) ON us
 - **`sessions` lejárt sorainak törlése (WP2 előtt):** a D51 (j) kivétel-listája nem tartalmazza; a séma a retenciós folyamatra bízza (2. ütem), a tábla addig lassan nő.
 - **Keresés (WP11 előtt):** a vektor a `kind` kulcsát (nem a magyar címkét) indexeli; a trigram-index csak a címre van, így a tartalomban elírt szó nem talál.
 - **Duplikálás forrása (WP5 előtt):** az élő vagy a Jóváhagyott változat másolódik.
+- **Körkörös RESTRICT FK-k a retenciónál (WP33 előtt):** a `documents.approved_revision_id` és a `document_revisions.document_id` kölcsönösen hivatkozik egymásra, ezért egy dokumentum és revízióinak törlése egyetlen utasításban (CTE-s `DELETE`) vagy halasztható (`DEFERRABLE`) FK-val oldható meg; a WP33 választ.
+- **`crr_at_most_two` write-skew egy kiesett hellyel (WP8 előtt):** két párhuzamos tranzakció egyszerre pótolhatja a megüresedett helyet, és külön-külön látja a „legfeljebb kettő” invariánst teljesülni. Az alkalmazásnak a `change_requests` sort `SELECT … FOR UPDATE`-tel kell zárolnia a pótlás és a döntés előtt (WP8 versenyhelyzet-teszt).
+- **A retenciós folyamat saját login-szerepköre (WP33 előtt):** nem a `taltos_backend`; külön login-szerepkör a `taltos_retention` csoport tagjaként `INHERIT FALSE, SET TRUE` tagsággal, így a jogai csak tudatos `SET LOCAL ROLE taltos_retention` után élnek (a `forbid_mutation` ezt az `current_user` ellenőrzéssel kényszeríti).
 
 ## 5. Mentés és retenció táblánként (D48, D51)
 

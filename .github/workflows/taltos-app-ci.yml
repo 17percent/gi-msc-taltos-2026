@@ -48,6 +48,41 @@ jobs:
       - run: pnpm build
       - run: pnpm audit --prod --audit-level high
 
+  db:
+    name: adatbázis-tesztek (migráció, seed, invariánsok)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Eldobható Postgres a futás idejére; a jelszó csak ehhez a service containerhez tartozó, nem valódi secret.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: ci-throwaway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # A TEST_DATABASE_URL egy superuser URL: a tesztek friss adatbázist és szerepköröket hoznak létre és dobnak el.
+      TEST_DATABASE_URL: postgres://postgres:ci-throwaway@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: taltos-app/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: taltos-app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @taltos/backend test
+
   compose:
     name: Compose-build és füstpróba
     runs-on: ubuntu-latest
@@ -61,7 +96,13 @@ jobs:
           node-version: 24
       - run: node scripts/init-dev-secrets.mjs
       - run: docker compose -f compose.yaml config --quiet
-      - run: docker compose -f compose.yaml up --build --detach --wait --wait-timeout 180
+      # Verziófüggetlen sorrend (a `up --wait` az egyszeri, 0-val kilépő `migrate` konténert Compose-verziótól függően
+      # hibának vehetné): 1. Postgres (az init-szkript lefut), 2. a kép építése és a migráció (a kilépési kód terjed),
+      # 3. a backend és a frontend a függőségek (már lefutott migráció) kihagyásával.
+      - run: docker compose -f compose.yaml up --detach --wait postgres
+      - run: docker compose -f compose.yaml build backend
+      - run: docker compose -f compose.yaml run --rm migrate
+      - run: docker compose -f compose.yaml up --build --detach --wait --wait-timeout 180 --no-deps backend frontend
       # WP0 „kész”: a frontend és a backend válaszol, mindkét WebSocket-útvonal fogad.
       - run: node scripts/smoke.mjs http://localhost:8080
       - if: failure()

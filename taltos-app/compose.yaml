@@ -1,5 +1,5 @@
-# Táltos alap-Compose (WP0). Fejlesztésben a `docker compose up` a compose.override.yaml-t is
-# betölti (Mailpit); élesre csak ez a fájl: `docker compose -f compose.yaml up`.
+# Táltos alap-Compose (WP0, WP1). Fejlesztésben a `docker compose up` a compose.override.yaml-t is
+# betölti (Mailpit, seed); élesre csak ez a fájl: `docker compose -f compose.yaml up`.
 # Indulás előtt: `pnpm secrets:init` (a secrets/ mappa fájljai, lásd secrets/README.md).
 name: taltos
 
@@ -8,23 +8,49 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_DB: taltos
-      POSTGRES_USER: taltos
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    # A DB-szervernek a saját jelszava kell; az alkalmazás-secreteket csak a backend kapja (D13).
-    secrets: [db_password]
+      POSTGRES_USER: taltos_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_superuser_password
+      # Az init-szkript (db/initdb, csak első indításkor) ezekből hozza létre a login-szerepköröket (B4 S23).
+      DB_MIGRATOR_PASSWORD_FILE: /run/secrets/db_migrator_password
+      DB_APP_PASSWORD_FILE: /run/secrets/db_app_password
+    # A DB-szerver csak a saját szerepköreinek jelszavát kapja; az OIDC- és SMTP-secretet csak a backend (D13).
+    secrets: [db_superuser_password, db_migrator_password, db_app_password]
     volumes:
       - pgdata:/var/lib/postgresql
+      - ./db/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U taltos -d taltos']
+      # TCP-n (127.0.0.1) kérdez: az inicializálás alatti ideiglenes szerver csak unix-socketen hallgat,
+      # ezért a szolgáltatás csak az init-szkript lefutása UTÁN válik egészségessé.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U taltos_admin -d taltos']
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
 
+  # Egyszeri migráció (WP1): ugyanaz a backend-image, a taltos_migrator login-szerepkörrel (a NOLOGIN taltos_owner tagja).
+  # A backend soha nem kapja meg a migrátor jelszavát és DDL-jogot sem (B4 S23).
+  # Nincs saját `build`: a képet a `backend` építi (egyszer); a `migrate` és a dev `seed` ugyanazt a `taltos-backend` képet használja.
+  migrate:
+    image: taltos-backend
+    pull_policy: never
+    command: ['node', 'dist/db/migrate.js']
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_MIGRATOR_PASSWORD_FILE: /run/secrets/db_migrator_password
+    secrets: [db_migrator_password]
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
   backend:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+    image: taltos-backend
     environment:
       NODE_ENV: production
       PORT: '3000'
@@ -33,13 +59,17 @@ services:
       # A közvetlen proxy (a frontend-konténer nginx-e, D50) a Compose privát hálózatáról jön;
       # a backend csak ezt az egy hopot bízza meg, a kliens saját X-Forwarded-For-ját nem.
       TRUST_PROXY: uniquelocal
-      DB_PASSWORD_FILE: /run/secrets/db_password
+      # Az alkalmazás a taltos_backend (a taltos_app tagja) szerepkörrel csatlakozik: DML, DELETE csak a D51 j táblákon.
+      DB_HOST: postgres
+      DB_APP_PASSWORD_FILE: /run/secrets/db_app_password
       OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
       SMTP_PASSWORD_FILE: /run/secrets/smtp_password
-    secrets: [db_password, oidc_client_secret, smtp_password]
+    secrets: [db_app_password, oidc_client_secret, smtp_password]
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   frontend:
@@ -65,8 +95,12 @@ volumes:
   assets:
 
 secrets:
-  db_password:
-    file: ./secrets/db_password.txt
+  db_superuser_password:
+    file: ./secrets/db_superuser_password.txt
+  db_migrator_password:
+    file: ./secrets/db_migrator_password.txt
+  db_app_password:
+    file: ./secrets/db_app_password.txt
   oidc_client_secret:
     file: ./secrets/oidc_client_secret.txt
   smtp_password:

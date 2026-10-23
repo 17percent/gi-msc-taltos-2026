@@ -41,11 +41,11 @@ describe('secretek (D13)', () => {
   it('a *_FILE által mutatott fájlból olvas, a záró sortörést levágja', () => {
     const file = join(dir, 'db_password');
     writeFileSync(file, 's3cr3t\n');
-    expect(readSecret('DB_PASSWORD', { DB_PASSWORD_FILE: file })).toBe('s3cr3t');
+    expect(readSecret('DB_APP_PASSWORD', { DB_APP_PASSWORD_FILE: file })).toBe('s3cr3t');
   });
 
   it('közvetlen környezeti változóból nem olvas', () => {
-    expect(readSecret('DB_PASSWORD', { DB_PASSWORD: 's3cr3t' })).toBeUndefined();
+    expect(readSecret('DB_APP_PASSWORD', { DB_APP_PASSWORD: 's3cr3t' })).toBeUndefined();
   });
 
   it('hiányzó kötelező secretnél a nevet jelzi, az értéket nem', () => {
