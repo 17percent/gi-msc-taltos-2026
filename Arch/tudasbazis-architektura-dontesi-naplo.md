@@ -10,6 +10,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, WP1 CI): **D13 pontosítva** — a secret-fájlok jogosultsága (fejlesztés/CI: `0644` dummy; éles: konténer-felhasználóknak olvasható, világnak nem).*
 
+*10. verzió kiegészítése (2026-10-23, WP2 előtt): **D52** — rendszerindítás: az első felhasználó (a tulajdonos) az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája. Az NY18 első fele lezárva, a második (a konfigból töltött allowlist szemantikája) nyitott marad.*
+
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
 
 *8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
@@ -385,7 +387,7 @@ Tárgytalan: nincs git-hívás a backendben. Az adatelérési réteget a Drizzle
 **Döntés:**
 - **Globálisan** egy adminisztratív szerep van: a **Rendszeradminisztrátor** (a korábbi Admin összevont utódja): allowlist, színterek létrehozása és lezárása, a kezdeti Színtérgazda kijelölése, fajta-lista (D34), rendszerszintű audit. **Tartalmi joga nincs**: tartalmat csak akkor lát és szerkeszt, ha az adott színtérnek tagja. **Saját magát bármely színtérbe felveheti** további feltétel nélkül; ez eseményként naplózódik (`member_added`, `self_assigned`).
 - **Színtéren belül két szerep:** **Szerző** (olvas, szerkeszt, változást indítványoz, review-er lehet) és **Színtérgazda** (+ tagok felvétele és eltávolítása, előléptetés Színtérgazdává, visszaminősítés, színtér leírása és színe). A korábbi Olvasó és Jóváhagyó szerep megszűnik.
-- **Delegált tagság:** a kezdeti Színtérgazdát a Rendszeradminisztrátor jelöli ki, utána a Színtérgazda kezeli a tagságot. A Rendszeradminisztrátor bármikor felülírhat.
+- **Delegált tagság:** a kezdeti Színtérgazdát a Rendszeradminisztrátor jelöli ki, utána a Színtérgazda kezeli a tagságot. A Rendszeradminisztrátor bármikor felülírhat. *(Az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája: D52.)*
 - **Projekt-tér kérése:** bármely felhasználó kérheti (név, cél, javasolt Színtérgazda); a Rendszeradminisztrátor hagyja jóvá és hozza létre (a kérés a dashboardján jelenik meg, D46).
 - **Az Általános színtérben minden allowlistre felvett felhasználó automatikusan Szerző.** Színtérgazdáját a Rendszeradminisztrátor jelöli ki.
 - **A Tulajdonos megmarad** (D31 kötelező gazda, D33 címzett): felelősséget jelent, jogot nem.
@@ -499,6 +501,19 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Indoklás:** a B4 jelenlegi formájában a review-er eltávolítása hibát dobott volna, a Jóváhagyott dokumentum nem lett volna szerkeszthető, a cron-események nem lettek volna naplózhatók, és a második ütemes retenció az FK-k miatt nem lett volna megvalósítható; ezeket utólag, éles adattal drága javítani.
 **Vállalt ár:** az `events` hivatkozásait nem védi FK (az alkalmazás és a tesztek felelőssége); egy új tábla (`sessions`) és néhány új mező/enum-érték. A részletek a B4-ben (10. verzió, D51-kiegészítés).
+
+### D52 — Rendszerindítás: az első felhasználó az első Rendszeradminisztrátor és az Általános színtér gazdája *(új, 2026-10-23 — lezárja az NY18 első felét; kiegészíti a D43-at)*
+
+**Alternatívák:** a konfigurációban megadott e-mail kapja a jogot (pl. `BOOTSTRAP_ADMIN_EMAIL`); kézi SQL-beavatkozás az első telepítés után.
+**Döntés (tulajdonos):**
+- **Az első Rendszeradminisztrátor a tulajdonos**, a jog a rendszerben **elsőként létrejövő felhasználóhoz** kötődik: aki egy friss telepítés után elsőként lép be sikeresen (OIDC + allowlist, D5), annak a `users` sora `system_role = system_admin` értékkel jön létre.
+- **Az Általános színtér kezdő Színtérgazdája ugyanez a felhasználó.** Ha az Általános színtér még nem létezik, ugyanebben a tranzakcióban jön létre, vele mint Színtérgazdával (a D31 kötelező gazdája így az első pillanattól megvan).
+- **Egyszeri:** a rendszerindítás csak akkor fut, ha még nincs Rendszeradminisztrátor; a feltétel ellenőrzése és a jogok kiosztása egy tranzakcióban, zárolással történik (két egyidejű első belépésből csak az egyik kap jogot). Minden további felhasználó első belépéskor Szerző az Általánosban (D43). A további Rendszeradminisztrátorokat és Színtérgazdákat már a meglévők nevezik ki.
+- **Napló:** a rendszerindítás egyetlen aktor nélküli rendszeresemény (D51d): `system_bootstrapped` (részletei: a felhasználó, az Általános színtér, és hogy most jött-e létre). Külön típus, hogy a `system_admin_granted` és a színtér-események továbbra is csak emberi aktorral legyenek írhatók; a rendszer-típusok CHECK-listáját a WP2 egy új migrációval bővíti (B4 S16).
+- **Fejlesztésben** a dummy seed saját Rendszeradminisztrátort és Általános színteret hoz létre, így ott a rendszerindítás nem fut le.
+
+**Indoklás:** nincs külön konfigurációs kulcs vagy kézi SQL-lépés; a tulajdonos az első telepítés után egyszerűen belép, és azonnal kezelheti az allowlistet és a színtereket.
+**Vállalt ár:** a jogot az kapja, aki elsőként lép be. Az első élesítéskor ezért az allowlistben a tulajdonos lépjen be elsőként (célszerűen addig csak ő szerepeljen benne); ezt az üzembe helyezési útmutató rögzíti (WP2).
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 
@@ -614,7 +629,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **NY15 — Tulajdonjog-átadás (D31, D48; WP4 előtt):** a 409 `owner_handover_required` felkínálja, de csak adminisztratív átadás-végpont van. Ki adhat át (tulajdonos, Színtérgazda), és review-köteles-e?
 - **NY16 — E-mail-beállítások és leiratkozás (D46; WP18 előtt):** a H5 WP18 említi, de nincs napló-pontja; D21 szerint addig nem épül.
 - **NY17 — A Rendszeradmin audit-láthatósága (D43; WP9 előtt):** a rendszerszintű audit és a retenciós előnézet címet és komment-szöveget adhat, holott a Rendszeradminnak nincs tartalmi joga. Mely mezőket láthatja?
-- **NY18 — Az első Rendszeradmin és az Általános színtér kezdő Színtérgazdája (D43, D49; WP2 előtt):** konfigurációból jönnek-e, és mi történik a konfigból eltávolított allowlist-sorral (soft delete, újrafelvétel)?
+- **NY18 — A konfigurációból töltött allowlist szemantikája (D49; WP2 előtt):** mi történik a konfigból eltávolított allowlist-sorral (soft delete, a 409-es védelmek futtatása, újrafelvétel)? *~~Az első Rendszeradmin és az Általános színtér kezdő Színtérgazdája~~ — **lezárva: D52** (az első felhasználó, a tulajdonos).*
 - **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); a függő review sorsa a projekt-tér lezárásakor (WP4); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP3, WP14); a legal hold hatóköre (WP33).
 
 ## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*
