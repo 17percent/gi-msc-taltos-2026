@@ -14,8 +14,14 @@ const GENERAL_SPACE = {
   color: '#3B6FB6',
 } as const;
 
+export interface PgAuthStoreOptions {
+  /** A rendszerindítást egyedül végezheti e-mail (D54); a konfigból jön, kisbetűsítve is összehasonlított. */
+  bootstrapAdminEmail: string;
+}
+
 /** A hitelesítés PostgreSQL-megvalósítása (a `taltos_app` szerepkörrel; DELETE nincs, a visszavonás UPDATE). */
-export function createPgAuthStore(db: Db): AuthStore {
+export function createPgAuthStore(db: Db, options: PgAuthStoreOptions): AuthStore {
+  const bootstrapEmail = options.bootstrapAdminEmail.toLowerCase();
   return {
     async createSession({ id, userId, now, expiresAt }) {
       await db
@@ -59,7 +65,7 @@ export function createPgAuthStore(db: Db): AuthStore {
         .where(eq(t.sessions.id, id));
     },
 
-    login: (identity, now) => db.transaction((tx) => login(tx, identity, now)),
+    login: (identity, now) => db.transaction((tx) => login(tx, identity, now, bootstrapEmail)),
 
     async spacesOf(userId) {
       return db
@@ -128,7 +134,21 @@ function displayNameOf(identity: OidcIdentity): string {
   return identity.name ?? identity.email.split('@')[0] ?? identity.email;
 }
 
-async function login(tx: Tx, identity: OidcIdentity, now: Date): Promise<LoginOutcome> {
+async function adminExists(tx: Tx): Promise<boolean> {
+  const [admin] = await tx
+    .select({ id: t.users.id })
+    .from(t.users)
+    .where(eq(t.users.systemRole, 'system_admin'))
+    .limit(1);
+  return admin !== undefined;
+}
+
+async function login(
+  tx: Tx,
+  identity: OidcIdentity,
+  now: Date,
+  bootstrapEmail: string,
+): Promise<LoginOutcome> {
   // 1. Kapu: aktív allowlist-bejegyzés (D5). Az e-mail kisbetűs, mint a tárolt kulcs.
   const [allowed] = await tx
     .select({ email: t.allowlist.email })
@@ -137,24 +157,25 @@ async function login(tx: Tx, identity: OidcIdentity, now: Date): Promise<LoginOu
     .limit(1);
   if (!allowed) return { status: 'not_on_allowlist' };
 
-  // 2. Meglévő felhasználó: a gyors út, zárolás nélkül.
+  // 2. D54: amíg nincs Rendszeradmin, csak a bootstrap e-mail léphet be (az Általánosnak még nincs gazdája).
+  const isBootstrapEmail = identity.email === bootstrapEmail;
+  if (!isBootstrapEmail && !(await adminExists(tx))) return { status: 'setup_pending' };
+
+  // 3. Meglévő felhasználó: a gyors út, zárolás nélkül.
   const existing = await findUser(tx, identity);
   if (existing.kind === 'conflict') return { status: 'identity_conflict' };
   if (existing.kind === 'found') return settle(tx, existing, identity, now);
 
-  // 3. Új felhasználó: a létrehozás és a rendszerindítás-döntés sorosított (D52). A zár a tranzakció végéig
+  // 4. Új felhasználó: a létrehozás és a rendszerindítás-döntés sorosított (D52). A zár a tranzakció végéig
   // tart, és a zár megszerzése UTÁN újra olvasunk (READ COMMITTED: a várakozás alatt commitolt sor látszik).
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${LOCK_USER_PROVISIONING}::bigint)`);
   const again = await findUser(tx, identity);
   if (again.kind === 'conflict') return { status: 'identity_conflict' };
   if (again.kind === 'found') return settle(tx, again, identity, now);
 
-  const [admin] = await tx
-    .select({ id: t.users.id })
-    .from(t.users)
-    .where(eq(t.users.systemRole, 'system_admin'))
-    .limit(1);
-  const bootstrap = admin === undefined;
+  // A zár alatt újraellenőrizve: közben egy másik belépő rendszert indíthatott.
+  const bootstrap = !(await adminExists(tx));
+  if (bootstrap && !isBootstrapEmail) return { status: 'setup_pending' };
 
   const [created] = await tx
     .insert(t.users)

@@ -50,7 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'same-origin',
         headers: { 'X-CSRF-Token': csrfToken },
       });
-      if (response.ok) setState({ kind: 'signed-out' });
+      // 401: a munkamenet már lejárt vagy visszavonták, tehát a felhasználó ki van jelentkezve.
+      if (response.ok || response.status === 401) setState({ kind: 'signed-out' });
       else setLogoutFailed(true);
     } catch {
       setLogoutFailed(true);

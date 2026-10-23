@@ -18,6 +18,16 @@ export interface AuthContext {
   cookieSecure: boolean;
 }
 
+/**
+ * A sütinevek egyetlen helyen (appsec W-2): Secure módban a böngésző az előtagok alapján kényszeríti a Secure-t
+ * (és a `__Host-` a Path=/ + Domain nélküliséget is), így altartományról nem írható felül. A fejlesztői http-n
+ * az előtagos süti nem működne, ott az egyszerű név marad.
+ */
+export const sessionCookieName = (secure: boolean): string =>
+  secure ? '__Host-taltos_sid' : 'taltos_sid';
+export const loginCookieName = (secure: boolean): string =>
+  secure ? '__Secure-taltos_login' : 'taltos_login';
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function isMutating(method: string): boolean {
@@ -46,6 +56,22 @@ export function clearSessionCookie(ctx: AuthContext, reply: FastifyReply): void 
     sameSite: 'lax',
     secure: ctx.cookieSecure,
   });
+}
+
+/**
+ * Globális `onRequest` kapu (appsec W-5): minden mutáló metódusú (POST/PUT/PATCH/DELETE) kéréshez engedélyezett
+ * `Origin` kell, bármely útvonalon (az útvonalankénti CSRF-token-ellenőrzés mellett, nem helyette). A 403 itt is
+ * `csrf_failed`; az Origin nélküli (nem böngészős) mutáló kérés is elutasul.
+ */
+export function mutationOriginGate(allowedOrigins: ReadonlySet<string>) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (!isMutating(request.method)) return;
+    const origin = request.headers.origin;
+    if (origin === undefined || !allowedOrigins.has(origin)) {
+      request.log.warn({ origin }, 'mutáló kérés elutasítva: nem engedélyezett origin');
+      await sendProblem(reply, 'csrf_failed', { detail: 'Nem engedélyezett origin.' });
+    }
+  };
 }
 
 /**

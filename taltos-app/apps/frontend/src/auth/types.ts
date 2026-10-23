@@ -1,18 +1,6 @@
-// Tükrözi a `MeResponse` típust a `@taltos/shared`-ből (merge után az import cserélendő).
-export type MeResponse = {
-  id: string;
-  displayName: string;
-  email: string;
-  avatarUrl: string | null;
-  systemRole: 'user' | 'system_admin';
-  spaces: Array<{
-    id: string;
-    name: string;
-    type: 'general' | 'team' | 'project';
-    role: 'author' | 'space_manager';
-  }>;
-  csrfToken: string;
-};
+import type { MeResponse } from '@taltos/shared';
+
+export type { MeResponse };
 
 export type AuthState =
   | { kind: 'loading' }

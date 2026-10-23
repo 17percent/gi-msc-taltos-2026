@@ -77,6 +77,11 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       # Secure süti; a http://localhost-os fejlesztésben a compose.override.yaml kikapcsolja.
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # Élesben (NODE_ENV=production) a COOKIE_SECURE=false és a nem https PUBLIC_ORIGIN indításkor hibát ad; kizárólag a
+      # CI füstpróba (http) és a dev-override állítja true-ra.
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
+      # A rendszerindító felhasználó (D54): amíg nincs Rendszeradmin, csak ez az e-mail léphet be (és kell az allowlisten lennie).
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       ALLOWLIST_FILE: /etc/taltos/allowlist.txt
       SMTP_PASSWORD_FILE: /run/secrets/smtp_password
     secrets: [db_app_password, oidc_client_secret, smtp_password]

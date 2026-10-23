@@ -15,7 +15,7 @@ const pool = createPool(loadDbConnection('app'));
 const db = drizzle(pool);
 
 const app = await buildApp(config, {
-  store: createPgAuthStore(db),
+  store: createPgAuthStore(db, { bootstrapAdminEmail: config.bootstrapAdminEmail }),
   oidc: createOidcFlow({
     issuer: config.oidcIssuer,
     clientId: config.oidcClientId,

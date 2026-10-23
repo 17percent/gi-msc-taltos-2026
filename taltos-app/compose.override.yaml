@@ -4,6 +4,8 @@ services:
   backend:
     environment:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # A http://localhost-os dev-környezet kifejezett kivétele az éles HTTPS-szabály alól.
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-true}
 
   # E-mail-mock (D11, D46): a levelek a webes felületen nézhetők meg (http://localhost:8025).
   mailpit:

@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { loadConfig } from './config.js';
 import { readSecret, requireSecret } from './secrets.js';
 
-const BASE = { OIDC_CLIENT_ID: 'kliens-id', ALLOWLIST_FILE: '/etc/taltos/allowlist.txt' };
+const BASE = {
+  OIDC_CLIENT_ID: 'kliens-id',
+  ALLOWLIST_FILE: '/etc/taltos/allowlist.txt',
+  BOOTSTRAP_ADMIN_EMAIL: 'owner@example.test',
+};
 
 describe('loadConfig', () => {
   it('fejlesztésben alapértelmezett originekkel indul', () => {
@@ -23,6 +27,7 @@ describe('loadConfig', () => {
     const config = loadConfig({
       ...BASE,
       ALLOWED_ORIGINS: 'https://taltos.example, https://b.example',
+      PUBLIC_ORIGIN: 'https://taltos.example',
       TRUST_PROXY: '10.0.0.0/8',
     });
     expect(config.allowedOrigins).toEqual(['https://taltos.example', 'https://b.example']);
@@ -46,15 +51,59 @@ describe('loadConfig', () => {
     expect(config.sessionIdleMs).toBe(60 * 60_000);
   });
 
-  it('élesben a süti alapból Secure, kifejezetten kikapcsolható', () => {
-    const env = {
-      ...BASE,
-      NODE_ENV: 'production',
-      ALLOWED_ORIGINS: 'https://t.example',
-      PUBLIC_ORIGIN: 'https://t.example',
-    };
-    expect(loadConfig(env).cookieSecure).toBe(true);
-    expect(loadConfig({ ...env, COOKIE_SECURE: 'false' }).cookieSecure).toBe(false);
+  const PROD = {
+    ...BASE,
+    NODE_ENV: 'production',
+    ALLOWED_ORIGINS: 'https://t.example',
+    PUBLIC_ORIGIN: 'https://t.example',
+  };
+
+  it('élesben a süti alapból Secure', () => {
+    expect(loadConfig(PROD).cookieSecure).toBe(true);
+  });
+
+  it('élesben a COOKIE_SECURE=false és a nem https PUBLIC_ORIGIN nem indul', () => {
+    expect(() => loadConfig({ ...PROD, COOKIE_SECURE: 'false' })).toThrow('COOKIE_SECURE');
+    expect(() =>
+      loadConfig({
+        ...PROD,
+        ALLOWED_ORIGINS: 'http://t.example',
+        PUBLIC_ORIGIN: 'http://t.example',
+      }),
+    ).toThrow('https');
+  });
+
+  it('az ALLOW_INSECURE_HTTP=true kifejezett kivétel (CI füstpróba)', () => {
+    const config = loadConfig({
+      ...PROD,
+      ALLOWED_ORIGINS: 'http://localhost:8080',
+      PUBLIC_ORIGIN: 'http://localhost:8080',
+      COOKIE_SECURE: 'false',
+      ALLOW_INSECURE_HTTP: 'true',
+    });
+    expect(config.cookieSecure).toBe(false);
+    expect(() => loadConfig({ ...PROD, ALLOW_INSECURE_HTTP: 'igen' })).toThrow('ALLOW_INSECURE');
+  });
+
+  it('a PUBLIC_ORIGIN-nek benne kell lennie az ALLOWED_ORIGINS listában', () => {
+    expect(() => loadConfig({ ...PROD, ALLOWED_ORIGINS: 'https://masik.example' })).toThrow(
+      'ALLOWED_ORIGINS',
+    );
+    expect(() => loadConfig({ ...BASE, PUBLIC_ORIGIN: 'http://localhost:9999' })).toThrow(
+      'ALLOWED_ORIGINS',
+    );
+  });
+
+  it('a BOOTSTRAP_ADMIN_EMAIL kötelező, kisbetűsített, e-mail alakú (D54)', () => {
+    expect(loadConfig({ ...BASE, BOOTSTRAP_ADMIN_EMAIL: ' Owner@Example.TEST ' })).toMatchObject({
+      bootstrapAdminEmail: 'owner@example.test',
+    });
+    expect(() => loadConfig({ ...BASE, BOOTSTRAP_ADMIN_EMAIL: undefined })).toThrow(
+      'BOOTSTRAP_ADMIN_EMAIL',
+    );
+    expect(() => loadConfig({ ...BASE, BOOTSTRAP_ADMIN_EMAIL: 'nem-email' })).toThrow(
+      'BOOTSTRAP_ADMIN_EMAIL',
+    );
   });
 
   it('élesben PUBLIC_ORIGIN nélkül nem indul', () => {
@@ -62,9 +111,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig(env)).toThrow('PUBLIC_ORIGIN');
   });
 
-  it.each(['OIDC_CLIENT_ID', 'ALLOWLIST_FILE'])('hiányzó %s esetén nem indul', (name) => {
-    expect(() => loadConfig({ ...BASE, [name]: undefined })).toThrow(name);
-  });
+  it.each(['OIDC_CLIENT_ID', 'ALLOWLIST_FILE', 'BOOTSTRAP_ADMIN_EMAIL'])(
+    'hiányzó %s esetén nem indul',
+    (name) => {
+      expect(() => loadConfig({ ...BASE, [name]: undefined })).toThrow(name);
+    },
+  );
 
   it('érvénytelen COOKIE_SECURE, PUBLIC_ORIGIN és lejárat-érték hibát ad', () => {
     expect(() => loadConfig({ ...BASE, COOKIE_SECURE: 'igen' })).toThrow('COOKIE_SECURE');
@@ -73,9 +125,12 @@ describe('loadConfig', () => {
   });
 
   it('a PUBLIC_ORIGIN-t origin-ná normalizálja', () => {
-    expect(loadConfig({ ...BASE, PUBLIC_ORIGIN: 'https://T.example/valami' }).publicOrigin).toBe(
-      'https://t.example',
-    );
+    const config = loadConfig({
+      ...BASE,
+      ALLOWED_ORIGINS: 'https://t.example',
+      PUBLIC_ORIGIN: 'https://T.example/valami',
+    });
+    expect(config.publicOrigin).toBe('https://t.example');
   });
 });
 

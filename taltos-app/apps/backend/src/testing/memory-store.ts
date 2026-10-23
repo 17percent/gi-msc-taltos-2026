@@ -30,6 +30,9 @@ export class MemoryAuthStore implements AuthStore {
   /** A `touchSession` által ténylegesen elvégzett írások száma (a ritkítás ellenőrzéséhez). */
   touchWrites = 0;
 
+  /** A rendszerindító e-mail (D54); alapból a tesztkonfig értéke. */
+  constructor(private readonly bootstrapAdminEmail = 'owner@example.test') {}
+
   allow(email: string): void {
     this.allowlist.add(email.toLowerCase());
   }
@@ -97,11 +100,15 @@ export class MemoryAuthStore implements AuthStore {
 
   login(identity: OidcIdentity): Promise<LoginOutcome> {
     if (!this.allowlist.has(identity.email)) return Promise.resolve({ status: 'not_on_allowlist' });
+    const adminExists = [...this.users.values()].some((user) => user.systemRole === 'system_admin');
+    if (!adminExists && identity.email !== this.bootstrapAdminEmail) {
+      return Promise.resolve({ status: 'setup_pending' });
+    }
     const existing = [...this.users.values()].find(
       (user) => user.sub === identity.sub || user.email === identity.email,
     );
     if (existing) return Promise.resolve({ status: 'ok', userId: existing.id });
-    const first = this.users.size === 0;
+    const first = !adminExists;
     const user = this.addUser(identity.email, first ? 'system_admin' : 'user');
     user.sub = identity.sub;
     this.addMembership(user.id, {

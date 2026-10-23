@@ -18,7 +18,8 @@ export interface MeResponse {
 
 /**
  * A bejelentkezés hibakódja a `/?error=<kód>` átirányításban. `not_on_allowlist`: a szolgáltatónál
- * hitelesített, de nem engedélyezett cím (nincs session); `login_failed`: bármely más hiba
- * (érvénytelen állapot, nem megerősített e-mail, szolgáltatói hiba).
+ * hitelesített, de nem engedélyezett cím (nincs session); `setup_pending`: még nincs
+ * Rendszeradminisztrátor, és csak a `BOOTSTRAP_ADMIN_EMAIL` léphet be elsőként (D54);
+ * `login_failed`: bármely más hiba (érvénytelen állapot, nem megerősített e-mail, szolgáltatói hiba).
  */
-export type LoginError = 'not_on_allowlist' | 'login_failed';
+export type LoginError = 'not_on_allowlist' | 'setup_pending' | 'login_failed';

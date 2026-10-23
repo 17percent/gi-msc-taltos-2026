@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp, type BuildOptions } from '../app.js';
 import { csrfTokenFor } from '../auth/csrf.js';
+import { sessionCookieName } from '../auth/guard.js';
 import { LoginRejected, type LoginTransaction, type OidcFlow } from '../auth/oidc.js';
 import { SessionService, TOUCH_INTERVAL_MS } from '../auth/session-service.js';
 import type { Clock, OidcIdentity } from '../auth/types.js';
@@ -20,6 +21,7 @@ export const TEST_CONFIG: AppConfig = {
   oidcIssuer: 'https://idp.example/',
   oidcClientId: 'teszt-kliens',
   cookieSecure: false,
+  bootstrapAdminEmail: 'owner@example.test',
   allowlistFile: '/nincs/allowlist.txt',
   sessionAbsoluteMs: 8 * 60 * 60_000,
   sessionIdleMs: 60 * 60_000,
@@ -86,8 +88,8 @@ export async function createTestApp(
   overrides: Partial<AppConfig> = {},
   options: BuildOptions = {},
 ): Promise<TestContext> {
-  const store = new MemoryAuthStore();
   const config = { ...TEST_CONFIG, ...overrides };
+  const store = new MemoryAuthStore(config.bootstrapAdminEmail);
   const clock = new TestClock();
   const oidc = new FakeOidc();
   const app = await buildApp(
@@ -116,12 +118,13 @@ export async function createTestApp(
       const user = store.addUser(email, role);
       const { token } = await sessions.issue(user.id);
       const csrf = csrfTokenFor(token);
+      const cookie = `${sessionCookieName(config.cookieSecure)}=${token}`;
       return {
         userId: user.id,
         token,
-        cookie: `taltos_sid=${token}`,
+        cookie,
         csrf,
-        headers: { cookie: `taltos_sid=${token}`, origin: TEST_ORIGIN, 'x-csrf-token': csrf },
+        headers: { cookie, origin: TEST_ORIGIN, 'x-csrf-token': csrf },
       };
     },
   };

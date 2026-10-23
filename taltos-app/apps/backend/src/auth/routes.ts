@@ -6,7 +6,13 @@ import {
   type LoginError,
 } from '@taltos/shared';
 import { sendProblem } from '../http/problem.js';
-import { clearSessionCookie, setSessionCookie, verifyMutation, type AuthContext } from './guard.js';
+import {
+  clearSessionCookie,
+  loginCookieName,
+  setSessionCookie,
+  verifyMutation,
+  type AuthContext,
+} from './guard.js';
 import { LoginRejected, type LoginTransaction, type OidcFlow } from './oidc.js';
 import type { AuthStore, Clock } from './types.js';
 
@@ -26,12 +32,12 @@ export interface AuthRouteDependencies {
  * megakadályozza, hogy idegen kísérlet értékeit tolják a böngészőbe (login CSRF). A süti csak az `/auth` útvonalra
  * megy, a kísérlet végén törlődik.
  */
-const TX_COOKIE = 'taltos_login';
 const TX_PATH = '/auth';
 const TX_MAX_AGE_SECONDS = 10 * 60;
 
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependencies): void {
   const { context, store, oidc, clock, publicOrigin } = deps;
+  const txCookie = loginCookieName(context.cookieSecure);
   const txCookieOptions = {
     path: TX_PATH,
     httpOnly: true,
@@ -45,7 +51,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependen
   app.get(AUTH_LOGIN_PATH, async (request, reply) => {
     try {
       const { url, tx } = await oidc.start();
-      void reply.setCookie(TX_COOKIE, JSON.stringify(tx), {
+      void reply.setCookie(txCookie, JSON.stringify(tx), {
         ...txCookieOptions,
         maxAge: TX_MAX_AGE_SECONDS,
         signed: true,
@@ -59,7 +65,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependen
 
   app.get(AUTH_CALLBACK_PATH, async (request, reply) => {
     const tx = readTransaction(request);
-    void reply.clearCookie(TX_COOKIE, txCookieOptions);
+    void reply.clearCookie(txCookie, txCookieOptions);
     if (tx === undefined) {
       request.log.warn('bejelentkezési visszahívás érvényes kísérlet-süti nélkül');
       return failLogin(reply, 'login_failed');
@@ -77,7 +83,18 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependen
       return failLogin(reply, 'login_failed');
     }
 
-    const outcome = await store.login(identity, clock());
+    let outcome;
+    try {
+      outcome = await store.login(identity, clock());
+    } catch (error) {
+      // Adatbázis- vagy invariáns-hiba: a felhasználó érthető hibaoldalra kerül, a részlet a (redaktált) naplóba.
+      request.log.error({ err: error }, 'a bejelentkezés adatbázis-hibával megszakadt');
+      return failLogin(reply, 'login_failed');
+    }
+    if (outcome.status === 'setup_pending') {
+      request.log.warn('belépés elutasítva: a rendszer még nincs beállítva (D54)');
+      return failLogin(reply, 'setup_pending');
+    }
     if (outcome.status === 'not_on_allowlist') {
       request.log.info('belépés elutasítva: az e-mail nincs az allowlisten');
       return failLogin(reply, 'not_on_allowlist');
@@ -87,6 +104,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependen
       return failLogin(reply, 'login_failed');
     }
 
+    // Session-fixation ellen (W-3): a kérés meglévő munkamenete az új kiadása előtt visszavonódik.
+    await context.sessions.revokeToken(request.cookies[context.cookieName]);
     const { token, expiresAt } = await context.sessions.issue(outcome.userId);
     setSessionCookie(context, reply, token, expiresAt);
     request.log.info({ userId: outcome.userId }, 'bejelentkezés');
@@ -100,6 +119,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependen
       onRequest: async (request, reply) => {
         const session = await context.sessions.authenticate(request.cookies[context.cookieName]);
         if (session === undefined) {
+          // Szerződés: 401, de az elavult session-süti törlődik, hogy ne maradjon a böngészőben.
+          clearSessionCookie(context, reply);
           await sendProblem(reply, 'unauthenticated');
           return;
         }
@@ -114,7 +135,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDependen
   );
 
   function readTransaction(request: FastifyRequest): LoginTransaction | undefined {
-    const raw = request.cookies[TX_COOKIE];
+    const raw = request.cookies[txCookie];
     if (raw === undefined) return undefined;
     const unsigned = request.unsignCookie(raw);
     if (!unsigned.valid) return undefined;

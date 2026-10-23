@@ -139,7 +139,7 @@ describe('bejelentkezett állapot', () => {
         () => Response.json(me),
         (url) =>
           url === '/auth/logout'
-            ? problem(403, 'csrf_invalid')
+            ? problem(403, 'csrf_failed')
             : Response.json({ status: 'ok', version: '1.2.3' }),
       ),
     );
@@ -147,6 +147,22 @@ describe('bejelentkezett állapot', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Kijelentkezés' }));
     expect((await screen.findByRole('alert')).textContent).toContain('nem sikerült');
     expect(screen.getByText(/Szia, Kovács Anna!/)).toBeTruthy();
+  });
+
+  it('lejárt munkamenetnél (401) a kijelentkezés után kijelentkezett állapotba kerül', async () => {
+    mockFetch(
+      withMe(
+        () => Response.json(me),
+        (url) =>
+          url === '/auth/logout'
+            ? problem(401, 'unauthenticated')
+            : Response.json({ status: 'ok', version: '1.2.3' }),
+      ),
+    );
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Kijelentkezés' }));
+    expect(await screen.findByRole('heading', { name: 'Jelentkezz be a Táltosba' })).toBeTruthy();
+    expect(screen.queryByText(/Szia, Kovács Anna!/)).toBeNull();
   });
 });
 
@@ -186,6 +202,25 @@ describe('nem jogosult cím', () => {
     mockFetch(withMe(() => problem(403, 'not_on_allowlist')));
     renderAt('/');
     expect((await screen.findByRole('alert')).textContent).toContain('Rendszeradminisztrátor');
+  });
+});
+
+describe('még be nem állított rendszer', () => {
+  it('?error=setup_pending esetén elmagyarázza, hogy az első Rendszeradmin indítja', async () => {
+    mockFetch(withMe(() => problem(401, 'unauthenticated')));
+    renderAt('/?error=setup_pending');
+    expect((await screen.findByRole('alert')).textContent).toContain('még nincs beállítva');
+  });
+});
+
+describe('sikertelen bejelentkezés', () => {
+  it('?error=login_failed esetén újrapróbálást kínál', async () => {
+    mockFetch(withMe(() => problem(401, 'unauthenticated')));
+    renderAt('/?error=login_failed');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'A bejelentkezés nem sikerült',
+    );
+    expect(screen.getByRole('link', { name: 'Bejelentkezés újra' })).toBeTruthy();
   });
 });
 

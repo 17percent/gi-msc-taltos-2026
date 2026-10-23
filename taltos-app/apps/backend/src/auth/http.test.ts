@@ -181,10 +181,10 @@ describe('/auth útvonalak', () => {
       headers: { cookie, host: 'tamado.example' },
     });
 
-  it('allowlistes felhasználó belép: session-süti, átirányítás /-re, Általános tag', async () => {
+  it('a bootstrap e-mail belép: session-süti, átirányítás /-re, Általános gazda (D54)', async () => {
     ctx = await createTestApp();
-    ctx.store.allow('anna@example.test');
-    ctx.oidc.result = { sub: 's1', email: 'anna@example.test', name: 'Anna', picture: null };
+    ctx.store.allow('owner@example.test');
+    ctx.oidc.result = { sub: 's1', email: 'owner@example.test', name: 'Owner', picture: null };
     const response = await callback(await startLogin());
     expect(response.statusCode).toBe(302);
     expect(response.headers.location).toBe('/');
@@ -237,8 +237,8 @@ describe('/auth útvonalak', () => {
   it('a Secure jelző a konfigból jön, az X-Forwarded-Proto-ból soha', async () => {
     for (const secure of [false, true]) {
       ctx = await createTestApp({ cookieSecure: secure });
-      ctx.store.allow('anna@example.test');
-      ctx.oidc.result = { sub: 's1', email: 'anna@example.test', name: null, picture: null };
+      ctx.store.allow('owner@example.test');
+      ctx.oidc.result = { sub: 's1', email: 'owner@example.test', name: null, picture: null };
       const cookie = await startLogin();
       const response = await ctx.app.inject({
         method: 'GET',
@@ -247,8 +247,11 @@ describe('/auth útvonalak', () => {
       });
       const session = ([] as string[])
         .concat(response.headers['set-cookie'] ?? [])
-        .find((c) => c.startsWith('taltos_sid='));
+        .find((c) => c.startsWith(secure ? '__Host-taltos_sid=' : 'taltos_sid='));
+      expect(session, `cookieSecure=${secure}`).toBeDefined();
       expect(/;\s*Secure/i.test(session ?? ''), `cookieSecure=${secure}`).toBe(secure);
+      // __Host-: Path=/ és nincs Domain.
+      if (secure) expect(session).not.toMatch(/Domain=/i);
       await ctx.app.close();
     }
     ctx = await createTestApp();
@@ -278,13 +281,141 @@ describe('/auth útvonalak', () => {
     expect(me.statusCode).toBe(401);
   });
 
-  it('a kijelentkezés session nélkül 401', async () => {
+  it('a kijelentkezés session nélkül 401, de az elavult session-sütit törli', async () => {
     ctx = await createTestApp();
-    const response = await ctx.app.inject({
+    const bare = await ctx.app.inject({
       method: 'POST',
       url: '/auth/logout',
       headers: { origin: TEST_ORIGIN },
     });
-    expect(response.statusCode).toBe(401);
+    expect(bare.statusCode).toBe(401);
+    const stale = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      headers: { origin: TEST_ORIGIN, cookie: `taltos_sid=${'A'.repeat(43)}` },
+    });
+    expect(stale.statusCode).toBe(401);
+    expect(stale.json()).toMatchObject({ code: 'unauthenticated' });
+    expect(String(stale.headers['set-cookie'])).toMatch(/taltos_sid=;/);
+  });
+
+  it('Secure módban a sütinevek előtagosak (__Host- a sessionön, __Secure- a kísérleten), Path változatlan', async () => {
+    ctx = await createTestApp({ cookieSecure: true });
+    const login = await ctx.app.inject({ method: 'GET', url: '/auth/login' });
+    const tx = String(login.headers['set-cookie']);
+    expect(tx).toMatch(/^__Secure-taltos_login=/);
+    expect(tx).toMatch(/Path=\/auth/);
+    expect(tx).toMatch(/;\s*Secure/i);
+    const session = await ctx.signIn('anna@example.test');
+    expect(session.cookie).toMatch(/^__Host-taltos_sid=/);
+    const me = await ctx.app.inject({
+      method: 'GET',
+      url: ME,
+      headers: { cookie: session.cookie },
+    });
+    expect(me.statusCode).toBe(200);
+    // Az előtag nélküli név Secure módban nem hitelesít.
+    const plain = await ctx.app.inject({
+      method: 'GET',
+      url: ME,
+      headers: { cookie: session.cookie.replace('__Host-', '') },
+    });
+    expect(plain.statusCode).toBe(401);
+  });
+
+  it('nem Secure módban az egyszerű sütinevek maradnak', async () => {
+    ctx = await createTestApp();
+    const session = await ctx.signIn('anna@example.test');
+    expect(session.cookie).toMatch(/^taltos_sid=/);
+  });
+
+  it('rendszerindítás előtt más allowlistes felhasználó /?error=setup_pending, session nélkül (D54)', async () => {
+    ctx = await createTestApp();
+    ctx.store.allow('anna@example.test');
+    ctx.oidc.result = { sub: 's1', email: 'anna@example.test', name: 'Anna', picture: null };
+    const response = await callback(await startLogin());
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe('/?error=setup_pending');
+    expect(String(response.headers['set-cookie'] ?? '')).not.toContain('taltos_sid=');
+    expect(ctx.store.users.size).toBe(0);
+  });
+
+  it('a rendszerindítás után a második felhasználó Szerző az Általánosban (D54)', async () => {
+    ctx = await createTestApp();
+    ctx.store.allow('owner@example.test');
+    ctx.store.allow('anna@example.test');
+    ctx.oidc.result = { sub: 's0', email: 'owner@example.test', name: null, picture: null };
+    expect((await callback(await startLogin())).headers.location).toBe('/');
+    ctx.oidc.result = { sub: 's1', email: 'anna@example.test', name: null, picture: null };
+    const response = await callback(await startLogin());
+    expect(response.headers.location).toBe('/');
+    const session = ([] as string[])
+      .concat(response.headers['set-cookie'] ?? [])
+      .find((c) => c.startsWith('taltos_sid='));
+    const me = await ctx.app.inject({
+      method: 'GET',
+      url: ME,
+      headers: { cookie: (session ?? '').split(';')[0] ?? '' },
+    });
+    expect(me.json<MeResponse>()).toMatchObject({
+      systemRole: 'user',
+      spaces: [{ type: 'general', role: 'author' }],
+    });
+  });
+
+  it('a sikeres belépés visszavonja a kérés korábbi munkamenetét (session-fixation ellen)', async () => {
+    ctx = await createTestApp();
+    ctx.store.allow('owner@example.test');
+    ctx.oidc.result = { sub: 's1', email: 'owner@example.test', name: null, picture: null };
+    const old = await ctx.signIn('owner@example.test', 'system_admin');
+    const response = await callback(`${await startLogin()}; ${old.cookie}`);
+    expect(response.headers.location).toBe('/');
+    const oldMe = await ctx.app.inject({
+      method: 'GET',
+      url: ME,
+      headers: { cookie: old.cookie },
+    });
+    expect(oldMe.statusCode).toBe(401);
+  });
+
+  it('a store.login hibája login_failed átirányítás, nem 500', async () => {
+    ctx = await createTestApp();
+    ctx.oidc.result = { sub: 's1', email: 'owner@example.test', name: null, picture: null };
+    ctx.store.login = () => Promise.reject(new Error('connection terminated'));
+    const response = await callback(await startLogin());
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe('/?error=login_failed');
+    expect(String(response.headers['set-cookie'] ?? '')).not.toContain('taltos_sid=');
+  });
+});
+
+describe('globális Origin-kapu mutáló kérésekre (appsec W-5)', () => {
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'] as const)(
+    '%s idegen vagy hiányzó Origin-nel 403 csrf_failed, bármely útvonalon',
+    async (method) => {
+      ctx = await createTestApp();
+      for (const url of ['/nincs-ilyen', '/auth/login', '/healthz']) {
+        const missing = await ctx.app.inject({ method, url });
+        expect(missing.statusCode, `${method} ${url}`).toBe(403);
+        expect(missing.json()).toMatchObject({ code: 'csrf_failed' });
+        const foreign = await ctx.app.inject({
+          method,
+          url,
+          headers: { origin: 'https://tamado.example' },
+        });
+        expect(foreign.statusCode).toBe(403);
+      }
+    },
+  );
+
+  it('engedélyezett Origin-nel a kérés az útvonalig jut (404), a biztonságos metódusok Origin nélkül is', async () => {
+    ctx = await createTestApp();
+    const post = await ctx.app.inject({
+      method: 'POST',
+      url: '/nincs-ilyen',
+      headers: { origin: TEST_ORIGIN },
+    });
+    expect(post.statusCode).toBe(404);
+    expect((await ctx.app.inject({ method: 'GET', url: '/healthz' })).statusCode).toBe(200);
   });
 });

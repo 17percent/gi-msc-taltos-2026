@@ -15,6 +15,9 @@ import type { OidcIdentity } from './types.js';
  */
 const url = process.env.TEST_DATABASE_URL;
 
+/** A rendszerindító e-mail (D54): a tesztekben csak ő lehet az első belépő. */
+const BOOTSTRAP = 'owner@example.test';
+
 const identity = (email: string): OidcIdentity => ({
   sub: `sub-${email}`,
   email,
@@ -43,11 +46,16 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
         'TRUNCATE sessions, space_members, events, documents, spaces, allowlist, users CASCADE',
       );
     } finally {
-      client.release();
+      // A pool-kapcsolat visszaadása előtt visszaállítjuk, hogy a replica-mód ne szivárogjon más tesztre.
+      try {
+        await client.query('RESET session_replication_role');
+      } finally {
+        client.release();
+      }
     }
   });
 
-  const store = () => createPgAuthStore(drizzle(db.app));
+  const store = () => createPgAuthStore(drizzle(db.app), { bootstrapAdminEmail: BOOTSTRAP });
   const now = new Date('2026-10-23T08:00:00Z');
   const allow = (...emails: string[]) => syncAllowlist(drizzle(db.app), emails, now);
   const q = async <T extends object>(sql: string, params: unknown[] = []): Promise<T[]> =>
@@ -104,32 +112,59 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
     }
   });
 
-  it('két egyidejű első belépésből csak egy kap jogot (versenyhelyzet)', async () => {
-    await allow('a@example.test', 'b@example.test', 'c@example.test');
-    const results = await Promise.all(
-      ['a', 'b', 'c'].map((n) => store().login(identity(`${n}@example.test`), now)),
-    );
+  it('a bootstrap e-mail három egyidejű belépéséből a jog egyszer íródik (versenyhelyzet, D54)', async () => {
+    await allow(BOOTSTRAP);
+    const results = await Promise.all([1, 2, 3].map(() => store().login(identity(BOOTSTRAP), now)));
     expect(results.every((r) => r.status === 'ok')).toBe(true);
+    expect(new Set(results.map((r) => (r.status === 'ok' ? r.userId : ''))).size).toBe(1);
+    expect(await q('SELECT 1 FROM users')).toHaveLength(1);
     expect(await q("SELECT 1 FROM users WHERE system_role = 'system_admin'")).toHaveLength(1);
     expect(await q("SELECT 1 FROM spaces WHERE type = 'general'")).toHaveLength(1);
     expect(await q("SELECT 1 FROM space_members WHERE role = 'space_manager'")).toHaveLength(1);
     expect(await q("SELECT 1 FROM events WHERE type = 'system_bootstrapped'")).toHaveLength(1);
-    expect(await q("SELECT 1 FROM space_members WHERE role = 'author'")).toHaveLength(2);
+  });
+
+  it('rendszerindítás előtt más allowlistes felhasználó setup_pending, semmi sem íródik (D54)', async () => {
+    await allow(BOOTSTRAP, 'a@example.test', 'b@example.test');
+    const results = await Promise.all(
+      ['a', 'b'].map((n) => store().login(identity(`${n}@example.test`), now)),
+    );
+    expect(results).toEqual([{ status: 'setup_pending' }, { status: 'setup_pending' }]);
+    expect(await q('SELECT 1 FROM users')).toHaveLength(0);
+    expect(await q('SELECT 1 FROM spaces')).toHaveLength(0);
+    expect(await q('SELECT 1 FROM events WHERE type = $1', ['system_bootstrapped'])).toHaveLength(
+      0,
+    );
+  });
+
+  it('egyidejű bootstrap és más belépő: csak a bootstrap e-mail kap jogot (D54)', async () => {
+    await allow(BOOTSTRAP, 'a@example.test');
+    const [boot, other] = await Promise.all([
+      store().login(identity(BOOTSTRAP), now),
+      store().login(identity('a@example.test'), now),
+    ]);
+    expect(boot.status).toBe('ok');
+    // A sorrendtől függően a másik a rendszerindítás előtt (setup_pending) vagy után (ok, Szerző) ért oda.
+    expect(['setup_pending', 'ok']).toContain(other.status);
+    expect(await q("SELECT email FROM users WHERE system_role = 'system_admin'")).toEqual([
+      { email: BOOTSTRAP },
+    ]);
+    expect(await q("SELECT 1 FROM space_members WHERE role = 'space_manager'")).toHaveLength(1);
   });
 
   it('az ismételt belépés ugyanazt a felhasználót adja, új tagság nélkül', async () => {
-    await allow('a@example.test');
-    const one = await store().login(identity('a@example.test'), now);
-    const two = await store().login(identity('a@example.test'), now);
+    await allow('owner@example.test');
+    const one = await store().login(identity('owner@example.test'), now);
+    const two = await store().login(identity('owner@example.test'), now);
     expect(two).toEqual(one);
     expect(await q('SELECT 1 FROM users')).toHaveLength(1);
     expect(await q('SELECT 1 FROM space_members')).toHaveLength(1);
   });
 
   it('másik OIDC-azonosítóhoz kötött e-mail nem vehető át', async () => {
-    await allow('a@example.test');
-    await store().login(identity('a@example.test'), now);
-    const other = { ...identity('a@example.test'), sub: 'masik-sub' };
+    await allow('owner@example.test');
+    await store().login(identity('owner@example.test'), now);
+    const other = { ...identity('owner@example.test'), sub: 'masik-sub' };
     expect(await store().login(other, now)).toEqual({ status: 'identity_conflict' });
   });
 
@@ -141,8 +176,8 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
     };
 
     it('újraindítást túlél (a tár új példánya is érvényesíti), időutazással lejár, a visszavonás UPDATE', async () => {
-      await allow('a@example.test');
-      const login = await store().login(identity('a@example.test'), now);
+      await allow('owner@example.test');
+      const login = await store().login(identity('owner@example.test'), now);
       if (login.status !== 'ok') throw new Error('belépés sikertelen');
       const clock = new TestClock(now);
       const { token } = await new SessionService(store(), policy, clock.now).issue(login.userId);
@@ -165,8 +200,8 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
     });
 
     it('a last_seen_at írása ritkított (percenként legfeljebb egyszer)', async () => {
-      await allow('a@example.test');
-      const login = await store().login(identity('a@example.test'), now);
+      await allow('owner@example.test');
+      const login = await store().login(identity('owner@example.test'), now);
       if (login.status !== 'ok') throw new Error('belépés sikertelen');
       const clock = new TestClock(now);
       const service = new SessionService(store(), policy, clock.now);
@@ -182,13 +217,14 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
     });
 
     it('az allowlistről levett felhasználó következő kérése 403, a munkamenet visszavonva (HTTP, pg-tárral)', async () => {
-      await allow('a@example.test', 'b@example.test');
+      await allow(BOOTSTRAP, 'b@example.test');
+      // Előbb a rendszerindító e-mail (D54), így b sima Szerző: nem gazda, nem admin, a szinkron levehet.
+      await store().login(identity(BOOTSTRAP), now);
       const login = await store().login(identity('b@example.test'), now);
-      await store().login(identity('a@example.test'), now);
       if (login.status !== 'ok') throw new Error('belépés sikertelen');
       const clock = new TestClock(now);
       const app = await buildApp(
-        { ...TEST_CONFIG },
+        { ...TEST_CONFIG, bootstrapAdminEmail: BOOTSTRAP },
         { store: store(), oidc: new FakeOidc(), cookieSecret: 'k', clock: clock.now },
       );
       try {
@@ -200,8 +236,8 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
             headers: { cookie: `taltos_sid=${token}` },
           });
         expect((await get()).statusCode).toBe(200);
-        // b.example.test kikerül a konfigból (nem tulajdonos, nem gazda, nem admin: a szinkron levehet)
-        await syncAllowlist(drizzle(db.app), ['a@example.test'], now);
+        const sync = await syncAllowlist(drizzle(db.app), [BOOTSTRAP], now);
+        expect(sync.removed).toBe(1);
         expect((await get()).statusCode).toBe(403);
         expect((await get()).statusCode).toBe(401);
       } finally {
@@ -241,8 +277,8 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
     });
 
     it('a levett felhasználó munkamenetei azonnal visszavonódnak', async () => {
-      await allow('a@example.test', 'b@example.test');
-      await store().login(identity('a@example.test'), now);
+      await allow(BOOTSTRAP, 'b@example.test');
+      await store().login(identity(BOOTSTRAP), now);
       const b = await store().login(identity('b@example.test'), now);
       if (b.status !== 'ok') throw new Error('belépés sikertelen');
       await store().createSession({
@@ -251,14 +287,14 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
         now,
         expiresAt: new Date(now.getTime() + 8 * 3_600_000),
       });
-      await allow('a@example.test');
+      await allow(BOOTSTRAP);
       const rows = await q<{ expires_at: Date }>('SELECT expires_at FROM sessions');
       expect(rows[0]?.expires_at.getTime()).toBe(now.getTime());
     });
 
     async function twoUsers(): Promise<{ admin: string; user: string; general: string }> {
-      await allow('admin@example.test', 'user@example.test');
-      const admin = await store().login(identity('admin@example.test'), now);
+      await allow('owner@example.test', 'user@example.test');
+      const admin = await store().login(identity('owner@example.test'), now);
       const user = await store().login(identity('user@example.test'), now);
       if (admin.status !== 'ok' || user.status !== 'ok') throw new Error('belépés sikertelen');
       const [space] = await q<{ id: string }>("SELECT id FROM spaces WHERE type = 'general'");
@@ -275,7 +311,7 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
          VALUES ($1, $2, 'd', 'D', 'teszt', $3, '', $3)`,
         [randomUUID(), general, user],
       );
-      const result = await allow('admin@example.test');
+      const result = await allow('owner@example.test');
       expect(result.removed).toBe(0);
       expect(result.kept).toEqual([{ userId: user, reason: 'owner_handover_required' }]);
       expect(

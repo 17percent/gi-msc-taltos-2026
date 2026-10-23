@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { COLLAB_PATH, NOTIFICATIONS_PATH } from '@taltos/shared';
 import type { BuildOptions } from '../app.js';
-import { createTestApp, TEST_ORIGIN as ORIGIN, type TestContext } from '../testing/app.js';
+import {
+  createTestApp,
+  TEST_ORIGIN as ORIGIN,
+  type TestContext,
+  type TestSession,
+} from '../testing/app.js';
 
 let ctx: TestContext | undefined;
 
@@ -22,12 +27,14 @@ function hocuspocusAuthMessage(documentName: string, token: string): Buffer {
   return Buffer.concat([varString(documentName), Buffer.from([2, 0]), varString(token)]);
 }
 
-async function listen(options?: BuildOptions): Promise<{ base: string; cookie: string }> {
+async function listen(
+  options?: BuildOptions,
+): Promise<{ base: string; cookie: string; session: TestSession }> {
   ctx = await createTestApp({}, options);
   const session = await ctx.signIn('anna@example.test');
   await ctx.app.listen({ host: '127.0.0.1', port: 0 });
   const { port } = ctx.app.server.address() as AddressInfo;
-  return { base: `ws://127.0.0.1:${port}`, cookie: session.cookie };
+  return { base: `ws://127.0.0.1:${port}`, cookie: session.cookie, session };
 }
 
 function open(
@@ -139,5 +146,90 @@ describe('WebSocket-csatornák: munkamenet-aktivitás', () => {
     const socket = await open(`${base}${path}`, { origin: ORIGIN, cookie }, { autoPong: false });
     await new Promise<void>((resolve) => socket.once('close', () => resolve()));
     expect(socket.readyState).toBe(WebSocket.CLOSED);
+  });
+});
+
+describe('WebSocket-csatornák: a csendes kapcsolat élettartama (appsec W-1)', () => {
+  const FAST = { sessionRecheckIntervalMs: 50 };
+  const closeCode = (socket: WebSocket) =>
+    new Promise<number>((resolve) => socket.once('close', (code) => resolve(code)));
+
+  it.each(PATHS)('a %s csendes kapcsolata kijelentkezéskor azonnal zár (1008)', async (path) => {
+    // Hosszú ellenőrzési köz: a zárást a visszavonás váltja ki, nem az időzítő.
+    const { base, cookie, session } = await listen({ sessionRecheckIntervalMs: 3_600_000 });
+    const socket = await open(`${base}${path}`, { origin: ORIGIN, cookie });
+    const closed = closeCode(socket);
+    const out = await ctx?.app.inject({
+      method: 'POST',
+      url: '/auth/logout',
+      headers: session.headers,
+    });
+    expect(out?.statusCode).toBe(204);
+    expect(await closed).toBe(1008);
+  });
+
+  it.each(PATHS)('a %s csendes kapcsolata az abszolút lejáratkor zár (időutazás)', async (path) => {
+    const { base, cookie } = await listen(FAST);
+    const socket = await open(`${base}${path}`, { origin: ORIGIN, cookie });
+    const closed = closeCode(socket);
+    ctx?.clock.advance(9 * 60 * 60_000);
+    expect(await closed).toBe(1008);
+  });
+
+  it.each(PATHS)(
+    'a %s csendes kapcsolata tétlenségi lejáratkor zár: az ellenőrzés nem aktivitás',
+    async (path) => {
+      const { base, cookie } = await listen(FAST);
+      const socket = await open(`${base}${path}`, { origin: ORIGIN, cookie });
+      const closed = closeCode(socket);
+      // Percenként több ellenőrző kör is lefut, de a last_seen_at nem lép előre, ezért a 60 perc letelik.
+      ctx?.clock.advance(61 * 60_000);
+      expect(await closed).toBe(1008);
+      expect(ctx?.store.touchWrites).toBe(0);
+    },
+  );
+
+  it.each(PATHS)(
+    'a %s csendes kapcsolata az allowlistről levételkor zár (időzített ellenőrzés)',
+    async (path) => {
+      const { base, cookie } = await listen(FAST);
+      const socket = await open(`${base}${path}`, { origin: ORIGIN, cookie });
+      const closed = closeCode(socket);
+      ctx?.store.disallow('anna@example.test');
+      expect(await closed).toBe(1008);
+    },
+  );
+
+  it.each(PATHS)(
+    'a %s kapcsolata az allowlistről levett felhasználó következő kérésénél azonnal zár',
+    async (path) => {
+      const { base, cookie } = await listen({ sessionRecheckIntervalMs: 3_600_000 });
+      const socket = await open(`${base}${path}`, { origin: ORIGIN, cookie });
+      const closed = closeCode(socket);
+      ctx?.store.disallow('anna@example.test');
+      const denied = await ctx?.app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: { cookie },
+      });
+      expect(denied?.statusCode).toBe(403);
+      expect(await closed).toBe(1008);
+    },
+  );
+
+  it('egy másik munkamenet kapcsolata nyitva marad', async () => {
+    const { base, cookie } = await listen(FAST);
+    const other = await ctx?.signIn('bela@example.test');
+    const socket = await open(`${base}${NOTIFICATIONS_PATH}`, { origin: ORIGIN, cookie });
+    const otherSocket = await open(`${base}${NOTIFICATIONS_PATH}`, {
+      origin: ORIGIN,
+      cookie: other?.cookie,
+    });
+    const closed = closeCode(socket);
+    ctx?.store.disallow('anna@example.test');
+    expect(await closed).toBe(1008);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(otherSocket.readyState).toBe(WebSocket.OPEN);
+    otherSocket.close();
   });
 });

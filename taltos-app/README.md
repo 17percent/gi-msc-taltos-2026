@@ -136,16 +136,18 @@ token SHA-256 hash-ét tárolja; abszolút 8 óra, tétlenségi 60 perc, a WebSo
 
 ### Környezeti változók (backend)
 
-| Változó                                            | Jelentés                                                                                                                                                                                       |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OIDC_CLIENT_ID`                                   | **Kötelező.** A Google OAuth-kliens azonosítója.                                                                                                                                               |
-| `OIDC_CLIENT_SECRET_FILE`                          | A kliens-secret fájlja (Compose: `secrets/oidc_client_secret.txt`); soha nem env és nem commit.                                                                                                |
-| `OIDC_ISSUER`                                      | Alapértelmezés `https://accounts.google.com` (discovery az első belépéskor).                                                                                                                   |
-| `PUBLIC_ORIGIN`                                    | A böngészőben látott origin (dev: `http://localhost:8080`); az átirányítási URI: `<PUBLIC_ORIGIN>/auth/callback`. Élesben kötelező.                                                            |
-| `ALLOWED_ORIGINS`                                  | Engedélyezett `Origin`-ek (WebSocket és mutáló kérések). Élesben kötelező.                                                                                                                     |
-| `COOKIE_SECURE`                                    | Session-süti `Secure` jelzője; alapból élesben `true`, egyébként `false`. Kizárólag ebből, soha az `X-Forwarded-Proto`-ból. A Compose alapból `true`, a `compose.override.yaml` (dev) `false`. |
-| `ALLOWLIST_FILE`                                   | **Kötelező.** Soronként egy e-mail, `#` megjegyzés. Compose: `config/allowlist.txt` → `/etc/taltos/allowlist.txt` (csak olvasható).                                                            |
-| `SESSION_ABSOLUTE_MINUTES`, `SESSION_IDLE_MINUTES` | Alapból 480 és 60.                                                                                                                                                                             |
+| Változó                                            | Jelentés                                                                                                                                                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OIDC_CLIENT_ID`                                   | **Kötelező.** A Google OAuth-kliens azonosítója.                                                                                                                                                                                                                   |
+| `OIDC_CLIENT_SECRET_FILE`                          | A kliens-secret fájlja (Compose: `secrets/oidc_client_secret.txt`); soha nem env és nem commit.                                                                                                                                                                    |
+| `OIDC_ISSUER`                                      | Alapértelmezés `https://accounts.google.com` (discovery az első belépéskor).                                                                                                                                                                                       |
+| `PUBLIC_ORIGIN`                                    | A böngészőben látott origin (dev: `http://localhost:8080`); az átirányítási URI: `<PUBLIC_ORIGIN>/auth/callback`. Élesben kötelező.                                                                                                                                |
+| `ALLOWED_ORIGINS`                                  | Engedélyezett `Origin`-ek (WebSocket és mutáló kérések). Élesben kötelező; a `PUBLIC_ORIGIN`-nek benne kell lennie (indításkor ellenőrzött).                                                                                                                       |
+| `COOKIE_SECURE`                                    | Session-süti `Secure` jelzője; alapból élesben `true`, egyébként `false`. Kizárólag ebből, soha az `X-Forwarded-Proto`-ból. A Compose alapból `true`, a `compose.override.yaml` (dev) `false`.                                                                     |
+| `ALLOWLIST_FILE`                                   | **Kötelező.** Soronként egy e-mail, `#` megjegyzés. Compose: `config/allowlist.txt` → `/etc/taltos/allowlist.txt` (csak olvasható).                                                                                                                                |
+| `BOOTSTRAP_ADMIN_EMAIL`                            | **Kötelező (D54).** A tulajdonos e-mailje (kisbetűsítve). Amíg nincs Rendszeradmin, csak ő léphet be, és ő lesz az első Rendszeradmin és az Általános gazdája; más allowlistes felhasználó `/?error=setup_pending` oldalra kerül. Szerepeljen az allowlisten is.   |
+| `ALLOW_INSECURE_HTTP`                              | Alapból `false`. `NODE_ENV=production` mellett a `COOKIE_SECURE=false` és a nem `https:` `PUBLIC_ORIGIN` indításkor hibát ad; ez a kifejezett kivétel (csak a `compose.override.yaml` dev-környezet és a CI füstpróba állítja `true`-ra; valódi telepítésen soha). |
+| `SESSION_ABSOLUTE_MINUTES`, `SESSION_IDLE_MINUTES` | Alapból 480 és 60.                                                                                                                                                                                                                                                 |
 
 ### Google OAuth-kliens létrehozása (a tulajdonos, egyszer)
 
@@ -161,14 +163,29 @@ token SHA-256 hash-ét tárolja; abszolút 8 óra, tétlenségi 60 perc, a WebSo
    utolsó Színtérgazda és nem az utolsó Rendszeradmin (különben aktív marad, a napló figyelmeztet); újra felvett cím újra él.
    Üres fájllal a backend nem indul.
 
-### Első élesítés (D52): a tulajdonos lép be elsőként
+### Első élesítés (D52, D54): csak a `BOOTSTRAP_ADMIN_EMAIL` léphet be elsőként
 
-Friss telepítésen az **elsőként sikeresen belépő** felhasználó lesz a Rendszeradminisztrátor és az Általános színtér kezdő
-Színtérgazdája (egyszer, sorosítva; `system_bootstrapped` esemény). Ezért az első élesítéskor az allowlistben célszerűen csak a tulajdonos
-címe szerepeljen, és ő lépjen be elsőként; a többi címet utána vedd fel és indítsd újra a backendet. Minden további felhasználó
-első belépéskor Szerző az Általánosban. Fejlesztésben a dummy seed saját admint hoz létre, ott a rendszerindítás nem fut.
+Friss telepítésen (amíg nincs Rendszeradminisztrátor) **kizárólag a `BOOTSTRAP_ADMIN_EMAIL` címmel belépő** felhasználó lehet az
+első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája (egyszer, sorosítva; egyetlen aktor nélküli
+`system_bootstrapped` esemény). A címnek az allowlisten is szerepelnie kell. **Bármely más allowlistes felhasználó** ilyenkor
+munkamenet nélkül a `/?error=setup_pending` oldalra kerül („a rendszer még nincs beállítva”); a tulajdonos első belépése után
+minden további felhasználó első belépéskor Szerző az Általánosban. Fejlesztésben a dummy seed saját admint hoz létre, ott a
+rendszerindítás nem fut.
+
+### Éles HTTPS-szabály és sütinevek
+
+- `NODE_ENV=production` mellett a backend **nem indul**, ha a `COOKIE_SECURE=false` vagy a `PUBLIC_ORIGIN` nem `https:`. Kivétel
+  kizárólag az `ALLOW_INSECURE_HTTP=true` (a dev-override és a CI füstpróba állítja; valódi telepítésen ne). A `PUBLIC_ORIGIN`-nek
+  szerepelnie kell az `ALLOWED_ORIGINS` listában, különben a backend indításkor hibát ad.
+- Sütinevek: Secure módban (`COOKIE_SECURE=true`) a munkamenet-süti **`__Host-taltos_sid`** (Path=/, Domain nélkül), a bejelentkezési
+  kísérlet sütije **`__Secure-taltos_login`** (Path=/auth); nem Secure (dev, http) módban `taltos_sid` és `taltos_login`.
+- Minden mutáló kérés (POST/PUT/PATCH/DELETE) bármely útvonalon engedélyezett `Origin`-t kér (globális kapu), az `/api/v1` és a
+  `/auth/logout` ezen felül `X-CSRF-Token`-t.
+- A nyitott WebSocketet (`/collab`, `/ws/notifications`) a backend bezárja (1008), ha a munkamenet kijelentkezéssel vagy az allowlistről
+  levétellel visszavonódik (azonnal, ugyanabban a folyamatban), illetve 30 másodpercenként ellenőrzi a munkamenetet (abszolút és tétlenségi lejárat,
+  másik folyamatban történt visszavonás); az ellenőrzés nem számít aktivitásnak.
 
 ### Végpontok
 
-`GET /auth/login`, `GET /auth/callback` (hibánál `/?error=not_on_allowlist` vagy `/?error=login_failed`), `POST /auth/logout`,
+`GET /auth/login`, `GET /auth/callback` (hibánál `/?error=not_on_allowlist`, `/?error=setup_pending` vagy `/?error=login_failed`), `POST /auth/logout` (érvényes munkamenet nélkül 401, de az elavult session-sütit törli),
 `GET /api/v1/me`. Az `/auth/*` útvonalakat a reverse proxynak (nginx, Vite dev-proxy) a backendre kell továbbítania.

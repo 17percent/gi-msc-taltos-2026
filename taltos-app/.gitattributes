@@ -1,2 +1,6 @@
+# Minden szöveges fájl LF sorvéggel kerül a munkapéldányba is (Windowson a core.autocrlf CRLF-et adna):
+# a konténerekbe másolt szkriptek és konfigok így nem törnek el, és a Prettier-ellenőrzés (endOfLine: lf)
+# helyben is ugyanazt látja, mint a CI.
+* text=auto eol=lf
 *.sh text eol=lf
 *.sql text eol=lf

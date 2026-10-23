@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HEALTH_PATH, PROBLEM_CONTENT_TYPE } from '@taltos/shared';
 import { loadConfig } from './config.js';
-import { createTestApp } from './testing/app.js';
+import { createTestApp, TEST_ORIGIN } from './testing/app.js';
 
 let app: FastifyInstance | undefined;
 
@@ -44,7 +44,12 @@ describe('HTTP', () => {
       },
       () => ({ ok: true }),
     );
-    const response = await app.inject({ method: 'POST', url: '/teszt/validacio', payload: {} });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/teszt/validacio',
+      headers: { origin: TEST_ORIGIN },
+      payload: {},
+    });
     expect(response.statusCode).toBe(400);
     const body = response.json<{ code: string; details: { errors: unknown[] } }>();
     expect(body.code).toBe('validation_error');
@@ -68,7 +73,7 @@ describe('HTTP', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/teszt/json',
-      headers: { 'content-type': 'application/x-ismeretlen' },
+      headers: { 'content-type': 'application/x-ismeretlen', origin: TEST_ORIGIN },
       payload: 'x',
     });
     expect(response.statusCode).toBe(400);
@@ -81,6 +86,7 @@ describe('HTTP', () => {
       trustProxy: loadConfig({
         OIDC_CLIENT_ID: 'x',
         ALLOWLIST_FILE: 'y',
+        BOOTSTRAP_ADMIN_EMAIL: 'owner@example.test',
         TRUST_PROXY: 'uniquelocal',
       }).trustProxy,
     }));

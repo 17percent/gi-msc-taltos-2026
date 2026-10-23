@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
-import { HEALTH_PATH, type HealthResponse } from '@taltos/shared';
+import { HEALTH_PATH, type HealthResponse, type LoginError } from '@taltos/shared';
 import { useAuth } from '../auth/auth-context';
 import { LoginLink, buttonBase, buttonOutline } from '../auth/buttons';
 
@@ -13,9 +13,13 @@ type BackendState = { kind: 'checking' } | { kind: 'up'; version: string } | { k
 export function HomePage() {
   const { state } = useAuth();
   const [params] = useSearchParams();
-  const notAllowlisted =
-    state.kind === 'not-allowlisted' ||
-    (state.kind !== 'signed-in' && params.get('error') === 'not_on_allowlist');
+  const loginError = state.kind === 'signed-in' ? null : (params.get('error') as LoginError | null);
+  const notAllowlisted = state.kind === 'not-allowlisted' || loginError === 'not_on_allowlist';
+  const hasAlert =
+    notAllowlisted ||
+    loginError === 'setup_pending' ||
+    loginError === 'login_failed' ||
+    state.kind === 'error';
 
   if (state.kind === 'loading') {
     return (
@@ -39,9 +43,15 @@ export function HomePage() {
 
   return (
     <section className="max-w-(--read-width)">
-      {notAllowlisted ? <NotAllowlistedAlert /> : null}
-      {state.kind === 'error' ? <ErrorAlert /> : null}
-      <h1 className="mt-6 font-display text-4xl leading-tight font-semibold tracking-tight first:mt-0">
+      {hasAlert ? (
+        <div className="mb-6 space-y-3">
+          {notAllowlisted ? <NotAllowlistedAlert /> : null}
+          {loginError === 'setup_pending' ? <SetupPendingAlert /> : null}
+          {loginError === 'login_failed' ? <LoginFailedAlert /> : null}
+          {state.kind === 'error' ? <ErrorAlert /> : null}
+        </div>
+      ) : null}
+      <h1 className="font-display text-4xl leading-tight font-semibold tracking-tight">
         Jelentkezz be a Táltosba
       </h1>
       <p className="mt-4 text-muted">
@@ -91,6 +101,33 @@ function NotAllowlistedAlert() {
       <p className="mt-3">
         <a href="/auth/login" className="font-semibold text-secondary underline">
           Bejelentkezés másik fiókkal
+        </a>
+      </p>
+    </Alert>
+  );
+}
+
+function SetupPendingAlert() {
+  return (
+    <Alert title="A Táltos még nincs beállítva">
+      <p>
+        A rendszert a Rendszeradminisztrátor első belépése indítja el. Ha ez megtörtént, próbáld
+        újra a bejelentkezést.
+      </p>
+    </Alert>
+  );
+}
+
+function LoginFailedAlert() {
+  return (
+    <Alert title="A bejelentkezés nem sikerült">
+      <p>
+        A belépést nem tudtuk befejezni. Próbáld meg újra; ha a hiba megmarad, szólj a
+        Rendszeradminisztrátornak.
+      </p>
+      <p className="mt-3">
+        <a href="/auth/login" className="font-semibold text-secondary underline">
+          Bejelentkezés újra
         </a>
       </p>
     </Alert>

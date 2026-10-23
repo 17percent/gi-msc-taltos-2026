@@ -28,7 +28,7 @@ export function registerCollab(app: FastifyInstance, deps: RealtimeDependencies)
     },
     (socket, request) => {
       if (request.auth !== null) {
-        trackSessionActivity(socket, request.auth, deps.context.sessions, deps.clock, request.log);
+        trackSessionActivity(socket, request.auth, deps, request.log);
       }
       const connection = hocuspocus.handleConnection(socket, toWebRequest(request));
       socket.on('message', (data: RawData) => connection.handleMessage(toUint8Array(data)));

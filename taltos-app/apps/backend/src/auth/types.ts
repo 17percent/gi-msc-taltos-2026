@@ -29,6 +29,8 @@ export interface SessionRow {
 export type LoginOutcome =
   | { status: 'ok'; userId: string }
   | { status: 'not_on_allowlist' }
+  /** D54: még nincs Rendszeradmin, és a belépő nem a `BOOTSTRAP_ADMIN_EMAIL`: a rendszer még nincs beállítva. */
+  | { status: 'setup_pending' }
   /** Az e-mail egy másik OIDC-azonosítóhoz tartozó sorhoz van kötve: nem adjuk át (az `oidc_sub` az identitás). */
   | { status: 'identity_conflict' };
 
@@ -44,7 +46,7 @@ export interface AuthStore {
   touchSession(id: Buffer, now: Date, staleBefore: Date): Promise<void>;
   /** Visszavonás: `expires_at = legkorábbi(expires_at, now)` (az app szerepnek nincs DELETE joga a `sessions`-on). */
   revokeSession(id: Buffer, now: Date): Promise<void>;
-  /** Első belépés: allowlist-kapu, `users` upsert, rendszerindítás (D52) vagy Szerző az Általánosban (D43). */
+  /** Első belépés: allowlist-kapu, `users` upsert, rendszerindítás (D52, D54: csak a bootstrap e-mail) vagy Szerző az Általánosban (D43). */
   login(identity: OidcIdentity, now: Date): Promise<LoginOutcome>;
   spacesOf(userId: string): Promise<MeResponse['spaces']>;
 }

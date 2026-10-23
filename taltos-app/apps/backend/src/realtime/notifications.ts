@@ -19,7 +19,7 @@ export function registerNotifications(app: FastifyInstance, deps: RealtimeDepend
     },
     (socket, request) => {
       if (request.auth !== null) {
-        trackSessionActivity(socket, request.auth, deps.context.sessions, deps.clock, request.log);
+        trackSessionActivity(socket, request.auth, deps, request.log);
       }
       // Kliensüzenetet ezen a csatornán nem várunk (a munkamenet-aktivitást a tracker számolja).
     },

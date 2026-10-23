@@ -2,4 +2,5 @@
 # Másold allowlist.txt néven. Induláskor a backend szinkronizálja az adatbázissal:
 #  - új cím: felvétel; kivett cím: letiltás (ha nem tulajdonos / utolsó gazda / utolsó admin); újra felvett: újra aktív.
 # Első élesítéskor CSAK a tulajdonos címe szerepeljen, és ő lépjen be elsőként: ő lesz a Rendszeradmin (D52).
-owner@example.com
+# A BOOTSTRAP_ADMIN_EMAIL (D54) címének itt szerepelnie kell, különben a tulajdonos nem tud belépni.
+owner@example.test

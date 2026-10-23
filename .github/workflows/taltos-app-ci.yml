@@ -92,6 +92,11 @@ jobs:
       OIDC_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
       # A CI HTTP-n fut: a Secure süti ott nem tesztelhető.
       COOKIE_SECURE: "false"
+      # Élesben (NODE_ENV=production) a nem https origin és a nem Secure süti tilos; a CI füstpróba http-n fut, ezért
+      # kifejezett kivétel kell (valódi telepítésen soha).
+      ALLOW_INSECURE_HTTP: "true"
+      # Kötelező (D54), helyőrző nem valódi címmel; szerepel a config/allowlist.example.txt-ben (az init-szkript másolja).
+      BOOTSTRAP_ADMIN_EMAIL: owner@example.test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

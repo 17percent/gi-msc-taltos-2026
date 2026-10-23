@@ -14,6 +14,11 @@ export interface AppConfig {
   oidcClientId: string;
   /** A session-süti `Secure` jelzője. Kizárólag a konfigból jön, soha nem az X-Forwarded-Proto-ból. */
   cookieSecure: boolean;
+  /**
+   * A rendszerindító felhasználó e-mailje (D54, kisbetűs): amíg nincs Rendszeradmin, csak ő léphet be, és ő lesz az
+   * első Rendszeradmin és az Általános színtér kezdő gazdája; mások `setup_pending` választ kapnak.
+   */
+  bootstrapAdminEmail: string;
   /** Az allowlist forrása: soronként egy e-mail, `#` megjegyzés (D53). */
   allowlistFile: string;
   /** Abszolút munkamenet-lejárat (B5 A1: 8 óra). */
@@ -30,6 +35,7 @@ const MINUTE_MS = 60_000;
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const production = env.NODE_ENV === 'production';
   const origins = parseList(env.ALLOWED_ORIGINS);
+  const allowInsecureHttp = parseBoolean('ALLOW_INSECURE_HTTP', env.ALLOW_INSECURE_HTTP, false);
   if (production && origins.length === 0) {
     throw new Error('Élesben kötelező az ALLOWED_ORIGINS (vesszővel elválasztott origin-lista).');
   }
@@ -37,18 +43,41 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error('Élesben kötelező a PUBLIC_ORIGIN (a böngészőben látott origin).');
   }
 
+  const publicOrigin = parseOrigin('PUBLIC_ORIGIN', env.PUBLIC_ORIGIN ?? DEV_PUBLIC_ORIGIN);
+  const allowedOrigins = origins.length > 0 ? origins : DEV_ORIGINS;
+  const cookieSecure = parseBoolean('COOKIE_SECURE', env.COOKIE_SECURE, production);
+  // A böngésző `Origin` fejlécével egyező alakban kell szerepelnie, különben a saját felület mutáló kérései elbuknának.
+  if (!allowedOrigins.includes(publicOrigin)) {
+    throw new Error(`A PUBLIC_ORIGIN (${publicOrigin}) nincs benne az ALLOWED_ORIGINS listában.`);
+  }
+  // Éles (production) indításnál a süti Secure és az origin https kötelező; kizárólag a CI füstpróba (http) kap
+  // kifejezett kivételt az ALLOW_INSECURE_HTTP=true értékkel.
+  if (production && !allowInsecureHttp) {
+    if (!cookieSecure) {
+      throw new Error(
+        'Élesben a COOKIE_SECURE nem lehet false (kivétel: ALLOW_INSECURE_HTTP=true).',
+      );
+    }
+    if (!publicOrigin.startsWith('https:')) {
+      throw new Error(
+        'Élesben a PUBLIC_ORIGIN https: kell legyen (kivétel: ALLOW_INSECURE_HTTP=true).',
+      );
+    }
+  }
+
   return {
     host: env.HOST ?? '0.0.0.0',
     port: parsePort(env.PORT ?? '3000'),
     logLevel: env.LOG_LEVEL ?? (production ? 'info' : 'debug'),
     version: env.APP_VERSION ?? 'dev',
-    allowedOrigins: origins.length > 0 ? origins : DEV_ORIGINS,
+    allowedOrigins,
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
-    publicOrigin: parseOrigin('PUBLIC_ORIGIN', env.PUBLIC_ORIGIN ?? DEV_PUBLIC_ORIGIN),
+    publicOrigin,
     oidcIssuer: parseIssuer(env.OIDC_ISSUER ?? DEFAULT_OIDC_ISSUER),
     oidcClientId: required('OIDC_CLIENT_ID', env.OIDC_CLIENT_ID),
     // Alapértelmezés: élesben Secure. A dev-környezet (http) kapcsolja ki kifejezetten.
-    cookieSecure: parseBoolean('COOKIE_SECURE', env.COOKIE_SECURE, production),
+    cookieSecure,
+    bootstrapAdminEmail: parseEmail('BOOTSTRAP_ADMIN_EMAIL', env.BOOTSTRAP_ADMIN_EMAIL),
     allowlistFile: required('ALLOWLIST_FILE', env.ALLOWLIST_FILE),
     sessionAbsoluteMs: parseMinutes('SESSION_ABSOLUTE_MINUTES', env.SESSION_ABSOLUTE_MINUTES, 480),
     sessionIdleMs: parseMinutes('SESSION_IDLE_MINUTES', env.SESSION_IDLE_MINUTES, 60),
@@ -59,6 +88,14 @@ function required(name: string, value: string | undefined): string {
   if (value === undefined || value.trim() === '')
     throw new Error(`Hiányzó kötelező érték: ${name}`);
   return value.trim();
+}
+
+function parseEmail(name: string, value: string | undefined): string {
+  const email = required(name, value).toLowerCase();
+  if (!/^[^\s@,#]+@[^\s@,#]+\.[^\s@,#]+$/.test(email)) {
+    throw new Error(`Érvénytelen ${name} (e-mail cím kell)`);
+  }
+  return email;
 }
 
 function parseList(value: string | undefined): string[] {

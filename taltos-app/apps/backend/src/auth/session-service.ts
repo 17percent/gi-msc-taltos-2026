@@ -42,6 +42,8 @@ export class SessionService {
     private readonly store: AuthStore,
     private readonly policy: SessionPolicy,
     private readonly clock: Clock,
+    /** Minden, ebben a folyamatban végzett visszavonás után hívódik (a nyitott WebSocketek zárására). */
+    private readonly onRevoked?: (id: Buffer) => void,
   ) {}
 
   async issue(userId: string): Promise<{ token: string; expiresAt: Date }> {
@@ -74,18 +76,40 @@ export class SessionService {
     return true;
   }
 
-  async revoke(id: Buffer): Promise<void> {
-    await this.store.revokeSession(id, this.clock());
+  /**
+   * Időzített, csendes ellenőrzés a nyitott WebSocketekhez: lejárat, visszavonás és allowlist-állapot, de NEM
+   * számít aktivitásnak (nem léptet `last_seen_at`-et), így a csendes kapcsolat tétlenségi ideje is lejár.
+   * Az allowlistről levett felhasználó munkamenete itt is visszavonódik.
+   */
+  async isActive(id: Buffer): Promise<boolean> {
+    const row = await this.loadValid(id, false);
+    if (row === undefined) return false;
+    if (!row.onAllowlist) {
+      await this.revoke(id);
+      return false;
+    }
+    return true;
   }
 
-  private async loadValid(id: Buffer): Promise<SessionRow | undefined> {
+  async revoke(id: Buffer): Promise<void> {
+    await this.store.revokeSession(id, this.clock());
+    this.onRevoked?.(id);
+  }
+
+  /** A süti nyers tokenje alapján visszavon (hibás formátumú tokent figyelmen kívül hagy). */
+  async revokeToken(token: string | undefined): Promise<void> {
+    if (token === undefined || !TOKEN_PATTERN.test(token)) return;
+    await this.revoke(hashToken(token));
+  }
+
+  private async loadValid(id: Buffer, touch = true): Promise<SessionRow | undefined> {
     const row = await this.store.findSession(id);
     if (row === undefined) return undefined;
     const now = this.clock();
     if (now >= row.expiresAt) return undefined;
     const idleFor = now.getTime() - row.lastSeenAt.getTime();
     if (idleFor >= this.policy.idleMs) return undefined;
-    if (idleFor >= this.policy.touchIntervalMs) {
+    if (touch && idleFor >= this.policy.touchIntervalMs) {
       await this.store.touchSession(id, now, new Date(now.getTime() - this.policy.touchIntervalMs));
     }
     return row;
