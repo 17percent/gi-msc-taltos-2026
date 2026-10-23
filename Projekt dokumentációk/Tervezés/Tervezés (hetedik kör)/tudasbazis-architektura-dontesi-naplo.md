@@ -8,6 +8,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, a B4 átvizsgálása): **D51** — tíz séma-pontosítás a WP1 előtt (munkamenet-tár, review-er kiesése, „Módosítás indítása”, rendszeresemények, piszkozat/Jóváhagyott metaadat, esedékesség, `unarchive`, retenció és FK-k, checkpoint-retenció, fizikai törlés kivételei); új nyitott kérdések: NY11–NY19. A 2. és 4. fejezet a v10 állapotához igazítva.*
 
+*10. verzió kiegészítése (2026-10-23, WP1 CI): **D13 pontosítva** — a secret-fájlok jogosultsága (fejlesztés/CI: `0644` dummy; éles: konténer-felhasználóknak olvasható, világnak nem).*
+
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
 
 *8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
@@ -147,6 +149,7 @@ Tárgytalan: nincs lokális clone, nincs push, nincs lemaradás-monitoring, ninc
 
 - A secretek (OIDC client secret, DB jelszó) **soha nem kerülnek Docker image-be, repóba vagy commitolható `.env` fájlba**.
 - Betöltés Docker Compose secrets-ként (vagy bind-mount `0600`, root-only jogosultsággal); kizárólag a backend konténer kapja meg.
+- ***Pontosítás (10. verzió, 2026-10-23, WP1):*** *a Compose a fájl-secretet bind-mountként, a host jogosultságával csatolja, és a konténerek nem rootként olvassák (Postgres: uid 70, node: uid 1000). A „`0600`, root-only” ezért nem működik: a fejlesztői és CI-s dummy secret-fájlok `0644`-esek; élesben az üzemeltetés adja a fájlokat a világ számára nem olvashatóan, a fájlt olvasó konténer-felhasználóknak (root tulajdonos, közös csoport, `0440`, vagy szolgáltatásonként külön fájl `0400`-zal). Az „app-secretet csak a backend kapja” változatlan; a DB-szerver a saját szerepköreinek jelszavát kapja (B4 S23).*
 - Élesben opcionálisan Azure Key Vault, ha a céges infrastruktúra adja.
 - *(A korábbi SSH-kulcs-specifikus pontok — környezetenkénti kulcspár, dedikált service account a repóhoz, rotációs eljárás a remote-nál — tárgytalanná váltak: nincs többé SSH-alapú repo-hitelesítés.)*
 

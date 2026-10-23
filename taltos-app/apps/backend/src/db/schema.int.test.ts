@@ -220,7 +220,8 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
       const states = await db.app.query<{ review_state: string }>(
         'SELECT DISTINCT review_state FROM documents ORDER BY 1',
       );
-      expect(states.rows.map((r) => r.review_state)).toEqual([
+      // Az enum a deklaráció sorrendjében rendez (draft, pending, …), ezért a halmazt hasonlítjuk.
+      expect(states.rows.map((r) => r.review_state).sort()).toEqual([
         'approved',
         'changes_requested',
         'draft',

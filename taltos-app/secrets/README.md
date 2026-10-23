@@ -22,7 +22,13 @@ pnpm secrets:init
 ```
 
 A három DB-jelszó véletlen, az OIDC- és SMTP-secret helyőrző, amíg a WP2 (OIDC) és az e-mail-küldés be nem köti
-őket. Éles környezetben a fájlokat az üzemeltetés adja, `0600` jogosultsággal.
+őket. A fejlesztői fájlok `0644`-esek: a Compose a fájl-secretet bind-mountként, a host jogosultságával
+csatolja, és ugyanazt a fájlt több konténer más-más felhasználóval olvassa (`postgres`: uid 70, a node-konténerek:
+uid 1000). `0600` mellett a Postgres init-szkriptje és a `migrate` nem tudja olvasni (D13 pontosítása, 2026-10-23).
+
+**Élesben** a fájlokat az üzemeltetés adja, a világ számára NEM olvashatóan: a tulajdonos root, a csoport egy
+olyan gid, amely a fájlt olvasó konténer-felhasználók közös csoportja, a jog `0440` (vagy szolgáltatásonként
+külön fájl a konténer uid-jára, `0400`). A host többi felhasználója ne férjen hozzá.
 
 **A DB-jelszavak csak az adatbázis ELSŐ inicializálásakor íródnak a szerepkörökbe** (`db/initdb/10-roles.sh`).
 Későbbi jelszócsere: `ALTER ROLE taltos_migrator PASSWORD '…'` (és a secret-fájl cseréje). Egy korábbi (WP0-s)

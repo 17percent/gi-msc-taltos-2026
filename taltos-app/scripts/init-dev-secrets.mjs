@@ -23,6 +23,8 @@ for (const [name, generate] of Object.entries(secrets)) {
     console.log(`megvan:     secrets/${name}`);
     continue;
   }
-  writeFileSync(file, `${generate()}\n`, { mode: 0o600 });
+  // 0644: a Compose a fájl-secretet bind-mountként, a host jogosultságával csatolja, és ugyanazt a fájlt más-más
+  // uid olvassa (postgres: 70, node: 1000). Csak fejlesztői/CI dummy secret; éles: secrets/README.md (D13).
+  writeFileSync(file, `${generate()}\n`, { mode: 0o644 });
   console.log(`létrehozva: secrets/${name}`);
 }

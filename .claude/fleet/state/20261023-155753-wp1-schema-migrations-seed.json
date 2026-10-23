@@ -4,7 +4,7 @@
   "flow": "feature",
   "tier_estimated": "L",
   "tier": "L",
-  "phase": "4-REVIEW",
+  "phase": "5-RELEASE",
   "completed": [],
   "approvals": [
     "2026-10-23 15:57: owner 2026-10-23: séma az apps/backend/src/db-ben, külön migrate szolgáltatás, DB-tesztek CI-ban eldobható Postgresen, terv jóváhagyva"
@@ -17,12 +17,13 @@
   "artifacts": {},
   "evidence": [
     "2026-10-23 16:23: pnpm check zöld (shared 3, backend 56 + 28 skipped DB-int, frontend 3), audit tiszta, compose config OK; DB-int tesztek, docker build, compose up NEM futott",
-    "2026-10-23 16:35: review: code-reviewer 2 Major (TRUNCATE-teszt FK-sorrend, compose --wait + exited migrate) javítva, nem reprodukálható helyben; appsec 0 Blocker/Major, 9 Minor; pnpm check zöld (56 + 28 skipped), compose config OK; B4 szinkron"
+    "2026-10-23 16:35: review: code-reviewer 2 Major (TRUNCATE-teszt FK-sorrend, compose --wait + exited migrate) javítva, nem reprodukálható helyben; appsec 0 Blocker/Major, 9 Minor; pnpm check zöld (56 + 28 skipped), compose config OK; B4 szinkron",
+    "2026-10-23 16:38: commit afe292a, push b34d97c..afe292a feature/torok-mate; CI run 39971368389 in_progress"
   ],
   "findings": [],
   "rounds": 0,
   "created": "2026-10-23 15:57",
-  "updated": "2026-10-23 16:35",
+  "updated": "2026-10-23 16:38",
   "agents_seen": [
     "database-data-engineer",
     "appsec",

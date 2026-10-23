@@ -20,8 +20,16 @@ services:
       - ./db/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       # TCP-n (127.0.0.1) kérdez: az inicializálás alatti ideiglenes szerver csak unix-socketen hallgat,
-      # ezért a szolgáltatás csak az init-szkript lefutása UTÁN válik egészségessé.
-      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U taltos_admin -d taltos']
+      # ezért a szolgáltatás csak az init-szkript lefutása UTÁN válik egészségessé. A szerepkör-ellenőrzés
+      # (helyi socket) azt fogja meg, ha az init-szkript elbukott, és a konténer újraindulva szerepkörök
+      # nélkül futna: ilyenkor sosem lesz egészséges, a hiba nem rejtőzik el.
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -h 127.0.0.1 -U taltos_admin -d taltos &&
+          psql -U taltos_admin -d taltos -tAc
+          "SELECT count(*) FROM pg_roles WHERE rolname IN ('taltos_migrator', 'taltos_backend')"
+          | grep -qx 2
       interval: 5s
       timeout: 3s
       retries: 10

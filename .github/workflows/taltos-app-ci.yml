@@ -99,13 +99,31 @@ jobs:
       # Verziófüggetlen sorrend (a `up --wait` az egyszeri, 0-val kilépő `migrate` konténert Compose-verziótól függően
       # hibának vehetné): 1. Postgres (az init-szkript lefut), 2. a kép építése és a migráció (a kilépési kód terjed),
       # 3. a backend és a frontend a függőségek (már lefutott migráció) kihagyásával.
-      - run: docker compose -f compose.yaml up --detach --wait postgres
+      - run: docker compose -f compose.yaml up --detach --wait --wait-timeout 120 postgres
       - run: docker compose -f compose.yaml build backend
-      - run: docker compose -f compose.yaml run --rm migrate
+      - name: migráció (egyszeri)
+        shell: bash
+        run: docker compose -f compose.yaml run --rm migrate 2>&1 | tee migrate.log
       - run: docker compose -f compose.yaml up --build --detach --wait --wait-timeout 180 --no-deps backend frontend
       # WP0 „kész”: a frontend és a backend válaszol, mindkét WebSocket-útvonal fogad.
       - run: node scripts/smoke.mjs http://localhost:8080
       - if: failure()
         run: docker compose -f compose.yaml logs --no-color
+      # A lépésnapló csak bejelentkezve olvasható; hibánál a naplók vége annotációként is megjelenik.
+      # A CI-secretek futásonként generált, eldobható értékek.
+      - name: hibanaplók annotációként
+        if: failure()
+        shell: bash
+        run: |
+          annotate() {
+            [ -s "$2" ] || return 0
+            msg="$(tail -n 40 "$2" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=$1::$msg"
+          }
+          docker compose -f compose.yaml logs --no-color --tail 60 postgres > postgres.log 2>&1 || true
+          docker compose -f compose.yaml logs --no-color --tail 40 backend frontend > app.log 2>&1 || true
+          annotate "postgres napló" postgres.log
+          annotate "migrate kimenet" migrate.log
+          annotate "backend/frontend napló" app.log
       - if: always()
         run: docker compose -f compose.yaml down --volumes
