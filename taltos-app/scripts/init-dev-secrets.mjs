@@ -2,7 +2,7 @@
 // A három DB-jelszó (superuser, migrátor, alkalmazás) véletlen; az OIDC- és SMTP-secret helyőrző, amíg a WP2 /
 // az e-mail-küldés be nem köti.
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,4 +27,14 @@ for (const [name, generate] of Object.entries(secrets)) {
   // uid olvassa (postgres: 70, node: 1000). Csak fejlesztői/CI dummy secret; éles: secrets/README.md (D13).
   writeFileSync(file, `${generate()}\n`, { mode: 0o644 });
   console.log(`létrehozva: secrets/${name}`);
+}
+
+// Az allowlist helyi példánya (a Compose bind-mountolja; hiányzó fájlt a Docker könyvtárként hozná létre).
+const configDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'config');
+const allowlist = join(configDir, 'allowlist.txt');
+if (existsSync(allowlist)) {
+  console.log('megvan:     config/allowlist.txt');
+} else {
+  copyFileSync(join(configDir, 'allowlist.example.txt'), allowlist);
+  console.log('létrehozva: config/allowlist.txt (a mintából; szerkeszd)');
 }

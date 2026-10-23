@@ -12,3 +12,6 @@ coverage/
 !.env.example
 *.pem
 *.key
+
+# Az allowlist valódi tartalma helyi/üzemi konfig (e-mail címek); csak a minta kerül a repóba.
+config/allowlist.txt

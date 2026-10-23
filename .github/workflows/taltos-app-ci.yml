@@ -3,12 +3,12 @@ name: taltos-app CI
 on:
   push:
     paths:
-      - 'taltos-app/**'
-      - '.github/workflows/taltos-app-ci.yml'
+      - "taltos-app/**"
+      - ".github/workflows/taltos-app-ci.yml"
   pull_request:
     paths:
-      - 'taltos-app/**'
-      - '.github/workflows/taltos-app-ci.yml'
+      - "taltos-app/**"
+      - ".github/workflows/taltos-app-ci.yml"
 
 # Csak olvasási jog; a workflow-ban nincs secret, így fork-PR-ből sem szivároghat semmi.
 permissions:
@@ -87,6 +87,11 @@ jobs:
     name: Compose-build és füstpróba
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # A backend induláskor kötelezően kér OIDC-kliensazonosítót (a discovery lusta, a füstpróba nem hívja a szolgáltatót).
+      OIDC_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+      # A CI HTTP-n fut: a Secure süti ott nem tesztelhető.
+      COOKIE_SECURE: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

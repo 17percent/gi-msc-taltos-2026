@@ -1,23 +1,27 @@
 import type { FastifyInstance } from 'fastify';
 import { NOTIFICATIONS_PATH } from '@taltos/shared';
+import { sessionUpgradeGuard } from '../auth/guard.js';
 import { originGuard } from './origin.js';
+import { trackSessionActivity, type RealtimeDependencies } from './session-activity.js';
 
 /**
  * `/ws/notifications` — élő értesítés és dashboard-frissítés (D46, A12).
  *
- * WP0-váz: a csatorna fogad, de még nem küld semmit. Az üzenetformátum, a session-hitelesítés
- * és a címzett-szűrés a WP2 és a WP23 (dashboard) feladata.
+ * Az upgrade kapuja (WP2, appsec C1): `Origin`, majd érvényes munkamenet és allowlist (401/403 az upgrade előtt).
+ * WP0-váz: a csatorna fogad, de még nem küld semmit; az üzenetformátum és a címzett-szűrés a WP23 feladata.
  */
-export function registerNotifications(
-  app: FastifyInstance,
-  allowedOrigins: readonly string[],
-): void {
+export function registerNotifications(app: FastifyInstance, deps: RealtimeDependencies): void {
   app.get(
     NOTIFICATIONS_PATH,
-    { websocket: true, preValidation: originGuard(allowedOrigins) },
-    (socket) => {
-      // Kliensüzenetet ezen a csatornán nem várunk; a kapcsolat élettartamát a kliens zárása adja.
-      socket.on('message', () => undefined);
+    {
+      websocket: true,
+      preValidation: [originGuard(deps.allowedOrigins), sessionUpgradeGuard(deps.context)],
+    },
+    (socket, request) => {
+      if (request.auth !== null) {
+        trackSessionActivity(socket, request.auth, deps.context.sessions, deps.clock, request.log);
+      }
+      // Kliensüzenetet ezen a csatornán nem várunk (a munkamenet-aktivitást a tracker számolja).
     },
   );
 }

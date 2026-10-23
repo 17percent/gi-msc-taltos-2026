@@ -503,7 +503,7 @@ export const events = pgTable(
       'events_actor_required',
       sql`${t.actorId} IS NOT NULL OR ${t.type} IN (
     'review_due_soon','review_due','review_reminder','review_stalled',
-    'allowlist_added','allowlist_removed','user_pseudonymized','retention_purge')`,
+    'allowlist_added','allowlist_removed','user_pseudonymized','retention_purge','system_bootstrapped')`,
     ), // D51 d: új rendszer-típus = migráció
     check('events_document_has_space', sql`${t.documentId} IS NULL OR ${t.spaceId} IS NOT NULL`), // D51
   ],

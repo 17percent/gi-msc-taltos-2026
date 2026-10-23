@@ -126,3 +126,49 @@ ellenőrzi, a seed-tervet pedig egységtesztek. Az integrációs tesztek (`src/d
 `TEST_DATABASE_URL` megadásakor futnak: ez egy ELDOBHATÓ Postgres superuser URL-je (adatbázist és szerepkört hozhat
 létre), pl. `postgres://postgres:…@localhost:5432/postgres`. Minden futás friss adatbázist kap, migrál, seedel, majd mindent
 eldob. A CI a `db` jobban egy `postgres:18-alpine` service containerrel futtatja őket.
+
+## Bejelentkezés (WP2)
+
+A belépés OIDC code flow-val megy (D5, D49): fejlesztésben is a **valódi Google**, OIDC-mock nincs. A backend `openid-client`-tel
+végzi az Authorization Code + PKCE + state + nonce folyamatot; a munkamenet a `sessions` táblában él (httpOnly süti, a DB csak a
+token SHA-256 hash-ét tárolja; abszolút 8 óra, tétlenségi 60 perc, a WebSocket-forgalom aktivitás). A mutáló kérésekhez
+`X-CSRF-Token` (a `GET /api/v1/me` adja) és engedélyezett `Origin` kell.
+
+### Környezeti változók (backend)
+
+| Változó                                            | Jelentés                                                                                                                                                                                       |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OIDC_CLIENT_ID`                                   | **Kötelező.** A Google OAuth-kliens azonosítója.                                                                                                                                               |
+| `OIDC_CLIENT_SECRET_FILE`                          | A kliens-secret fájlja (Compose: `secrets/oidc_client_secret.txt`); soha nem env és nem commit.                                                                                                |
+| `OIDC_ISSUER`                                      | Alapértelmezés `https://accounts.google.com` (discovery az első belépéskor).                                                                                                                   |
+| `PUBLIC_ORIGIN`                                    | A böngészőben látott origin (dev: `http://localhost:8080`); az átirányítási URI: `<PUBLIC_ORIGIN>/auth/callback`. Élesben kötelező.                                                            |
+| `ALLOWED_ORIGINS`                                  | Engedélyezett `Origin`-ek (WebSocket és mutáló kérések). Élesben kötelező.                                                                                                                     |
+| `COOKIE_SECURE`                                    | Session-süti `Secure` jelzője; alapból élesben `true`, egyébként `false`. Kizárólag ebből, soha az `X-Forwarded-Proto`-ból. A Compose alapból `true`, a `compose.override.yaml` (dev) `false`. |
+| `ALLOWLIST_FILE`                                   | **Kötelező.** Soronként egy e-mail, `#` megjegyzés. Compose: `config/allowlist.txt` → `/etc/taltos/allowlist.txt` (csak olvasható).                                                            |
+| `SESSION_ABSOLUTE_MINUTES`, `SESSION_IDLE_MINUTES` | Alapból 480 és 60.                                                                                                                                                                             |
+
+### Google OAuth-kliens létrehozása (a tulajdonos, egyszer)
+
+1. Google Cloud Console → új (vagy meglévő) projekt → _APIs & Services_ → _OAuth consent screen_: típus _Internal_ (Workspace) vagy
+   _External_ + tesztfelhasználók; scope-ok: `openid`, `email`, `profile`.
+2. _Credentials_ → _Create credentials_ → _OAuth client ID_ → típus: _Web application_.
+3. _Authorized redirect URIs_: `http://localhost:8080/auth/callback` és `http://localhost:5173/auth/callback` (élesben a valódi
+   `https://<domain>/auth/callback` is).
+4. A kapott **Client ID** a `.env`-be: `OIDC_CLIENT_ID=...`. A **Client secret** egyetlen sorként a
+   `secrets/oidc_client_secret.txt` fájlba (a `pnpm secrets:init` helyőrzőt hoz létre; írd felül). A secret sehova máshová nem kerül.
+5. Az allowlist: `config/allowlist.txt` (a `pnpm secrets:init` a `config/allowlist.example.txt`-ből létrehozza; a valódi fájl gitignore-olt).
+   Az indulás szinkronizálja az adatbázissal: új cím felvétel; kivett cím letiltás, de csak ha nem dokumentum-tulajdonos, nem az
+   utolsó Színtérgazda és nem az utolsó Rendszeradmin (különben aktív marad, a napló figyelmeztet); újra felvett cím újra él.
+   Üres fájllal a backend nem indul.
+
+### Első élesítés (D52): a tulajdonos lép be elsőként
+
+Friss telepítésen az **elsőként sikeresen belépő** felhasználó lesz a Rendszeradminisztrátor és az Általános színtér kezdő
+Színtérgazdája (egyszer, sorosítva; `system_bootstrapped` esemény). Ezért az első élesítéskor az allowlistben célszerűen csak a tulajdonos
+címe szerepeljen, és ő lépjen be elsőként; a többi címet utána vedd fel és indítsd újra a backendet. Minden további felhasználó
+első belépéskor Szerző az Általánosban. Fejlesztésben a dummy seed saját admint hoz létre, ott a rendszerindítás nem fut.
+
+### Végpontok
+
+`GET /auth/login`, `GET /auth/callback` (hibánál `/?error=not_on_allowlist` vagy `/?error=login_failed`), `POST /auth/logout`,
+`GET /api/v1/me`. Az `/auth/*` útvonalakat a reverse proxynak (nginx, Vite dev-proxy) a backendre kell továbbítania.

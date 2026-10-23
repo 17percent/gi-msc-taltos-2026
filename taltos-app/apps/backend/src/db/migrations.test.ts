@@ -17,6 +17,7 @@ const EXPECTED = [
   '0004_partial_indexes',
   '0005_roles_and_grants',
   '0006_function_search_path',
+  '0007_system_bootstrapped_event',
 ];
 
 const files = readdirSync(MIGRATIONS_FOLDER)

@@ -1,5 +1,10 @@
 # Csak fejlesztés: a `docker compose up` automatikusan betölti.
 services:
+  # A http://localhost-on futó dev-környezetben a Secure süti nem minden böngészőben működik (Safari).
+  backend:
+    environment:
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+
   # E-mail-mock (D11, D46): a levelek a webes felületen nézhetők meg (http://localhost:8025).
   mailpit:
     image: axllent/mailpit:v1.32

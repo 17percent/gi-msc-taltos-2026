@@ -108,12 +108,12 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
 
   // ── 1. Migráció üres adatbázisra ─────────────────────────────────────────────
   describe('migráció üres adatbázisról', () => {
-    it('mind a hét migráció lefutott, és újrafuttatva nem tesz semmit', async () => {
+    it('mind a nyolc migráció lefutott, és újrafuttatva nem tesz semmit', async () => {
       const count = () =>
         db.migrator.query<{ n: string }>('SELECT count(*) AS n FROM drizzle.__drizzle_migrations');
-      expect(Number((await count()).rows[0]?.n)).toBe(7);
+      expect(Number((await count()).rows[0]?.n)).toBe(8);
       await runMigrations(db.migrator);
-      expect(Number((await count()).rows[0]?.n)).toBe(7);
+      expect(Number((await count()).rows[0]?.n)).toBe(8);
     });
 
     it('megvan a B4 mind a 22 táblája, a generált search_vector és a pg_trgm', async () => {

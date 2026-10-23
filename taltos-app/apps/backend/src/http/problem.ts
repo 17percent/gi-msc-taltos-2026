@@ -9,6 +9,8 @@ import {
 const TITLES: Partial<Record<ErrorCode, string>> = {
   validation_error: 'A kérés nem felel meg a sémának',
   unauthenticated: 'Bejelentkezés szükséges',
+  not_on_allowlist: 'A címed nincs az engedélyezett felhasználók között',
+  csrf_failed: 'A kérés eredete vagy CSRF-tokenje érvénytelen',
   forbidden: 'Ehhez nincs jogosultságod',
   not_found: 'Nem található',
   internal_error: 'Váratlan hiba történt',
