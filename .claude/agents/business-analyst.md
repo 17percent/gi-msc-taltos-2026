@@ -184,7 +184,7 @@ Situational guidance of this role lives outside this prompt, unchanged. Read the
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos
-- Szakszótár és MVP: `.claude/fleet/ref/stack-profile.md`, `README.md`. A user story-k (H1, US-01–US-14) nincsenek a repóban: kérd el. Scope-fegyelem: új igény csak döntési naplóponttal (D21).
+- Szakszótár és MVP: `.claude/fleet/ref/stack-profile.md`, `Arch/tudasbazis-architektura-dontesi-naplo.md` (5. fejezet). User story-k nincsenek: a funkcionális elvárások forrása a napló D-pontjai és a munkacsomagok kész-kritériumai (`Arch/tudasbazis-munkacsomagok-h5.md`). Scope-fegyelem: új igény csak döntési naplóponttal (D21).
 <!-- /project-overlay:project-taltos -->
 
 ## Runtime contract (Claude Code)

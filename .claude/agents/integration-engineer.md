@@ -110,7 +110,7 @@ Stabil, idempotens, megfigyelhető és szerződésvezérelt rendszerintegráció
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (integrációk)
-- A fenti ForSharp/ERP-szakasz itt NEM érvényes: nincs ERP. Integrációs pontok: OIDC-szolgáltatók (fejlesztés Google, éles Microsoft Entra ID, cserélhető generikus réteg), a REST `/api/v1` kontraktus (code-first OpenAPI a Fastify JSON Schemából; a B5 dokumentum nincs a repóban), export `.pdf`/`.docx` szerveroldali pandoc-kal (hátrasorolt, WP14).
+- A fenti ForSharp/ERP-szakasz itt NEM érvényes: nincs ERP. Integrációs pontok: OIDC-szolgáltatók (fejlesztés Google, éles Microsoft Entra ID, cserélhető generikus réteg; mock nincs), a REST `/api/v1` kontraktus (`Arch/tudasbazis-api-kontraktus-b5.md`, code-first OpenAPI a Fastify JSON Schemából), e-mail SMTP-absztrakcióval (Nodemailer; dev: Mailpit; Graph-adapter jövőbeli), export `.pdf`/`.docx` szerveroldali pandoc-kal, arculatos `reference.docx`-szel, a Jóváhagyott revízióból (hátrasorolt, WP20). MCP-elérés: második ütem (WP34).
 <!-- /project-overlay:project-taltos -->
 
 ## Fő felelősségek

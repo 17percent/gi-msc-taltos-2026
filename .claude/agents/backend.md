@@ -97,11 +97,11 @@ Elsődleges: .NET (a repo `TargetFramework`-je szerint) és C# nullable referenc
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (backend)
-- A fenti .NET/Blazor/ForSharp/C++/MS SQL szakasz ebben a projektben NEM érvényes. Stack: TypeScript + Node.js + Fastify, PostgreSQL + Drizzle, pnpm monorepo (`apps/backend`, közös típusok: `packages/shared`). Részletek: `.claude/fleet/ref/stack-profile.md`.
-- Mentés = egyetlen DB-tranzakció (revízió + tartalom + esemény); `PUT …/content` kötelezően `baseRevisionId`-vel, eltérésnél 412; lock + heartbeat. Ez és az auth (OIDC, cookie-session, CSRF, allowlist minden kérésnél) L-tier terület.
-- Fizikai DELETE tilos (soft delete); az `events` append-only; az UUID-t az alkalmazás generálja; hibák RFC 9457 Problem Details + stabil `code`.
-- Git-tárolás, pg-boss queue, GitService, reindex: elavult terv (`Arch/`), NEM építed. Szerepkör/review-modellt sem, amíg a tulajdonos nem döntött.
-- Scope: ami nincs a döntési naplóban / projekt-áttekintőben, azt nem építed. A B4 séma és a B5 API-kontraktus nincs a repóban: ne találd ki, OPEN QUESTIONS alatt kérd.
+- A fenti .NET/Blazor/ForSharp/C++/MS SQL szakasz ebben a projektben NEM érvényes. Stack: TypeScript + Node.js + Fastify, PostgreSQL + Drizzle, Hocuspocus (Yjs, `/collab`) a Fastify-jal közös folyamatban, pnpm monorepo (`apps/backend`, közös típusok: `packages/shared`). Részletek: `.claude/fleet/ref/stack-profile.md`; kontraktus: `Arch/tudasbazis-api-kontraktus-b5.md`, séma: `Arch/tudasbazis-db-sema-b4.md` (10. verzió).
+- Minden jogosultsági döntés az egyetlen `can(user, action, resource)` policy-függvényen át; minden olvasó lekérdezés a „látható dokumentumok” lekérdezés-építőn (zárt színterek, D44). A Jóváhagyott állapotot kizárólag a `ReviewService` írja (két review-er, D45); review-ra küldés `baseRevisionId`-vel, eltérésnél 412. Ezek és az auth (OIDC, cookie-session, CSRF, allowlist minden kérésnél) L-tier terület.
+- Fizikai DELETE tilos (soft delete); az `events` és a `document_revisions` append-only; az UUID-t az alkalmazás generálja; hibák RFC 9457 Problem Details + a B5 katalógus `code`-jai.
+- Git-tárolás, pg-boss queue, GitService, reindex, lock: NINCS, nem építed. Csatolmány-kezelés (D42) második ütem.
+- Scope: ami nincs a döntési naplóban, azt nem építed; eltérést OPEN QUESTIONS alatt jelezz.
 <!-- /project-overlay:project-taltos -->
 
 ## Fő felelősségek

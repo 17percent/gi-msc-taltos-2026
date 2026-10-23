@@ -10,3 +10,4 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-18 19:47 | auto | code-reviewer | 3370254 | 35 | 457 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=169240 cached=3201014 |
 | 2026-10-18 19:53 | auto | frontend-web | 17125499 | 116 | 2113 s | effort=medium model=claude-opus-5-5 status=DONE fresh=552370 cached=16573129 |
 | 2026-10-18 20:05 | auto | qa-automation | 4537955 | 41 | 690 s | effort=high model=claude-sonnet-5-5 status=PARTIAL fresh=208295 cached=4329660 |
+| 2026-10-23 13:01 | auto | code-reviewer | 58808 | 7 | 58 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=26743 cached=32065 |

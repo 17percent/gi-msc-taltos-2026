@@ -102,10 +102,10 @@ A merge előtt megtalálni a konkrét kódszintű hibákat és regressziós kock
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (review-ellenőrzőlista)
-- A fenti .NET/Blazor/C++/T-SQL lista itt NEM érvényes; stack: `.claude/fleet/ref/stack-profile.md`.
-- Minden diffnél: (1) töröl-e? → soft delete, esemény naplózva; (2) mutál-e adatot? → esemény, allowlist + CSRF lefedi; (3) mentés-útvonal? → egy tranzakció, `baseRevisionId`/412, lock; (4) renderel-e user-tartalmat? → közös sanitize-pipeline, külső kép blokkolva; (5) új függőség/végpont/tábla/funkció? → van rá naplópont vagy kontraktus-frissítés, különben Blocker; (6) Git-tárolás/queue/GitService (elavult terv) került be? → Blocker.
+- A fenti .NET/Blazor/C++/T-SQL lista itt NEM érvényes; stack: `.claude/fleet/ref/stack-profile.md`, szabályok: `Arch/CLAUDE.md`.
+- Minden diffnél: (1) olvas-e dokumentumot vagy színtér-adatot? → a láthatósági lekérdezés-építőn át, láthatósági teszttel, különben Blocker; (2) mutál-e adatot? → `can()` policy, esemény, allowlist + CSRF lefedi; (3) változtatja-e a Jóváhagyott állapotot? → kizárólag `ReviewService` + review-kérés, különben Blocker; (4) töröl-e? → soft delete, review-val; (5) renderel-e user-tartalmat? → közös sanitize-pipeline, külső kép blokkolva; (6) új függőség/végpont/tábla/funkció? → van rá naplópont és B4/B5-frissítés, különben Blocker; (7) Git-tárolás/queue/lock (elavult terv) került be? → Blocker.
 - UI-diffnél: a `Prototypes/.claude/CLAUDE.md` checklist (nyers hex/px, primitív token közvetlen használata, `:focus-visible`, téma); a prototípusban külső futásidejű könyvtár = Blocker.
-- Auth/hozzáférés és mentés-útvonal változás: L-tier, `appsec` kör javasolt.
+- Auth/hozzáférés/láthatóság és review-útvonal változás: L-tier, `appsec` kör javasolt.
 <!-- /project-overlay:project-taltos -->
 
 ## Fő felelősségek

@@ -6,7 +6,7 @@ korábbi változat, szerkesztés és döntés visszakövethető marad. A tartalo
 **AI-eszközök** gyűjteménye: promptok, skillek, rendszerutasítások, sablonok, guide-ok
 és best practice-ek.
 
-> **Állapot:** tervezési fázis. A repóban az architektúra-terv, a design system és egy
+> **Állapot:** tervezési fázis. A repóban az architektúra-terv (10. verzió), a design system és egy
 > kattintható UI-prototípus található. Az éles stack (React + Fastify + PostgreSQL)
 > megvalósítása még nem indult el.
 
@@ -39,13 +39,19 @@ Utána: <http://localhost:8123>
 
 ```
 .
-├── Arch/                              Architektúra-terv (v7, Git-alapú változat — lásd lent)
-│   ├── tudasbazis-architektura-dontesi-naplo.md   D1–D27 döntések, követelmények, MVP, nyitott kérdések
-│   ├── tudasbazis-munkacsomagok-h5.md             WP0–WP14 munkacsomagok, függőségek, kész-kritériumok
-│   ├── architecture-dashboard-v2.html             interaktív architektúra- és folyamat-dashboard
+├── Projekt dokumentációk/             Obsidian-vault — a MESTER: egységjegyzetek, áttekintés, tervezési körök
+│   ├── Táltos – Áttekintés.md         a funkcionális egységek térképe, állapotjelöléssel
+│   ├── Dokumentumok/, Felhasználók/, Kollaboráció/, …   egységjegyzetek (funkcionális részletek)
+│   └── Tervezés/Tervezés (hetedik kör)/                 az aktuális tervkör (v10); a korábbi körök történetiek
+├── tools/sync_arch.py                 az Arch/ tükör frissítése / ellenőrzése a vaultból
+├── Arch/                              Architektúra-terv, 10. verzió (a vault aktuális körének tükre — nem itt szerkesztjük)
+│   ├── tudasbazis-architektura-dontesi-naplo.md   D1–D49 döntések, követelmények, 20 pontos MVP, nyitott kérdések
+│   ├── tudasbazis-db-sema-b4.md                   PostgreSQL-séma (Drizzle + kézi SQL-migrációk)
+│   ├── tudasbazis-api-kontraktus-b5.md            REST /api/v1 + WebSocket kontraktus, hibakódok
+│   ├── tudasbazis-munkacsomagok-h5.md             WP0–WP23 (+ második ütem), függőségek, kész-kritériumok
 │   └── CLAUDE.md                                  agent-onboarding: a terv kőbe vésett szabályai
 └── Prototypes/
-    ├── taltos-projekt-overview.html   konzultációs áttekintő: aktuális architektúra + felületi terv
+    ├── taltos-projekt-overview.html   konzultációs áttekintő — v10 ELŐTTI pillanatkép, nem mérvadó
     ├── taltos-design-system.md        design system — elsődleges, agent-optimalizált referencia
     ├── taltos-design-tokens.json      ugyanezek a tokenek strukturáltan (build-tooling)
     ├── taltos-design-system.html      a renderelt design system (vizuális referencia)
@@ -63,75 +69,75 @@ Utána: <http://localhost:8123>
 
 ## Architektúra
 
-Az aktuális irányt a [`Prototypes/taltos-projekt-overview.html`](Prototypes/taltos-projekt-overview.html)
-rögzíti:
+Az egyetlen forrás-igazság a [döntési napló (10. verzió)](Arch/tudasbazis-architektura-dontesi-naplo.md);
+a részletek a [B4 sémában](Arch/tudasbazis-db-sema-b4.md), a [B5 API-kontraktusban](Arch/tudasbazis-api-kontraktus-b5.md)
+és a [H5 munkacsomag-tervben](Arch/tudasbazis-munkacsomagok-h5.md). Az `Arch/` mappa a
+[`Projekt dokumentációk/`](Projekt%20dokument%C3%A1ci%C3%B3k/) Obsidian-vault `Tervezés (hetedik kör)` mappájának
+tükre; a dokumentumokban lévő `[[…]]` hivatkozások a vault jegyzeteire mutatnak. Módosítani a vaultban kell, utána
+`py -3 tools/sync_arch.py` frissíti a tükröt (`--check`: csak ellenőriz).
 
 ```
 Böngésző
    │
    ▼
-React SPA — Vite + React Router (react-md-editor, keresés, kommentek)
-   │  REST /api/v1
+React SPA — Vite + React Router (CodeMirror 6 élő előnézet, feladat-dashboard, Élő Atlasz)
+   │  REST /api/v1   ·   WebSocket /collab (Yjs)   ·   WebSocket /ws/notifications
    ▼
-Backend — Node.js + Fastify (TypeScript)  ──►  OIDC (fejlesztés: Google, éles: Microsoft Entra ID)
-   │  lock · audit · diff-számítás · mentés = egy DB-tranzakció
+Backend — Node.js + Fastify + Hocuspocus (TypeScript)  ──►  OIDC (fejlesztés: Google, éles: Microsoft Entra ID)
+   │  can() policy · láthatósági szűrés · ReviewService · audit · diff
    ▼
 PostgreSQL — egyetlen adatréteg
-   documents + document_revisions (teljes revíziótörténet)
-   generált tsvector keresőindex (magyar) + events, comments, favorites, allowlist, locks
+   documents + document_revisions (teljes revíziótörténet) · change_requests (review)
+   spaces + space_members · tags · document_links · notifications · events (append-only) · comments
 ```
 
-**Stack:** TypeScript end-to-end · Fastify (JSON Schema → generált OpenAPI) · PostgreSQL +
-Drizzle · Vite + React SPA · shadcn/ui + Tailwind + Motion · @uiw/react-md-editor +
-rehype-sanitize · Docker Compose.
+**Stack:** TypeScript end-to-end · Fastify (JSON Schema → generált OpenAPI) · Hocuspocus + Yjs ·
+PostgreSQL + Drizzle · Vite + React SPA · shadcn/ui + Tailwind + Motion · CodeMirror 6 + rehype-sanitize ·
+Nodemailer (SMTP) · pandoc · Docker Compose.
 
 **Fontosabb elvek:**
 
-- **Minden írás a backend API-n át megy.** A mentés egyetlen ACID-tranzakció, amely
-  revíziót ír, frissíti a keresőindexet és naplózza az eseményt.
-- **Nincs fizikai törlés.** Minden törlés soft delete; végleges törlés csak egy később
-  kidolgozandó retention-folyamatban lesz.
-- **Egyidejű szerkesztés:** pesszimista lock heartbeattel, mellette `baseRevisionId`
-  optimista ellenőrzés.
-- **Biztonságos megjelenítés:** a szerkesztő és az olvasó nézet ugyanazt a sanitize
-  pipeline-t használja. Nyers HTML és külső kép-URL nem jut át.
-- **Csak szöveges tartalom.** Statikus képek az alkalmazás assets mappájából jönnek,
-  képfeltöltés nincs.
-- **Csak dummy adat.** Fejlesztéshez kizárólag mintaadat használható; éles céges tartalom
-  nem kerülhet a fejlesztői környezetbe vagy a GitHubra.
-
-### Eltérés a terv-dokumentumok között
-
-Az `Arch/` mappa dokumentumai (döntési napló v7, munkacsomag-terv, dashboard) még a
-korábbi, **Git-alapú** architektúrát írják le: a tartalom igazságforrása egy Git-repo,
-mellette PostgreSQL-index, pg-boss queue és GitService. A projekt azóta erről
-**csak-PostgreSQL** felépítésre váltott. A projekt-áttekintő már ezt tükrözi, az `Arch/`
-fájlok még nem. Két további változás:
-
-- A Git-írási alrendszer megszűnt, ezért a reindex/konzisztencia-őr tétel tárgytalanná
-  vált. Az MVP így 13 helyett 12 pontos.
-- A D6 („nincs jogosultságkezelés”) felülíródott: szerepkör-alapú hozzáférés és
-  jóváhagyási (review) lépés lesz. A pontos modell kidolgozás alatt áll.
-
-Ütközés esetén a [projekt-áttekintő](Prototypes/taltos-projekt-overview.html) az aktuális.
+- **Zárt színterek.** A tartalmat csak a színtér tagjai látják. Szerepek: Rendszeradminisztrátor
+  (globális, tartalmi jog nélkül), Színtérgazda és Szerző (színterenként).
+- **Két review-er.** Minden tartalmi változás (létrehozás, módosítás, archiválás, visszaállítás)
+  Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó úton, két megjelölt review-er
+  jóváhagyásával véglegesedik.
+- **Valós idejű közös szerkesztés** a Piszkozatban (Yjs + Hocuspocus); lock nincs.
+- **Minden írás a backend API-n át megy**, minden jogosultsági döntés egyetlen policy-függvényen.
+- **Nincs fizikai törlés.** Minden törlés soft delete; végleges törlés csak a retenciós
+  folyamatban (második ütem).
+- **Biztonságos megjelenítés:** minden renderelés ugyanazt a sanitize-pipeline-t használja.
+  Nyers HTML és külső kép-URL nem jut át.
+- **Az MVP-ben csak szöveges tartalom.** HTML-riport, `.skill` csomag, PDF és Excel a második ütemben.
+- **Csak dummy adat.** Éles céges tartalom nem kerülhet a fejlesztői környezetbe vagy a GitHubra.
 
 ## MVP
 
-1. Google OIDC login + e-mail allowlist
-2. Dokumentum CRUD, „létrehozás forrásból” (üres / sablon / duplikálás)
-3. Verziótörténet, visszaállítás, diff-nézet
-4. Teljes szövegű keresés (magyar) + kategória/státusz/kedvenc szűrés
-5. Lock heartbeattel
-6. Eseménynaplózás + kommentfolyam auditnyommal
-7. Archívum + visszaállítás
-8. Postgres backup (ütemezett `pg_dump`)
-9. Kategóriakezelés
-10. Kedvencek (privát)
-11. Vágólapra másolás + nyers `.md` letöltés
-12. Export `.pdf`/`.docx` — hátrasorolt, határidő-nyomásnál elsőként kiesik
+A [döntési napló](Arch/tudasbazis-architektura-dontesi-naplo.md) 5. fejezete szerint 20 pont:
 
-A prototípus a felületi pontokat lefedi. A pontok és a képernyők megfeleltetése a
-[`NOTES.md`](Prototypes/tudasbazis-prototype/NOTES.md)-ben található.
+1. OIDC login + allowlist + allowlist-védelem
+2. Zárt színterek + Rendszeradminisztrátor, Színtérgazda, Szerző + kötelező tulajdonos
+3. Létrehozás üresen vagy duplikálással + kötelező fajta + címkék
+4. Valós idejű közös szerkesztés
+5. Verziótörténet + diff + visszaállítás
+6. Review-folyamat két review-errel + felülvizsgálati esedékesség
+7. Teljes szövegű keresés (magyar) + facetek + rangsor
+8. Élő Atlasz
+9. Eseménynaplózás + kommentfolyam + @említés
+10. Értesítések alkalmazáson belül
+11. Archívum + visszaállítás
+12. Postgres backup
+13. Kedvencek
+14. Vágólap + nyers `.md` letöltés
+15. Felülvizsgálati értesítések
+16. Kapcsolatok és visszahivatkozások
+17. E-mail értesítés
+18. Duplikátum-figyelmeztetés
+19. Export `.pdf`/`.docx` — hátrasorolt, határidő-nyomásnál elsőként kiesik
+20. Személyes feladat-dashboard (főoldal)
+
+A prototípus a v10 előtti felületi modellt mutatja (lock, nyitott olvasás, négy státusz); a pontok és a
+képernyők megfeleltetése a [`NOTES.md`](Prototypes/tudasbazis-prototype/NOTES.md)-ben található.
 
 ## Design system
 
@@ -149,10 +155,8 @@ szemantikus token szerepel.
 A munka agent-delegált munkacsomagokban halad. A két `CLAUDE.md` az agentek
 belépési pontja:
 
-- [`Arch/CLAUDE.md`](Arch/CLAUDE.md) — architektúra- és munkafegyelmi szabályok. Ami
-  nincs a döntési naplóban, az nem épül meg.
+- [`Arch/CLAUDE.md`](Arch/CLAUDE.md) — architektúra- és munkafegyelmi szabályok (10. verzió).
+  Ami nincs a döntési naplóban, az nem épül meg.
 - [`Prototypes/.claude/CLAUDE.md`](Prototypes/.claude/CLAUDE.md) — design-system
   munkafolyamat UI-hoz.
 
-Az `Arch/CLAUDE.md` több olyan dokumentumra is hivatkozik, amely ebben a repóban nincs
-meg: DB-séma (B4), API-kontraktus (B5), user story-k (H1).

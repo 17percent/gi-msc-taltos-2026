@@ -2,22 +2,30 @@
 
 Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára, markdown alapú tartalommal. Szakdolgozati projekt; a fejlesztés saját infrastruktúrán indul, az éles üzem céges környezetben valósul meg.
 
-*Verzió: 7. — a H5-döntéssel (D27: munkacsomag-sorrend, kockázat-előrehozás elve) frissítve.*
+*Verzió: 10. — **Szerepkörök, zárt színterek és review-folyamat (2026-10-23):** a vault nyitott kérdéseinek és naplóütközéseinek átvizsgálása nyomán új D42–D49. Felülírva: D15 csatolmány-tilalma (D42), D30 nyitott olvasása (D44), D31 szerepkörei (D43), D32 jóváhagyása és a D29 V6–V7 szabálya (D45); módosítva: D17 (D47), D35 (D46), D4, D33, D36, D38, D39. NY3, NY4 lezárva, NY5 elvetve, NY8–NY10 új. Az MVP 20 pontos (új: személyes dashboard). A 9. verzió a `Tervezés (hatodik kör)` mappában változatlanul megmarad.*
+
+*Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
+
+*8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
 
 ## 1. Követelmények
 
-- Markdown (.md) formátumú tudásanyagok tárolása — **kizárólag szöveges tartalom a repóban**; statikus képek (`.svg`, `.png`, `.jpeg` — ábrák, guide-ok, felületi design) megjelenítése az **alkalmazás szintjén kezelt assets mappából**, képfeltöltés nincs (lásd D15)
-- Dokumentum-létrehozás három úton: üres canvas, **sablonból**, **duplikálással** — egységes „létrehozás forrásból" műveletként (D17)
+- Markdown (.md) formátumú tudásanyagok tárolása — **kizárólag szöveges tartalom**, közvetlenül a PostgreSQL-ben; statikus képek (`.svg`, `.png`, `.jpeg` — ábrák, guide-ok, felületi design) megjelenítése az **alkalmazás szintjén kezelt assets mappából**, képfeltöltés nincs (lásd D15); **második ütemben HTML-riport, `.skill` csomag, PDF és Excel is (D42)**
+- Dokumentum-létrehozás: **üres** és **duplikálás** (MVP); **sablonból** és **forrásból (fájlimport)** hátrasorolva (D17, D47)
 - Teljes szövegű keresés (magyar nyelvi támogatással)
-- Kategorizálás: **lapos címke-rendszer** — a kategória alkalmazásszintű entitás (CRUD), egy dokumentum több kategóriába tartozhat (D19)
+- ~~Kategorizálás: lapos címke-rendszer (D19)~~ → **Címkék és fajta (D34):** globális, szabadon megadott címkék redundancia-szűréssel + kötelező `kind` mező
+- **Zárt színterek (D30, D44)**; **Rendszeradminisztrátor, Színtérgazda, Szerző (D43)**
+- **Valós idejű közös szerkesztés (D29)**
+- **Felülvizsgálati esedékesség és értesítések (D33, D35)**
 - **Kedvencek:** privát, felhasználónkénti megjelölés és szűrés (D18)
-- Státuszkezelés (draft → review → tesztelt → publikált), soft workflow-val
+- ~~Státuszkezelés (draft → review → tesztelt → publikált) jóváhagyási lépéssel (D32)~~ → **Review-folyamat (D45):** Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó, minden változáshoz két review-er
+- **Személyes feladat-dashboard főoldalként (D46)**
 - Tulajdonos és módosító személyek nyilvántartása, teljes auditálhatóság
-- Teszteltség / iterációk követése — a verziófogalom kettős: commit-történet (minden mentés) + frontmatter `iteration`; harmadik, kézi „verziószám" tudatosan nincs
+- Teszteltség / iterációk követése — a verziófogalom kettős: **revízió-történet** (minden mentés egy sor a `document_revisions` táblában) + `iteration` mező a `documents` táblán; harmadik, kézi „verziószám" tudatosan nincs
 - Verziókezelés, korábbi állapotok visszaállítása, **diff-nézet (MVP, D21)**
 - Komment szekció tudásanyagonként, rendszereseményekkel; komment-szerkesztés és -törlés auditnyommal (D20)
 - **Törlés-elv: minden törlés soft delete**, végleges törlés csak data retention policy szerinti időzített folyamatként (D20, részletek: NY4)
-- Hordozható szoftver: új környezetben új adatbázissal és új autentikációval üzembe helyezhető
+- Hordozható szoftver: új környezetben új adatbázissal és új autentikációval üzembe helyezhető — **a Git-alapú tárolás elhagyásával ez immár szó szerint két elemre redukálódik: új PostgreSQL-instance + új OIDC-konfiguráció, nincs harmadik mozgó alkatrész (repo/kulcs)**
 - **Vágólapra másolás és exportálhatóság** `.md`, `.pdf` és `.docx` formátumba — **MVP (D21)**
 
 ## 2. Architektúra áttekintés
@@ -30,181 +38,206 @@ React SPA — Vite + React Router (react-md-editor, kommentek, keresés)
         │  REST API
         ▼
 Backend API — Node.js + Fastify (TypeScript)  ──► OIDC szolgáltató
-   │      │   └── pg-boss worker queue            (fejlesztés: Google,
-   │      │       (Git-írások sorosítása)          éles: Microsoft Entra ID)
-   │      ▼
-   │   Lokális Git clone (tartós volume)   ← olvasás: log/diff/show helyben
-   │      │  git push (SSH, pg-boss queue, simple-git)
-   │      ▼
-   │   Remote repo                          ← tartalom source of truth + backup
-   │      (fejlesztés: GitHub privát repo,
-   │       éles: Azure Repos)
+   │   lock-kezelés · audit · diff-számítás        (fejlesztés: Google,
+   │   (mentés = egyetlen DB-tranzakció)             éles: Microsoft Entra ID)
    ▼
-PostgreSQL   ← keresőindex (eldobható) + ELSŐDLEGES adat:
-                események, kommentek, allowlist (mentendő!),
-                lockok, user-cache
+PostgreSQL — EGYETLEN adatréteg (nincs külön forrás és index):
+   documents (jelenlegi állapot + generált tsvector-index)
+   document_revisions (teljes szövegű pillanatkép mentésenként — a Git-történet helyettesítője)
+   events, comments, favorites, allowlist, categories, locks, users
+   ← mind elsődleges, mentendő adat (pg_dump, ill. WAL-alapú PITR mérlegelendő)
 ```
 
 **Felelősség-megosztás:**
 
 | Réteg | Feladata |
 |---|---|
-| Lokális Git clone | A tudásanyagok (.md) munkapéldánya: minden olvasás (történet, diff, korábbi verzió) helyben, API-hívás nélkül |
-| Remote repo | Source of truth + tartalmi backup; fejlesztésben GitHub, élesben Azure Repos |
-| PostgreSQL | Keresőindex (újraépíthető) ÉS elsődleges adatok: események/audit, kommentek, allowlist; lockok, user-cache |
-| Backend API | Minden írás egyetlen kapuja; commit a felhasználó nevében; Git-műveletek sorosítása; indexfrissítés; lock-kezelés; eseménynaplózás |
+| PostgreSQL | Egyetlen adatréteg: tartalom + teljes revíziótörténet + keresőindex (generált oszlop) + események/audit + kommentek + kedvencek + allowlist + lockok — minden elsődleges, mentendő adat |
+| Backend API | Minden írás egyetlen kapuja; egy DB-tranzakcióban ír revíziót és frissíti a dokumentum jelenlegi állapotát; lock-kezelés; eseménynaplózás; diff-számítás alkalmazásszinten |
 | Frontend | Szerkesztés, böngészés, keresés, kommentfolyam, diff-megjelenítés |
 | OIDC szolgáltató | Csak autentikáció (jelszó- és identitáskezelés kiszervezve) |
 
+*(A korábbi verzióban itt szerepelt még a „Lokális Git clone" és „Remote repo" sor — ezek a Postgres-only pivottal megszűntek, lásd D1.)*
+
 ## 3. Döntési napló
 
-### D1 — Tárolás: Git (source of truth) + PostgreSQL index
-**Alternatívák:** tisztán PostgreSQL; hálózati meghajtó / Obsidian vault; kész platform (Outline, Wiki.js).
-**Döntés indoklása:** a Git ingyen adja a verziótörténetet, a diffet, a visszaállítást és a fájlrendszer-szintű hordozhatóságot (a teljes tudásbázis egy clone-nal menthető). A Postgres a keresés és a metaadat-lekérdezések gyengeségét pótolja.
-**Vállalat ára:** két mozgó alkatrész, a varratot (commit ↔ index) kezelni kell (lásd D4), a lokális clone ↔ remote varratot a D12 kezeli.
+### D1 — Tárolás: PostgreSQL — tartalom, revíziótörténet és keresőindex egyben *(felülvizsgálva — Postgres-only pivot)*
 
-### D2 — Minden írás kizárólag a webes API-n keresztül
-A repo közvetlen módosítása (GitHub/Azure Repos felületen vagy klónon át) szervezetileg tiltott. Így a lock-mechanizmus, az eseménynaplózás és az indexfrissítés megkerülhetetlen; webhook/polling szinkron külső változásokra nem szükséges. **A döntés kivétel nélkül érvényes: a repóban kizárólag .md tartalom él, a képek nem a repóban tárolódnak (D15), így képfeltöltési kivétel sem kell.**
+**Korábbi döntés (a változástörténet kedvéért megőrizve):** Git (source of truth) + PostgreSQL index. Indoklása akkor: a Git ingyen adja a verziótörténetet, a diffet, a visszaállítást és a fájlrendszer-szintű hordozhatóságot; a Postgres a keresés és a metaadat-lekérdezés gyengeségét pótolja. Ára akkor: két mozgó alkatrész, a commit↔index varratot kezelni kellett (korábbi D4), a lokális clone↔remote varratot a korábbi D12 kezelte.
 
-### D3 — Backend-hitelesítés a repo felé: SSH kulcs, provider-agnosztikusan *(módosítva)*
-**Döntés:** a backend SSH kulcspárral hitelesít a remote felé — ez GitHubon (deploy key) és Azure Repos-on azonos mechanizmus, így az átállás konfigcsere.
-Nem személyes PAT és nem provider-specifikus App: a hozzáférés a rendszerhez tartozik, nem fejlesztő személyéhez, és nem köt providerhez.
-**Környezetek:**
-- Fejlesztés: privát GitHub repo a fejlesztő fiókja alatt, repo-szintű deploy key-jel (write joggal).
-- Éles: **Azure Repos** a céges DevOps-szervezetben. Figyelem: az Azure DevOps SSH-kulcs **fiókszintű**, nem repo-szintű — ezért **dedikált service account** kell, amely kizárólag a tudásbázis-repóhoz fér hozzá; a kulcs ennek a fiókjában él.
-**Kulcsvédelem: lásd D13. Éles bevezetés előtt tisztázandó: NY2 (branch policy).**
+**Alternatívák (jelen felülvizsgálatnál):** a fenti Git+Postgres modell megtartása; hálózati meghajtó / Obsidian vault; kész platform (Outline, Wiki.js, BookStack).
 
-### D4 — Konzisztencia-szabály: a Postgres **index** eldobható — a Postgres NEM az *(pontosítva)*
-A mentés sorrendje: Git commit → indexfrissítés. Ha az indexelés hibázik, a mentés attól még sikeres; hibakezelés automatikus reindexet indít. Az első naptól létezik `reindex` parancs, amely a repót nulláról végigolvasva felépíti a teljes indexet.
-**Pontosítás:** az eldobhatóság kizárólag az indexre (`documents` indexelt mezői) igaz. Az `events`, `comments` és `allowlist` táblák **elsődleges, sehonnan újra nem építhető adatok** — a teljes auditnyom (a D6 kompenzációs mechanizmusa!) és a kommentfolyam itt él.
-**Backup-stratégia (kötelező):** ütemezett `pg_dump` (napi), külön tárolóra (nem ugyanarra a diszkre/gépre), definiált retencióval; a visszaállítási eljárás dokumentált és legalább egyszer kipróbált. A repo tartalmi backupja a remote maga.
-**Automatizált konzisztencia-őr:** minden dokumentumnál tárolt utolsó commit hash; ütemezett ellenőrzés veti össze a clone HEAD-jét az indexelt hash-ekkel, eltérésnél automatikus reindex indul és esemény naplózódik. A reindex így nem kézi vészintézkedés, hanem önjavító mechanizmus.
+**Döntés indoklása:** a tartalom és a teljes revíziótörténet közvetlenül a PostgreSQL-ben él — nincs külön forrás (repo) és külön index, tehát nincs a kettő közti varrat sem. Minden mentés **egyetlen ACID-tranzakció**: új sor a `document_revisions`-ban + a `documents` jelenlegi állapotának frissítése + a keresőindex (`tsvector`) generált oszlopként újraszámolódik — mindez egy tranzakción belül, konzisztencia-kockázat nélkül. A diffet és a visszaállítást alkalmazásszintű logika adja (két revízió-pillanatkép összevetése), nem a Git.
+
+**Mit veszítünk a korábbi döntéshez képest:** a repo „ingyen" verziótörténete/diffje helyett most a diff-motort magunknak kell futtatni — ez azonban a diff-nézet UI-t (D21) amúgy is meg kellett volna építeni, csak korábban a diff-forrás a `git diff` volt, most egy alkalmazásszintű szövegdiff-könyvtár. A „repo klónozható vészhelyzetben" képesség (korábbi D10) elesik — lásd 6. fejezet és az új NY5-javaslat.
+
+**Mit nyerünk:** megszűnik a teljes Git-alréteg (SSH-kulcs, deploy key / service account, remote GitHub/Azure Repos, lokális clone, push-retry, lemaradás-monitoring, GitService-absztrakció) — ezzel **D3, D9, D12, D24 tárgytalanná válik**, D4 lényegesen egyszerűsödik, és a korábbi **NY2 (Azure Repos branch policy) architektúra-blokkoló kockázata magától megszűnik**. A hordozhatóság is erősödik: új környezet = új DB + új OIDC-konfig, nincs harmadik elem.
+
+**Vállalt ára:** a teljes revíziótörténet (minden mentés teljes szövegű pillanatkép, nem delta) a Postgres-adatbázis méretét a mentésszámmal arányosan növeli — markdown szövegnél 200 fős szervezetben ez valószínűleg nem szűk keresztmetszet, de becslés/benchmark ajánlott (lásd 6. fejezet). A pg_dump immár az **egyetlen** backup-mechanizmus (korábban a tartalom a remote git-en is élt másodpéldányként) — ez a backup-fegyelmet kritikusabbá teszi (lásd D4).
+
+### D2 — Minden írás kizárólag a webes API-n keresztül *(megerősítve, Git-keret nélkül)*
+
+A közvetlen adatbázis-módosítás (kézi SQL, admin eszköz) szervezetileg tiltott, kizárólag dokumentált migráció vagy adminisztrátori beavatkozás keretében történhet, naplózva. Így a lock-mechanizmus, az eseménynaplózás és a keresőindex mindig konzisztens marad az alkalmazás állapotával. *(A korábbi indoklás — hogy a repo közvetlen módosítása [GitHub/Azure Repos felületen vagy klónon át] szervezetileg tiltott — tárgytalanná vált, mivel nincs többé repo; a képfeltöltési kivétel kérdése is okafogyottá vált, mert a képek eleve nem a tartalom-táblákban élnek, lásd D15.)*
+
+### D3 — MEGSZŰNT: Backend-hitelesítés a repo felé *(törölve — Postgres-only pivot)*
+
+Tárgytalan: nincs többé remote repo, amihez a backendnek hitelesítenie kellene magát. Az SSH-kulcspár, a GitHub deploy key és az Azure Repos dedikált service account koncepciója elesik. A backend hitelesítése kizárólag az adatbázis felé (connection string, lásd D13) és az OIDC szolgáltató felé (D5) marad releváns.
+
+### D4 — Keresőindex: generált oszlop, nincs külön konzisztencia-varrat *(lényegesen egyszerűsödve — Postgres-only pivot)*
+
+A `documents.search_vector` (`tsvector`, magyar konfiguráció) **generált oszlopként** (`GENERATED ALWAYS AS ... STORED`) él, közvetlenül a jelenlegi tartalomból számolva — ugyanabban a tranzakcióban frissül, mint maga a tartalom. Nincs külön „index" és „forrás", tehát nincs őket összefésülő reindex-mechanizmus, és nincs mit konzisztencia-ellenőrizni: a generált oszlop garantáltan szinkronban van a tartalommal, adatbázis-szinten.
+
+**Ezzel törlődik a korábbi döntés két eleme:** a `reindex` parancs és az ütemezett „konzisztencia-őr" (clone HEAD vs. indexelt hash összevetés) — mindkettő a Git-forrás/Postgres-index kettősségre épült, ami megszűnt.
+
+**Backup-stratégia (kötelező, megerősítve és szigorítva):** ütemezett `pg_dump`, külön tárolóra (nem ugyanarra a diszkre/gépre), definiált retencióval; a visszaállítási eljárás dokumentált és legalább egyszer kipróbált. **Mivel a pg_dump immár az egyetlen backup-mechanizmus** (nincs másodlagos tartalom-másolat egy remote repóban), a napi gyakoriság felülvizsgálandó — érdemes megfontolni a WAL-archiválást / point-in-time recovery-t (pl. `pgBackRest`, `WAL-G`) a szorosabb RPO érdekében, különösen élesben.
 
 ### D5 — Cserélhető autentikáció: generikus OIDC réteg
+
 Fejlesztés alatt Google login, éles üzemben Microsoft Entra ID (céges App Registration). Az alkalmazás OIDC-szabványra épül, a szolgáltató konfigurációs kérdés — ez adja a hordozhatóságot is.
 **Beléptetési kapu:** e-mail allowlist (Postgres-ben tárolva; kezdetben seed/konfig, később felületi karbantartás). A Google-login belső hálózatról is működik, csak a redirect URI-t kell regisztrálni.
 **Kiegészítés:** az allowlist-tagság **minden API-kérésnél ellenőrzött**, nem csak beléptetéskor — az allowlistből eltávolított felhasználó hozzáférése azonnal megszűnik, nem a session lejártakor. Szigorú redirect URI-egyeztetés, teljes token-validálás (issuer, audience, lejárat) és CSRF-védelem az API-n.
 
-### D6 — Nincs jogosultságkezelés: mindenki mindent lát és tehet *(kiegészítve)*
+### D6 — Nincs jogosultságkezelés: mindenki mindent lát és tehet *(kiegészítve; **írási oldala felülírva: D31, D32**; **10. verzió: olvasási oldala is felülírva: D44**)*
+
 Minden belépett (allowlistes) felhasználó minden funkciót elér, és **minden tartalmat lát — ez kimondott cél, nem mellékhatás**: a tudásbázis rendeltetése a szervezeten belüli kollaboráció elősegítése, a teljes olvasási nyitottság ennek eszköze.
 **Következmény (tartalompolitikai korlát):** a tudásbázisba kizárólag olyan tartalom kerülhet, amelyet a szervezet bármely tagja megismerhet. Ez bevezetéskor kimondandó szervezeti szabály.
 **Kompenzáció az írási oldalon:** teljes átláthatóság — minden művelet (szerkesztés, státuszváltás, törlés, visszaállítás) eseményként naplózódik és a kommentfolyamban rendszerüzenetként megjelenik. A workflow-fegyelem szervezeti szabály, nem technikai kényszer: „technikailag nyitott, szervezetileg szabályozott."
 **Vállalt korlát:** az auditnyom az írást fedi, az olvasást nem (olvasásnaplózás tudatosan nincs).
 
-### D7 — Egyidejű szerkesztés: pesszimista lock + heartbeat
+### D7 — Egyidejű szerkesztés: pesszimista lock + heartbeat *(**kiváltva: D29** — a prototípusban marad)*
+
 Szerkesztő mód aktiválásakor a backend lockolja a dokumentumot; más felhasználó tájékoztató üzenetet kap. A nyitott szerkesztő 30–60 mp-enként heartbeatet küld; a lock heartbeat nélkül 2–5 perc után automatikusan lejár (lecsukott laptop, bezárt fül eseteit magától kezeli). A kliens piszkozatot őriz, így a lejárat nem jár munkavesztéssel. „Lock átvétele" funkció: második ütem.
 
 ### D8 — Törlés: archívum + felületi visszaállítás
-Törléskor a dokumentum archív állapotba kerül (nem vész el; a Git-történet is őrzi). Az archívumnak webes listázó/visszaállító felülete van; karbantartása kijelölt személy szervezeti felelőssége.
 
-### D9 — Események és kommentek a Postgres-ben
-A kommentek és a rendszeresemények nem a Git-ben élnek: `events` tábla a művelet-történetnek (ki, mit, mikor), ebből épül a dokumentumonkénti rendszerüzenet-folyam és a globális audit-nézet. (Mentésükről a D4 backup-szabálya gondoskodik.)
+Törléskor a dokumentum archív állapotba kerül (nem vész el; a teljes revíziótörténet is őrzi, lásd D1/4. fejezet). Az archívumnak webes listázó/visszaállító felülete van; karbantartása kijelölt személy szervezeti felelőssége.
 
-### D10 — Hosting: fejlesztés alatt saját szerver, élesben céges infrastruktúra
-Docker Compose-ban futó teljes stack (frontend, backend, Postgres) — ez adja a környezetfüggetlenséget: az éles üzembe állítás konfiguráció (domain, OIDC, repo-elérés), nem átépítés. Publikus PaaS free tier (Vercel/Netlify) elvetve: licenc- és kapacitáskorlátok, plusz nem futtatnak tartós backendet és adatbázist.
-**Vészhelyzeti elérés:** szerverleállás esetén a repo klónozható és Obsidiannal olvasható — ezt belső oktatás ismerteti. (Azure Repos-on ugyanígy működik.)
+### D9 — MEGSZŰNT: Események és kommentek a Postgres-ben *(összevonva D1-be — Postgres-only pivot)*
 
-### D11 — Fejlesztési adathatár *(megerősítve és kiterjesztve)*
-Éles céges tartalom nem kerülhet a fejlesztői környezetbe (otthoni szerver, privát repo); a fejlesztés **kizárólag dummy adatokkal** történik. Éles adat csak a céges környezetben születik.
-**Kiterjesztés:** a **GitHub kizárólag fejlesztési környezet** — éles céges tartalom **soha, semmilyen formában nem kerül GitHub-ra**. Az éles rendszer remote-ja a szervezeti struktúrában már használt **Azure Repos**. Az átállás nem „transfer", hanem mirror push az új remote-ra + konfigcsere (remote URL, SSH kulcs) — a teljes történet átmegy, provider-oldali metaadat-függés nincs (lásd D12).
+Tárgytalan különálló döntésként: miután minden adat (tartalom is) a Postgresben él, az „események és kommentek nem a Gitben, hanem a Postgresben" megkülönböztetés értelmét veszti. Lásd D1.
 
-### D12 — Git-hozzáférés: git protokoll + lokális clone, provider API tilos *(új)*
-**Döntés:** a backend egy tartós volume-on tárolt **lokális clone**-nal dolgozik, és kizárólag a git protokollt használja (SSH). Provider-specifikus REST API-ra (GitHub Contents/Commits API, Azure DevOps API) **építeni tilos**.
-**Indoklás:** minden olvasó művelet — verziótörténet, diff, korábbi verzió megtekintése — lokális, ezredmásodperces `git log/diff/show`, nulla hálózati hívás, nulla rate limit; a felület diff- és történet-nézetei így olcsók. Egyben ez adja a provider-függetlenséget: a GitHub → Azure Repos átállás remote URL + kulcs csere.
-**A varrat kezelése (lokális clone ↔ remote):**
-- **Sorosítás:** minden Git-műveletet (commit, push) a backend **worker queue-n** (pg-boss, D22) keresztül, egyesével hajt végre — konkurens `index.lock` ütközés kizárva.
-- **Push retry:** a mentés a lokális committal sikeres; ha a push hibázik (hálózat, remote-leállás), automatikus újrapróbálkozás exponenciális visszavárakozással.
-- **Lemaradás-monitoring:** a rendszer méri és felületen/riasztásban jelzi, hány commituval van lemaradva a remote a lokális clone-tól; tartós lemaradás üzemeltetői riasztás (ez jelzi a visszavont/lejárt kulcsot is).
-- A konténer-újraindítást a volume-on perzisztált clone éli túl; sérült clone esetén friss clone a remote-ról + reindex.
+### D10 — Hosting: fejlesztés alatt saját szerver, élesben céges infrastruktúra *(módosítva — vészhelyzeti elérés elesik)*
 
-### D13 — Kulcs- és secret-kezelés *(új)*
-- Az SSH privát kulcs (és minden más secret: OIDC client secret, DB jelszó) **soha nem kerül Docker image-be, repóba vagy commitolható `.env` fájlba**.
-- Betöltés **Docker Compose secrets**-ként (vagy bind-mount `0600`, root-only jogosultsággal); kizárólag a backend konténer kapja meg.
-- **Környezetenként külön kulcspár:** a fejlesztői kulcs csak a GitHub dummy-repóhoz, az éles kulcs csak az Azure Repos-hoz érvényes — a fejlesztői környezet kompromittálódása nem érinti az élest.
-- Élesben dedikált service account (lásd D3); opcionálisan Azure Key Vault, ha a céges infrastruktúra adja.
-- **Rotációs eljárás dokumentálva:** új kulcspár generálása → regisztrálás a remote-nál → konfigcsere → régi kulcs visszavonása. A D12 push-monitoringja a visszavont kulcsot azonnal láthatóvá teszi.
+Docker Compose-ban futó teljes stack (frontend, backend, Postgres) — ez adja a környezetfüggetlenséget: az éles üzembe állítás konfiguráció (domain, OIDC, DB-elérés), nem átépítés. Publikus PaaS free tier (Vercel/Netlify) elvetve: licenc- és kapacitáskorlátok, plusz nem futtatnak tartós backendet és adatbázist.
+
+**Vészhelyzeti elérés (elvesző képesség, kimondva):** a korábbi Git-alapú architektúrában szerverleállás esetén a repo klónozható és Obsidiannal olvasható volt. Ez a Postgres-only architektúrában **megszűnik**: teljes leállás esetén nincs azonnal olvasható, alternatív másodpéldány — a helyreállítás a pg_dump backupon és a szolgáltatás újraindításán múlik. **Vállalt korlát** — enyhítési lehetőség: lásd az új NY5-javaslatot (7. fejezet).
+
+### D11 — Fejlesztési adathatár *(módosítva — a Git remote-specifikus rész tárgytalan)*
+
+Éles céges tartalom nem kerülhet a fejlesztői környezetbe (otthoni szerver, saját dev-adatbázis); a fejlesztés **kizárólag dummy adatokkal** történik. Éles adat csak a céges környezetben (céges Postgres-instance) születik.
+
+*(A korábbi kiterjesztés — GitHub kizárólag fejlesztési környezet, Azure Repos élesben, mirror push az átálláskor — tárgytalanná vált: nincs többé git remote, amihez ezt a szabályt kötni kellene. Az éles/fejlesztői környezet elhatárolása most kizárólag a Postgres-instance-ok szintjén értelmezett, ami egyszerűbb és kevésbé hibázható.)*
+
+### D12 — MEGSZŰNT: Git-hozzáférés (git protokoll + lokális clone) *(törölve — Postgres-only pivot)*
+
+Tárgytalan: nincs lokális clone, nincs push, nincs lemaradás-monitoring, nincs „provider API tilos" szabály, mert nincs git-provider a tartalom oldalán. A korábbi sorosítási igény (a döntés utolsó pontja) is megszűnik — lásd D22 felülvizsgálatát: a Postgres natívan kezeli a konkurens írásokat tranzakciós szinten, nincs szükség külön worker-queue-alapú sorosításra a mentések között.
+
+### D13 — Kulcs- és secret-kezelés *(egyszerűsödve — nincs SSH-kulcs)*
+
+- A secretek (OIDC client secret, DB jelszó) **soha nem kerülnek Docker image-be, repóba vagy commitolható `.env` fájlba**.
+- Betöltés Docker Compose secrets-ként (vagy bind-mount `0600`, root-only jogosultsággal); kizárólag a backend konténer kapja meg.
+- Élesben opcionálisan Azure Key Vault, ha a céges infrastruktúra adja.
+- *(A korábbi SSH-kulcs-specifikus pontok — környezetenkénti kulcspár, dedikált service account a repóhoz, rotációs eljárás a remote-nál — tárgytalanná váltak: nincs többé SSH-alapú repo-hitelesítés.)*
 
 ### D14 — Frontend stack: shadcn/ui + Tailwind + Motion *(új)*
+
 A shadcn nem futásidejű függőség, hanem **bemásolt, saját tulajdonú komponenskód** — busz-faktor-1 projektnél előny: nincs breaking upgrade-kényszer, a karbantartás saját kézben van. A Tailwind-elköteleződés vállalt és kimondott. A Motion animációk funkcionális UX-visszajelzésre szolgálnak (mentés, lock-állapot, kommentfolyam-frissülés), nem öncélú effektekre.
 
-### D15 — Tartalom-scope: csak szöveg a repóban; képek alkalmazásszintű statikus assets-ként; export második ütemben *(módosítva a 2. grilling után)*
-- A tartalom-repo **kizárólag szöveges .md fájlokat tartalmaz**; képfeltöltés és csatolmány-kezelés nem funkciója a rendszernek.
-- **Statikus képek** (`.svg`, `.png`, `.jpeg` — ábrák, guide-ok, felületi design) **az alkalmazás szintjén kezelt assets mappából** jelennek meg; a markdown az alkalmazás saját assets-útvonalára hivatkozik. Javasolt forma: az assets **mountolt volume** (nem az image részeként) — így új kép hozzáadása fájlmásolás, nem rebuild+redeploy.
-- **Következmények (vállalva):** kép hozzáadása fejlesztői/üzemeltetői művelet, nem szerzői; a képek nem verziózódnak a tartalommal (csere visszamenőleg minden dokumentumverzióban érvényesül); a repo önmagában a szöveget adja teljes értékűen, a képeket nem (lásd 6. fejezet, vészhelyzeti elérés korlátja).
-- **Export** `.md`, `.pdf` és `.docx` formátumba: **MVP-be emelve (D21, 3. grilling)**; a `.pdf`/`.docx` szerveroldali konverzióként tervezendő (pandoc), nem kliensoldali trükként; a `.md` letöltés és a vágólap-másolás kliensoldali, triviális.
+### D15 — Tartalom-scope: szöveg a Postgresben; képek alkalmazásszintű statikus assets-ként; export MVP-ben *(módosítva — Postgres-only pivot; **10. verzió: a csatolmány-tilalom felülírva: D42**)*
 
-### D16 — Markdown szerkesztő: @uiw/react-md-editor *(új)*
+- A tudásanyag szövege **kizárólag a `documents`/`document_revisions` táblákban** él (nem fájlrendszeren, nem repóban); képfeltöltés és csatolmány-kezelés nem funkciója a rendszernek.
+- **Statikus képek** (`.svg`, `.png`, `.jpeg` — ábrák, guide-ok, felületi design) **az alkalmazás szintjén kezelt assets mappából** jelennek meg (mountolt volume, esetleg object storage), **nem a Postgresben** (nagy bináris blobok elkerülése) — a markdown az alkalmazás saját assets-útvonalára hivatkozik. Javasolt forma: mountolt volume (nem az image részeként) — új kép hozzáadása fájlmásolás, nem rebuild+redeploy.
+- **Következmények (vállalva):** kép hozzáadása fejlesztői/üzemeltetői művelet, nem szerzői; a képek nem verziózódnak a tartalommal (csere visszamenőleg minden dokumentumverzióban érvényesül).
+- **Export** `.md`, `.pdf` és `.docx` formátumba: MVP-be emelve (D21); a `.pdf`/`.docx` szerveroldali konverzióként tervezendő (pandoc — a tartalom a DB-ből egy ideiglenes fájlba írva a konverzió idejére); a `.md` letöltés és a vágólap-másolás kliensoldali, triviális.
+
+### D16 — Markdown szerkesztő: @uiw/react-md-editor *(új; **módosítva: D29, D40** — a szerkesztő CodeMirror 6 élő előnézettel, helyi menüvel; a `rehype-sanitize` és a képforrás-korlát marad)*
+
 Könnyű, textarea-alapú szerkesztő élő előnézettel — illik a markdown-fegyelmű, csak-szöveg scope-hoz (D15), nem WYSIWYG-absztrakció.
 **Kötelező kiegészítések:**
 - **rehype-sanitize** mind a szerkesztő-előnézetben, mind az olvasó nézetben — a nyers HTML átengedése betárolt XSS-t jelentene (200 szerző, mindenki olvas).
-- **Képforrás-korlátozás a sanitize-sémában:** kép (`img` / markdown képszintaxis) kizárólag az alkalmazás saját assets-útvonaláról renderelődik; külső URL-ű képhivatkozás nem jelenik meg (privacy-szivárgás — olvasói IP-k kiadása külső szervernek — és megbízhatósági kockázat ellen).
-- Az olvasó nézet **ugyanazzal a remark/rehype pipeline-nal** renderel, mint a szerkesztő előnézete — a szerző mentés előtt pontosan azt lássa, amit az olvasó mentés után.
+- **Képforrás-korlátozás a sanitize-sémában:** kép (`img` / markdown képszintaxis) kizárólag az alkalmazás saját assets-útvonaláról renderelődik; külső URL-ű képhivatkozás nem jelenik meg (privacy-szivárgás és megbízhatósági kockázat ellen).
+- Az olvasó nézet **ugyanazzal a remark/rehype pipeline-nal** renderel, mint a szerkesztő előnézete.
 - A piszkozat-őrzés (D7) a szerkesztő körüli saját felelősség, nem a komponensé.
 
-### D17 — Sablonok: a sablon is tudásanyag; „létrehozás forrásból" egységes művelet *(új, 3. grilling)*
-**Döntés:** a sablon ugyanolyan .md tudásanyag, mint bármely más dokumentum — sablon-mivolta **metaadat** (frontmatter-jelölés, a felületen kategóriaszerű szűrőként jelenik meg). Nincs külön sablon-alrendszer: tárolás a repóban, kezelés a normál szerkesztőn át (D2-vel és D15-tel konzisztens), verziózott.
+### D17 — Sablonok: a sablon is tudásanyag; „létrehozás forrásból" egységes művelet *(módosítva — Postgres-only pivot; **10. verzió: módosítva: D47** — a „forrásból” fájlimportot jelent, a sablon hátrasorolva)*
+
+**Döntés:** a sablon ugyanolyan tudásanyag-sor a `documents` táblában, mint bármely más dokumentum — sablon-mivolta **metaadat** (`is_template` oszlop, a felületen kategóriaszerű szűrőként jelenik meg). Nincs külön sablon-alrendszer: tárolás és kezelés a normál dokumentum-CRUD-on át (D2-vel és D15-tel konzisztens), teljes revíziótörténettel.
 **Vállalt következmény (D6):** a sablonokat bárki módosíthatja — a sablonfegyelem szervezeti szabály, az auditnyom a védvonal.
-**Implementációs egyesítés:** a *sablonból létrehozás* és a *duplikálás* ugyanaz a művelet — **„létrehozás forrásból"** —, csak a forrás más. Szemantika: az új dokumentum **új UUID-t** kap; tartalom és kategóriák másolódnak; **státusz = draft, owner = a létrehozó, iteration reset**; a forrás kommentjei és eseményei **nem** másolódnak; keletkezik `duplicated_from` esemény, amely mindkét dokumentumnál megjelenik (származás-nyomonkövetés). MVP.
+**Implementációs egyesítés:** a *sablonból létrehozás* és a *duplikálás* ugyanaz a művelet — **„létrehozás forrásból"** —, csak a forrás más. Szemantika: az új dokumentum **új UUID-t** kap; a jelenlegi tartalomból egy új, első `document_revisions` sor és kategória-hozzárendelések másolódnak; **státusz = draft, owner = a létrehozó, iteration reset**; a forrás kommentjei és eseményei **nem** másolódnak; keletkezik `duplicated_from` esemény, amely mindkét dokumentumnál megjelenik. MVP.
+*(Egyszerűsödés a korábbi verzióhoz képest: nincs többé repó-fájl másolási/útvonal-kezelési kérdés — a művelet tisztán relációs beszúrásokra redukálódik.)*
 
-### D18 — Kedvencek: privát, felhasználónkénti; az első valódi per-user elsődleges adat *(új, 3. grilling)*
+### D18 — Kedvencek: privát, felhasználónkénti; az első valódi per-user elsődleges adat *(új)*
+
 **Döntés:** kedvencek funkció MVP-elemként — a felhasználó dokumentumokat kedvencnek jelölhet, a listák/keresés kedvencekre szűrhető.
-**Láthatóság: privát** — kizárólag az adott felhasználó látja a saját kedvenceit. Ez konzisztens a D6 vállalt korlátjával: az átláthatóság az írási oldalt fedi, az olvasói preferencia (mint az olvasás maga) nem naplózott, nem publikus.
-**Adat-kategorizálási következmény (D4 bővítése):** a `favorites` tábla **elsődleges, sehonnan újra nem építhető adat** → a pg_dump backup-körbe tartozik. Ezzel a `users` tábla sem tisztán eldobható cache többé (a kedvenc-rekordok hivatkoznak rá) — a backup egyszerűen a teljes adatbázist fedi, a megkülönböztetés elvi jelentőségű marad (mi építhető újra a repóból, mi nem).
+**Láthatóság: privát** — kizárólag az adott felhasználó látja a saját kedvenceit. Ez konzisztens a D6 vállalt korlátjával: az átláthatóság az írási oldalt fedi, az olvasói preferencia nem naplózott, nem publikus.
+**Adat-kategorizálási következmény:** a `favorites` tábla **elsődleges, sehonnan újra nem építhető adat** → a pg_dump backup-körbe tartozik. Ezzel a `users` tábla sem tisztán eldobható cache többé.
 
-### D19 — Kategóriák: lapos címke-rendszer, alkalmazásszintű entitásként *(új, 3. grilling)*
+### D19 — Kategóriák: lapos címke-rendszer, alkalmazásszintű entitásként *(módosítva — Postgres-only pivot; **felülírva: D34**)*
+
 **Döntés:** a kategorizálás **lapos** (nincs hierarchia); egy dokumentum **több kategóriába** is tartozhat (címke-szemantika); a kategória **entitás az alkalmazásban**, CRUD-műveletekkel.
 **Szabályok:** új kategóriát **bárki** létrehozhat (D6-tal konzisztens); **használatban lévő kategória nem törölhető és nem nevezhető át** — módosítás/törlés csak akkor, ha egyetlen dokumentum sem hivatkozik rá. Kategória-műveletek eseményként naplózódnak.
-**A varrat (repo-önállóság vs. DB-entitás):** a frontmatter a kategória**nevek listáját** hordozza — a reindex ebből építi újra a hozzárendeléseket, a repo önmagában teljes értékű marad. Ezt az teszi biztonságossá, hogy használatban lévő kategória neve nem változhat, így a frontmatter-név soha nem évül el. Korlát: a még egyetlen dokumentumhoz sem rendelt (üres) kategória csak a DB-ben él → a `categories` tábla is mentendő adat.
+**Egyszerűsödés a korábbi verzióhoz képest:** a `document_categories` kapcsolótábla **tisztán relációs, elsődleges adat** — nincs többé frontmatter-alapú „repo-önállóság" szempont, nincs mit reindex-ből újraépíteni, mert nincs második forrás (repo), amivel szinkronban kellene tartani. Ez megszünteti a korábbi döntés legbonyolultabb részét (a frontmatter-név stabilitásának biztosítását a törlési szabály miatt) — maga a szabály (használatban lévő kategória nem törölhető/nevezhető át) megmarad, de már nem egy szinkronizációs varrat védelmében, hanem önmagában, egyszerű adatintegritási okból.
 
-### D20 — Komment-életciklus és általános törlés-elv: soft delete + retention *(új, 3. grilling)*
+### D20 — Komment-életciklus és általános törlés-elv: soft delete + retention *(új)*
+
 **Komment szerkesztése:** megengedett a szerzőjének; a módosítás **nyomot hagy** — `comment_edited` esemény őrzi a korábbi tartalmat (JSONB details), a felületen „szerkesztve" jelölés.
-**Komment törlése:** **soft delete** — a felületen a komment *helye* megmarad („törölt komment" placeholder), az adatbázisban a rekord megjelölve, nem törölve; `comment_deleted` esemény naplózódik. Az átláthatóság (D6) így a kommentfolyamra is teljes.
-**Általános elv (rendszerszintű):** a rendszerben **minden törlés soft delete** — dokumentum (D8 archívum), komment, kategória. Végleges (fizikai) törlés kizárólag **data retention policy** szerinti, időzített, automatizált folyamatként történik. A policy részletei (retenciós idők, mi törölhető véglegesen, GDPR-vonatkozások) később kerülnek kidolgozásra: **NY4**.
+**Komment törlése:** **soft delete** — a felületen a komment *helye* megmarad („törölt komment" placeholder), az adatbázisban a rekord megjelölve, nem törölve; `comment_deleted` esemény naplózódik.
+**Általános elv (rendszerszintű):** a rendszerben **minden törlés soft delete** — dokumentum (D8 archívum), komment, kategória. Végleges (fizikai) törlés kizárólag **data retention policy** szerinti, időzített, automatizált folyamatként történik. A policy részletei később kerülnek kidolgozásra: **NY4**.
 
-### D21 — Scope-emelés az MVP-be: vágólap, .md letöltés, diff-nézet, export *(új, 3. grilling)*
-**Döntés:** a korábban második ütembe sorolt tételek közül MVP-be kerül: **vágólapra másolás** és **nyers .md letöltés** (kliensoldali, triviális); **diff-nézet UI** két verzió között (a motor kész — D12 lokális `git diff` —, a költség a megjelenítő komponens: react-diff-viewer / diff2html); **.pdf/.docx export** szerveroldali pandoc-pipeline-nal.
-**Kimondott ár:** a pandoc-export az egyetlen MVP-elem, amely új szerveroldali függőséget hoz és önálló munkacsomag — az MVP 9-ről 13 pontra nőtt. A delegálási ütemtervben az export **hátrasorolt, utolsó csomag**: határidő-nyomás esetén ez esik ki elsőként.
-**Scope-fegyelem szabály:** új funkcióigény kizárólag a döntési naplón keresztül léphet be (új D- vagy NY-pontként, ütem-besorolással) — ami nincs a naplóban, az nem épül meg.
+### D21 — Scope-emelés az MVP-be: vágólap, .md letöltés, diff-nézet, export *(módosítva — Postgres-only pivot)*
 
-### D22 — Backend stack: TypeScript end-to-end, Node.js + Fastify; worker queue: pg-boss *(új, B1)*
-**Alternatívák:** NestJS (teljes keretrendszer); más nyelv a backendre (Python/Go/C#); queue-ra BullMQ (Redis) vagy saját sorosítás.
-**Döntés indoklása:** egyetlen nyelv a teljes stackben — busz-faktor-1 projektnél a kontextusváltás-költség és a duplikált tooling megszűnése többet ér, mint bármely nyelv részelőnye. A Fastify könnyű, gyors, sémavezérelt (JSON Schema validáció — a B5 API-kontraktushoz illeszkedik), keretrendszer-kényszer nélkül. A **pg-boss** a meglévő PostgreSQL-re épül: **nincs új üzemeltetendő alkatrész** (nincs Redis), és a job-felvétel egy tranzakcióban élhet a DB-írással — ez a D4 konzisztencia-szabályához és a D12 sorosítási követelményéhez kifejezetten előny.
-**Vállalt ár:** a pg-boss ökoszisztémája kisebb, mint a BullMQ-é; a use case (Git-írások egyesével sorosítva, alacsony áteresztés) ezt nem terheli. A NestJS strukturális kényszereiről lemondunk — a struktúrát a saját szerviz-rétegzés adja (lásd D24 GitService-elv).
+**Döntés:** a korábban második ütembe sorolt tételek közül MVP-be kerül: **vágólapra másolás** és **nyers .md letöltés** (kliensoldali, triviális); **diff-nézet UI** két verzió között; **.pdf/.docx export** szerveroldali pandoc-pipeline-nal.
+**Diff-motor (módosítva):** a korábbi tervben a diff-motor „ingyen" volt (lokális `git diff`); a Postgres-only architektúrában a diffet alkalmazásszinten kell számolni egy szövegdiff-könyvtárral (pl. `diff`/jsdiff a két `document_revisions.content` pillanatkép között). **Ez a diff-nézet UI-t (react-diff-viewer / diff2html) érintő korábbi költségbecslést nem növeli lényegesen** — a diffszámítás két szöveg-string között triviális, csak a forrása változik (git parancs → könyvtárhívás).
+**Kimondott ár:** a pandoc-export az egyetlen MVP-elem, amely új szerveroldali függőséget hoz és önálló munkacsomag — az MVP korábban 9-ről 13 pontra nőtt, most a reindex-tétel törlésével 12-re csökken (lásd 5. fejezet). A delegálási ütemtervben az export **hátrasorolt, utolsó csomag**.
+**Scope-fegyelem szabály:** új funkcióigény kizárólag a döntési naplón keresztül léphet be — ami nincs a naplóban, az nem épül meg.
 
-### D23 — Frontend app-keretrendszer: Vite + React SPA, React Router *(új, B2)*
+### D22 — Backend stack: TypeScript end-to-end, Node.js + Fastify; **worker queue elhagyva** *(felülvizsgálva — Postgres-only pivot)*
+
+**Alternatívák:** NestJS (teljes keretrendszer); más nyelv a backendre (Python/Go/C#); a mentés-írás sorosítására worker queue (pg-boss vagy BullMQ/Redis) vs. natív Postgres-tranzakció.
+**Döntés indoklása:** egyetlen nyelv a teljes stackben — busz-faktor-1 projektnél a kontextusváltás-költség és a duplikált tooling megszűnése többet ér, mint bármely nyelv részelőnye. A Fastify könnyű, gyors, sémavezérelt (JSON Schema validáció — a B5 API-kontraktushoz illeszkedik), keretrendszer-kényszer nélkül.
+**A worker queue (pg-boss) elhagyása:** a korábbi indoklás kizárólag a Git-írások sorosítására vonatkozott (konkurens `index.lock` ütközés elkerülése egy fájlrendszer-alapú repón). Ez a probléma Postgres-only architektúrában **nem létezik**: egy mentés egyetlen ACID-tranzakció (revízió-beszúrás + állapotfrissítés + generált `tsvector`), és a Postgres natívan, sorosítás nélkül is helyesen kezeli a konkurens tranzakciókat (sor-szintű lockolás, MVCC). Külön worker-infrastruktúra erre nincs szükség.
+**Ha mégis felmerül async-igény:** a data retention ütemezett törlése (NY4) és az esetleges nagy dokumentumokra vonatkozó export-időzítés egyszerű **cron-alapú ütemezett feladattal** (pl. `node-cron` a backend-folyamaton belül, vagy `pg_cron` extension, ha a céges Postgres engedélyezi) megoldható — ez nem igényel teljes job-queue keretrendszert, mert nincs olyan volumenű vagy megbízhatósági igény (retry, dead-letter), ami indokolná.
+**Vállalt ár:** a NestJS strukturális kényszereiről lemondunk — a struktúrát a saját szerviz-rétegzés adja (services/repositories réteg, lásd D24).
+**Egyenes következmény:** ezzel a korábban legkockázatosabbnak jelölt komponens (Git-írási alrendszer + pg-boss queue) **megszűnik** — a projekt kockázati profilja érdemben csökken (lásd D27 felülvizsgálatát).
+
+### D23 — Frontend app-keretrendszer: Vite + React SPA, React Router *(új)*
+
 **Alternatívák:** Next.js (SSR/RSC); más SPA-keretrendszer (Vue, Svelte).
 **Döntés indoklása:** a rendszer belső, login mögötti alkalmazás — SEO és SSR-igény nincs, a Next.js csak komplexitást (szerver-runtime, RSC-mentálmodell) hozna. A Vite + React SPA a legkisebb mozgó alkatrész; a már eldöntött komponens-ökoszisztéma (react-md-editor D16, shadcn/ui D14, diff-viewer D21) natívan ebben él. Kliensoldali routing React Routerrel.
 **Vállalt ár:** SPA-jelleg — első betöltési bundle-méret és kliensoldali state-kezelés; belső eszköznél elfogadható, kód-splitting szükség szerint.
 
-### D24 — Git-hívás a backendben: simple-git, saját GitService-absztrakció mögött *(új, B3)*
-**Alternatívák:** nyers shell-out a git CLI-re (`child_process` saját wrapperrel); isomorphic-git (pure JS).
-**Döntés indoklása:** a **simple-git** ugyanazt a natív git CLI-t hívja (a viselkedés azonos a kézzel kipróbálhatóval), de kész, típusos wrapperként — megspórolja a saját escape-elési és hibakód-parszolási réteget. Az isomorphic-git elvetve: a natív gittől eltérő viselkedés a diff/log műveleteknél kockázat, miközben a D12 miatt a git binárisra amúgy is építünk.
-**Kikötés (architektúra-szabály):** minden Git-művelet egyetlen saját **`GitService`** modul mögött él; a simple-git ennek implementációs részlete. Ha a lib bárhol falba ütközik (egzotikus flag, hibakezelés), az adott művelet egy helyen cserélhető nyers shell-outra, az alkalmazás többi része nem érintett. A GitService kizárólag a pg-boss queue-ból hívható írásra (D12 sorosítás).
+### D24 — MEGSZŰNT: Git-hívás a backendben (simple-git, GitService) *(törölve — Postgres-only pivot)*
 
-### D25 — Adatbázis-réteg és migráció: Drizzle *(új, B4)*
+Tárgytalan: nincs git-hívás a backendben. Az adatelérési réteget a Drizzle (D25) query buildere és egy saját, vékony repository/service réteg adja (dokumentum-, revízió-, esemény-, kommentkezelés) — ugyanaz a rétegzési elv (a perzisztencia-részletek egy modul mögé rejtve), csak nincs mögötte külső CLI-folyamat, amit egy helyen cserélni kellene.
+
+### D25 — Adatbázis-réteg és migráció: Drizzle *(új)*
+
 **Alternatívák:** node-pg-migrate (nyers SQL-migrációk, query-réteg külön megoldandó); Prisma (kényelmes DX, de saját sémanyelv és futásidejű réteg).
-**Döntés indoklása:** a Drizzle TypeScript-sémadefiníciót, generált migrációkat és **típusos query buildert** ad egyben, miközben SQL-közeli marad — nem klasszikus ORM. Illeszkedik a D22-es end-to-end TypeScript elvhez: a séma típusai a backend-kódban közvetlenül érvényesülnek. A Prisma elvetve: a séma gerincét adó `tsvector` (magyar konfiguráció), `pg_trgm` és generált oszlopok nála kézi kerülőutat igényelnek.
-**Kikötés:** a keresési infrastruktúra (extension-ök, generált `tsvector` oszlop, GIN indexek) **kézzel írt SQL-migrációként** él a Drizzle migrációs láncában (custom migration) — ezek nem fejezhetők ki a TS-sémában, és nem is kell erőltetni.
-**Konkrét DDL:** a teljes séma külön tervdokumentumban (`tudasbazis-db-sema-b4.md`) — a napló 4. fejezete marad az elvi vázlat, a DDL-dokumentum a megvalósítási referencia.
+**Döntés indoklása:** a Drizzle TypeScript-sémadefiníciót, generált migrációkat és **típusos query buildert** ad egyben, miközben SQL-közeli marad — nem klasszikus ORM. Illeszkedik a D22-es end-to-end TypeScript elvhez: a séma típusai a backend-kódban közvetlenül érvényesülnek. A Prisma elvetve: a séma gerincét adó `tsvector` (magyar konfiguráció), `pg_trgm` és generált oszlopok nála kézi kerülőutat igényelnek — **ez a Postgres-only pivottal még hangsúlyosabb szempont, mert a `document_revisions` és a generált `search_vector` oszlop most a séma központi eleme, nem csak egy kiegészítő index.**
+**Kikötés:** a keresési infrastruktúra (extension-ök, generált `tsvector` oszlop, GIN indexek) **kézzel írt SQL-migrációként** él a Drizzle migrációs láncában (custom migration).
+**Konkrét DDL:** a teljes séma külön tervdokumentumban (`tudasbazis-db-sema-b4.md`) — **ez a dokumentum a Postgres-only pivot után frissítésre szorul** (lásd a fejezet végi összefoglalót).
 
-### D26 — API-kontraktus: REST `/api/v1`, cookie-session + CSRF, RFC 9457 hibák, code-first OpenAPI *(új, B5)*
-**Döntés (elvek, részletek: `tudasbazis-api-kontraktus-b5.md`, A1–A8):**
+### D26 — API-kontraktus: REST `/api/v1`, cookie-session + CSRF, RFC 9457 hibák, code-first OpenAPI *(módosítva — mentés-szemantika egyszerűsödött; **ismét módosítva: D29** — új `/collab` WebSocket-végpont, a `PUT …/content` + `baseRevisionId` nem elsődleges mentési út többé)*
+
+**Döntés (elvek, részletek: `tudasbazis-api-kontraktus-b5.md` — felülvizsgálandó, lásd megjegyzés):**
 - **Session httpOnly cookie-ban** (az OIDC-token soha nem jár a böngésző JS-terében), `SameSite=Lax` + CSRF-token a mutáló kéréseken — a D5 CSRF-követelményének realizálása.
-- **Hibaformátum: RFC 9457 Problem Details** + stabil gépi `code` mező (hibakód-katalógus a kontraktus-dokumentumban).
-- **Mentés-szemantika:** a `PUT …/content` a sorosított **lokális commitot szinkron megvárja** (200 + új commit hash), a push aszinkron retry-jal fut (D12); **kötelező `baseCommitHash`** optimista ellenőrzéssel (412) a lock-lejárat utáni kései mentés ellen — a lock (D7) mellé második védvonal.
-- **Code-first kontraktus:** a Fastify JSON Schema validáció (D22) az egyetlen forrás, az OpenAPI belőle generálódik (`@fastify/swagger`) — a validálás és a dokumentáció nem tud szétcsúszni.
-- Lapozás `limit`/`offset`; kommentek + rendszeresemények **egyetlen szerverin fésült `feed`** végpontból (D9 vetítési elve); export szinkron streaminggel (job-infrastruktúra csak mért igénynél).
-**Vállalt ár:** a cookie-session a frontendet same-origin üzemre köti (a Compose-stackben adott); a szinkron export nagy dokumentumnál timeout-kockázat — tudatosan a legolcsóbb megoldás, a hátrasorolt export-csomagot (D21) nem terheljük előre.
+- **Hibaformátum: RFC 9457 Problem Details** + stabil gépi `code` mező.
+- **Mentés-szemantika (egyszerűsödve):** a `PUT …/content` egyetlen szinkron DB-tranzakciót vár meg (200 + új `revisionId`) — **nincs többé „lokális commit szinkron, push aszinkron" kettősség, mert nincs push.** **Kötelező `baseRevisionId`** optimista ellenőrzéssel (412) a lock-lejárat utáni kései mentés ellen — a lock (D7) mellé második védvonal, ugyanaz a szerep, mint korábban a `baseCommitHash`-nek.
+- **Code-first kontraktus:** a Fastify JSON Schema validáció (D22) az egyetlen forrás, az OpenAPI belőle generálódik (`@fastify/swagger`).
+- Lapozás `limit`/`offset`; kommentek + rendszeresemények egyetlen szerverin fésült `feed` végpontból; export szinkron streaminggel.
+**Vállalt ár:** a cookie-session a frontendet same-origin üzemre köti; a szinkron export nagy dokumentumnál timeout-kockázat.
+**Megjegyzés:** a `tudasbazis-api-kontraktus-b5.md` külön dokumentum a `baseCommitHash` → `baseRevisionId` átnevezést és a push-related szakaszok törlését igényli — ez a jelen napló hatókörén kívül eső, de érintett dokumentum.
 
-### D27 — Megvalósítási sorrend: 15 munkacsomag, kockázat-előrehozással *(új, H5)*
-**Döntés:** a fejlesztés delegálható munkacsomagokban halad (WP0–WP14, részletek: `tudasbazis-munkacsomagok-h5.md`), sorrendi elvekkel:
-1. **Kockázat-előrehozás:** a GitService + pg-boss queue (WP3) az egyetlen valóban kísérletezést igénylő komponens — közvetlenül a séma után épül, minden funkcionális csomag előtt; a simple-git korlátainak itt kell kiderülniük (D24 cserepont-elve miatt lokalizált kockázat).
-2. **Gerinc először:** WP0–WP4 után végigjátszható mag létezik (login → létrehozás → mentés = commit); a levél-funkciók erre rakódnak, egymástól függetlenül, párhuzamosíthatóan.
-3. **Hátulról védett demó-érték:** határidő-nyomásnál a csomagok hátulról előre esnek ki, elsőként az export (WP14) — összhangban a D21 hátrasorolásával.
-4. **Csomag-zárási fegyelem:** minden csomag CI-zöld tesztekkel + a naplópontok visszaellenőrzésével zárul; új igény csak a naplón át (D21).
-**Az MVP mind a 13 pontja csomaghoz rendelt** (lefedettségi tábla a dokumentumban); a verziótörténet/diff (MVP 3.) a korábban implicit helyéről explicit csomagot kapott (WP7).
+### D27 — Megvalósítási sorrend: munkacsomagok, kockázat-előrehozással *(módosítva — a legkockázatosabb komponens megszűnt; **ismét módosítva, 9. verzió:** a kockázat-előrehozás célja a D29 K0-spike, megállási feltétellel; részletek: [[Tervezés/Tervezés (hatodik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomag-terv (9. verzió)]])*
 
-### D28 — Élő Atlasz: élő erő-szimulációs elrendezés, Obsidian-szerű interakcióval *(új, 2026-10-18)*
+**Döntés:** a fejlesztés delegálható munkacsomagokban halad (részletek: `tudasbazis-munkacsomagok-h5.md` — felülvizsgálandó, lásd megjegyzés), sorrendi elvekkel:
+1. **Kockázat-előrehozás (átértékelve):** a korábban legkockázatosabbnak jelölt komponens (Git-írási alrendszer: GitService + pg-boss queue) **megszűnt** — nincs többé git-írási kísérletezést igénylő alrendszer. Az így felszabaduló legkockázatosabb hátralévő elem a **keresőindex + generált `tsvector` oszlop (magyar konfiguráció, `pg_trgm`)** és a **diff-motor** — ezeket érdemes az új „korán derítendő kockázat" helyére tenni, közvetlenül a séma után.
+2. **Gerinc először:** a séma után végigjátszható mag épül (login → létrehozás → mentés = DB-tranzakció); a levél-funkciók erre rakódnak, egymástól függetlenül, párhuzamosíthatóan.
+3. **Hátulról védett demó-érték:** határidő-nyomásnál a csomagok hátulról előre esnek ki, elsőként az export — összhangban D21 hátrasorolásával.
+4. **Csomag-zárási fegyelem:** minden csomag CI-zöld tesztekkel + a naplópontok visszaellenőrzésével zárul; új igény csak a naplón át.
+**Egyenes következmény:** a korábbi munkacsomag-listából a Git-írási alrendszerre épülő csomag törlődik — a teljes ütemterv valószínűleg rövidebb és kevésbé kockázatos lett. **A `tudasbazis-munkacsomagok-h5.md` dokumentum újratervezése szükséges** (lásd a fejezet végi összefoglalót).
+
+### D28 — Élő Atlasz: élő erő-szimulációs elrendezés, Obsidian-szerű interakcióval *(új, 2026-10-18 — átvéve az `Arch/` naplóból; **módosítva: D37**)*
 **Döntés:** az Atlasz térképének elrendezését élő, d3-force-egyenértékű erő-szimuláció adja (középre húzás, taszítás, rugó, ütközés). Saját implementáció, könyvtár nélkül, determinisztikus kezdőállapottal. A csomópontok húzhatók; hoverre kiemelődnek a szomszédok, a többi halványul; a címkék zoomfüggően jelennek meg; az erők egy beállításpanelen hangolhatók. A paraméterek az Obsidian gráfnézetének elemzéséből jönnek (`Prototypes/atlasz-obsidian-graf-elemzes.md`).
 **Részdöntések:**
 - A klaszterezettséget kizárólag az élek adják, kategória-vonzás erő nincs (tiszta Obsidian-erők).
@@ -214,56 +247,318 @@ Könnyű, textarea-alapú szerkesztő élő előnézettel — illik a markdown-f
 **Kimondott ár:** a „konstrukció szerint nincs átfedés” garancia „nyugalomban nincs átfedés” garanciára gyengül. Egy korábbi erő-szimulációs változat 50+ dokumentumnál klaszter nélküli gubancot adott; ezt a kockázatot vállaljuk, a hangolás a panelen történik. A csomópont-húzás csak elrendezés-finomítás: a térkép minden funkciója húzás nélkül is elérhető (WCAG 2.5.7).
 **Scope (D21):** a prototípusra (`Prototypes/tudasbazis-prototype/home/`) vonatkozik; a React SPA-ba (D23) átvételhez külön naplópont kell.
 
-## 4. Adatmodell-vázlat (PostgreSQL)
+### D29 — Valós idejű közös szerkesztés: Yjs + Hocuspocus + CodeMirror 6 *(új, 2026-10-19 — kiváltja D7-et; **10. verzió:** a „publikált dokumentum szerkesztése” bekezdést a D45 váltja; a szerkesztés a Piszkozat állapotban folyik)*
 
-- `documents` — **stabil `id` (UUID, a rendszer generálja, soha nem változik; a frontmatterben is tárolva)**; út a repóban (attribútum, átnevezéskor változhat — az id nem!), cím, státusz, tulajdonos, **sablon-jelölés (is_template)**, utolsó commit hash, indexelt tartalom (`tsvector`, magyar konfiguráció + `pg_trgm` a ragozás-tűrő kereséshez), soft delete jelölés (archívum, D8)
-- `categories` — kategória mint entitás: név (egyedi), leírás; *mentendő adat* (az üres kategória csak itt él, D19); használatban lévő nem törölhető/nevezhető át
-- `document_categories` — dokumentum↔kategória kapcsolótábla (több-a-többhöz, D19) — *a repóból (frontmatter kategórianév-lista) újraépíthető*
-- `favorites` — felhasználó↔dokumentum (privát kedvencek, D18) — *elsődleges adat, mentendő*
-- `events` — dokumentum (**id-ra hivatkozik, nem útra**), típus (created/edited/status_changed/deleted/restored/renamed/**duplicated_from**/**comment_edited**/**comment_deleted**/**category_created** stb.), felhasználó, időbélyeg, részletek (JSONB — pl. komment korábbi tartalma szerkesztésnél) — *elsődleges adat, mentendő*
-- `comments` — dokumentum (id), szerző, tartalom, időbélyeg, **szerkesztve-jelölés, soft delete jelölés (D20)**; rendszerüzenetek az `events`-ből vetítve — *elsődleges adat, mentendő*
+**Alternatívák:** a lock + heartbeat megtartása (D7) „lock átvételével"; OT (ShareDB); Automerge; SaaS-szinkron (Liveblocks, Tiptap Cloud); WYSIWYG szerkesztő (Tiptap/Milkdown).
+**Döntés:** a dokumentumot többen szerkeszthetik egyszerre, Google Docs-szerűen, névcímkés távoli kurzorokkal. CRDT-modell **Yjs**-szel; szerver a **Hocuspocus**, amely a Fastify-jal közös Node-folyamatban fut, `/collab` WebSocket-útvonalon (egy deploy-egység marad); szerkesztő a **CodeMirror 6 + `y-codemirror.next`** (a `@uiw/react-md-editor` cseréje, lásd D16); jelenlét az **Awareness**-protokollal; offline piszkozat `y-indexeddb`-vel (kiváltja a D7 kliensoldali piszkozatát).
+**Mentés két szintje:** (1) folyamatos perzisztálás kb. 2 mp-es debounce-szal egy tranzakcióban (`document_collab_state` + materializált `documents.content`, így a generált `search_vector` (D4) magától frissül), revízió nélkül; (2) revízió-checkpoint (`document_revisions` + `edited` esemény a résztvevők `contributors` listájával) kézi „Verzió mentése", az utolsó szerkesztő kilépése vagy 10 perc tétlenség után.
+**Publikált dokumentum szerkesztése (V6–V7):** egy `publikált` dokumentumon az írási joggal rendelkező kapcsolat első update-je után a szerver ugyanabban a tranzakcióban `draft`-ra állítja a státuszt (`status_changed`, ok: `edited_while_published`). Munkapéldány nincs; az olvasók az élő tartalmat látják draft jelvénnyel, a dokumentum kikerül a „publikált" szűrőből és a D38 MCP-elérésből.
+**Biztonság:** a WebSocket-upgrade a meglévő session-cookie-t használja (D26); `onAuthenticate` ellenőrzi a sessiont, az allowlistet (D5) és a színtér-szerepet (D31); kötelező `Origin`-ellenőrzés (CSWSH ellen); írási jog nélkül `readOnly` kapcsolat; a felhasználó nevét és színét az Awareness-állapotba a szerver tölti. A `rehype-sanitize` (D16) változatlanul minden renderelésnél fut.
+**Érvényben marad:** D2 (minden írás a backenden át, csak a csatorna WebSocket), D11 (self-hosted, nincs SaaS), D22 (nincs Redis egy példánynál).
+**Vállalt ár:** WebSocket-infrastruktúra (reverse proxy, idle timeout); a Yjs-állapot mérete a tombstone-ok miatt nő (GC + időszakos tömörítés); szerkesztőcsere. Ütemezés: K0–K8 munkacsomagok, lásd [[Kollaboráció/Valós idejű közös szerkesztés]].
+
+### D30 — Színterek: csapat- és projekt-terek, nyitott olvasással *(új, 2026-10-19; **10. verzió: a nyitott olvasás felülírva: D44**)*
+
+**Döntés:** a tudás színterekben (`spaces`) él; a színtér `type` mezője szerint **csapat-munkatér** (tartós) vagy **projekt-tér** (lezárható). Beépített alapszíntér: **Általános**.
+- **Olvasás mindig nyitott:** minden színtér tartalmát minden belépett felhasználó látja, keresi és az Atlaszon is megjelenik; a színtér csak írási és jóváhagyási határ (a D6 olvasási elve megmarad). Zárt színtér nincs.
+- **Egy dokumentum = egy színtér** (`documents.space_id`), a jogosultság onnan jön.
+- **Nincs áthelyezés (V26):** másik színtérbe csak duplikálással (D17, `származik` kapcsolat) kerülhet a tartalom; az eredeti szükség szerint archiválható.
+- **Atlasz (V25):** egy közös térkép; alapból az aktuális színtér kiemelve, a többi halvány; a színtér facetként szűrhető. A színtér nem befolyásolja a helyet (D28).
+- Események: `space_created`, `space_closed`, `member_added`, `member_removed`, `role_changed`.
+
+### D31 — Jogosultságok: színterenkénti szerepkörök, kötelező gazda *(új, 2026-10-19 — felülírja D6 írási oldalát; **10. verzió: a szerepkörök felülírva: D43** — a kötelező gazda, a négy szem elve és az allowlist-védelem marad)*
+
+**Döntés:** a jogosultság egysége a színtér (D30). Szerepek: **Olvasó** (minden belépett felhasználó minden színtérben), **Szerző** (létrehoz, szerkeszt), **Jóváhagyó** (+ `review → publikált`), **Színtérgazda** (+ tagság, archívum); globálisan csak az **Admin** (allowlist). Ellenőrzés a backendben (middleware), a felület csak elrejt.
+- **Négy szem elve:** saját dokumentumot nem lehet saját magának jóváhagyni.
+- **Kötelező gazda (V12):** minden dokumentumnak pontosan egy tulajdonosa van a színtér szerkesztői közül; tulajdonos nélküli dokumentum nem létezhet. Tulajdonosváltás csak másik szerkesztőre (`owner_changed`).
+- **Allowlist-védelem (V12):** felhasználó nem törölhető az allowlistről, amíg dokumentum tulajdonosa (409 `owner_handover_required`); az allowlist nem csökkenhet nullára, legalább egy Admin marad (409 `last_admin`).
+- A komment-szabály (D20) változatlan.
+**Egyetlen kivétel az írási határ alól (D39, V50):** a dokumentum tulajdonosa a rá mutató `helyettesíti` kapcsolatot más színtérben is törölheti (rendszer-revízió a forráson).
+**Mit ír felül:** a D6 „mindenki mindent tehet" elvét az írási oldalon; az olvasási nyitottság és a teljes írási audit megmarad.
+
+### D32 — Státusz-workflow jóváhagyással *(új, 2026-10-19 — felülírja D6 „soft workflow" elvét; **10. verzió: felülírva: D45**)*
+
+**Döntés:** a `review → publikált` váltás a színtér Jóváhagyójához kötött (D31, négy szem elve). Az első szerkesztés egy publikált dokumentumon visszaviszi `draft`-ba (D29, V6). **Elutasítás kötelező indoklással (V22):** a `review → draft` elutasítás csak indoklással menthető; az indoklás a `status_changed` esemény JSONB részleteiben tárolódik, kiemelt rendszerüzenetként jelenik meg a kommentfolyamban, és a tulajdonos értesítést kap (D35).
+
+### D33 — Felülvizsgálat: kötelező esedékesség és értesítés *(új, 2026-10-19; **10. verzió:** „publikáláskor” = a Jóváhagyott állapotba kerüléskor; a „Még aktuális” bármely színtér-tag joga, review nélkül (D45); komment nem zárja le (D49))*
+
+**Probléma:** a versenytárs-elemzés (Confluence) legnagyobb azonosított gyengesége a tartalom észrevétlen elavulása.
+**Döntés (V2–V4, V8–V11):**
+- Publikáláskor a szerző **kötelezően** megad egy felülvizsgálati esedékességet (`documents.review_due_at`), **alapértéke 12 hónap**.
+- Címzettek: a **tulajdonos és az utolsó publikált revízió közreműködői**; csatorna: alkalmazáson belül + e-mail (D35).
+- Időzítés: **7 nappal előtte és esedékességkor**; utána **heti emlékeztető**, a „Felülvizsgálandó" jelvény megmarad. Eszkaláció és automatikus visszaminősítés nincs; címzett nélküli dokumentum a D31 kötelező gazdája miatt nem fordulhat elő.
+- Lezárás: „Még aktuális" (új esedékesség, revízió nélkül, `review_confirmed`; bárki, akinek Szerző joga van a színtérben, jóváhagyás nélkül), vagy szerkesztés → `draft` → újrapublikálás új esedékességgel.
+- Ütemezés: a D22 szerinti cron-alapú feladat, naponta.
+
+### D34 — Címkék és fajta *(új, 2026-10-19 — felülírja D19-et)*
+
+**Döntés:**
+- A **kategória** fogalma megszűnik, helyette **címke** (`tags`, `document_tags`). A készlet **globális**, minden színtér osztozik rajta (V23). Típusos metaadat nincs (V5).
+- **Nincs külön létrehozó felület (V24):** a címke a dokumentum létrehozásakor vagy szerkesztésekor adható meg, listából vagy szabad kézzel. Szabad kézi megadásnál a normalizált (kisbetűs, ékezet nélküli, szóköz-normalizált) pontos egyezést a rendszer automatikusan a meglévő címkére cseréli; `pg_trgm`-hasonlóság ≥ 0,4 esetén legfeljebb 3 meglévő címkét ajánl fel (V34). Új címke csak a felajánlás elutasítása után jön létre (`tag_created`).
+- **Utólagos összevonás, átnevezés nincs (V29);** az árva címkék rejtve maradnak, a rekord megmarad (V30). A D19 „használatban lévő kategória védett" szabálya tárgytalan.
+- **Fajta (V27):** a dokumentum fajtája (prompt, skill, agent-definíció, MCP-szerver …) külön, kötelező, egyértékű `documents.kind` mező rögzített listából (Admin bővítheti).
+- **Seed-migráció (V33):** a kilenc korábbi kategória `kind` érték lesz; a seed dokumentumonként 1–3 generált témacímkét kap.
+
+### D35 — Értesítések, @említés és a kommentfolyam *(új, 2026-10-19; **10. verzió: módosítva: D46** — WebSocket polling helyett, napi összefoglaló, dashboard; @említés csak a színtér tagjai közül, D44)*
+
+**Döntés:** az értesítés az eseménynaplóból származik (ugyanabban a tranzakcióban `notifications` sor), MVP-ben **alkalmazáson belül (polling) + e-mail** (ütemezett összefoglaló; a jóváhagyási kérés azonnali). Követés (`subscriptions`) a kedvenctől (D18) független.
+- **@említés (V16, V21):** bárki említhető az allowlistről; tárolás `@[név](user:uuid)` formában; az említett értesítést kap. Komment szerkesztésekor minden említett újra értesítést kap (V20), de ugyanarról a kommentről egy említett **10 percen belül legfeljebb egyet** (V22a).
+- **Kommentfolyam:** marad lapos, időrendi; válaszszálak (V17) és „Megoldott" lezárás (V18) nincs. Szövegrészhez kötött komment: második ütem, a D29 után (V19).
+
+### D36 — Keresés: rangsor és duplikátum-figyelmeztetés *(új, 2026-10-19 — kiegészíti D4-et; **10. verzió:** duplikátum-figyelmeztetés csak cím alapján, keresés csak a saját színterekben: D44, D49)*
+
+**Döntés:** a rangsor **szöveges relevancia** (`ts_rank` + trigram) **és frissesség** (utolsó revízió vagy `review_confirmed`, enyhe időbeli lecsengéssel); a státusz nem rangsorol, arra szűrni lehet (V14). A kommentek nem kereshetők, a `search_vector` változatlan (V15). Létrehozáskor és az első mentéskor a cím és a tartalom `pg_trgm`-hasonlósága alapján legfeljebb 5 hasonló dokumentumot ajánlunk fel; nem tilt (V13).
+
+### D37 — Élő Atlasz színezése a színtérből *(új, 2026-10-19 — módosítja D28-at)*
+
+**Döntés:** a csomópont színe a **színtér** színe (`spaces.color`, a Design System palettájából; több színtérnél az alapszínek ismétlődhetnek, V32). Minden felhasználó saját magának átszínezheti (`user_space_colors`, privát, nem naplózott); szabad színválasztó kontraszt-figyelmeztetéssel (WCAG 1.4.11, 3:1 világos és sötét háttérrel szemben — V52), amely nem tilt (V31). **Nincs színátmenet** (V28): egy dokumentum egy színtérhez tartozik. A címkék és a fajta szűrőként kiemelnek („kiemel, nem töröl").
+
+### D38 — MCP- és API-elérés AI-asszisztenseknek *(új, 2026-10-19 — második ütem; **10. verzió:** „publikált” = a Jóváhagyott revízió (`approved_revision_id`, D45); csak a felhasználó színterei (D44); REST az alap (D49))*
+
+**Döntés (V1):** az AI-asszisztensek (Claude, Copilot) csak olvasási MCP-elérést kapnak a **publikált** dokumentumokhoz (`search_documents`, `get_document`, `list_tags`). Most terv; megvalósítás a második ütemben. Nyitott: felhasználóhoz kötött hozzáférési token (új hitelesítési út a D26 mellett), az MCP-olvasás naplózása (D18-cal ütközik).
+
+### D39 — Kapcsolatok: explicit, típusos dokumentum-kapcsolatok *(új, 2026-10-19 — az NY7 lezárásaként; **10. verzió:** kapcsolat csak olyan színtér dokumentumára, amelynek a felhasználó tagja; idegen cél csonkként (D44))*
+
+**Döntés:** irányított kapcsolatok a `document_links` táblában (`from_id`, `to_id`, `type`, `created_by`, `created_at`, `deleted_at`), négy típussal:
+- `hivatkozik` — automatikus, a tartalomból kinyerve: a szövegben `[cím](doc:uuid)` (átnevezésbiztos), kinyerés mentéskor, ugyanabban a tranzakcióban. **Beszúrás nem szintaxissal, hanem a D40 helyi menüjéből** (V41; a V37 `[[`-szintaxisa elvetve): cél dokumentumkeresőből, típus listából; a kijelölt szöveg linkké válik, a kapcsolat a típusával a Tulajdonságok panelen jelenik meg (V43).
+- **Frontmatter (V42):** a kapcsolatok és típusuk a Tulajdonságok panelen láthatók és szerkeszthetők, és frontmatterként kerülnek az `.md`-letöltésbe, az exportba és az MCP-be (D38). Az igazság a `document_links` tábla; a 4. fejezet „a frontmatter kimeneti formátum” elve érvényben marad.
+- `származik` — automatikus, duplikálásból és sablonból (D17; a színterek közötti átvitel egyetlen útja, D30).
+- `épít_rá` és `helyettesíti` — kézi, kapcsolat-szerkesztővel a dokumentumnézetben. Hozzáadás: a **forrás színterében Szerző jog** elég (V35).
+- `helyettesíti` a célt „elavult" jelzéssel látja el a listában és az Atlaszon; a cél tulajdonosa beleegyezés helyett **értesítést kap**, és a kapcsolatot törölheti (V36, D35).
+- **Link és kapcsolat egy egység (V48):** ha a link eltűnik a szövegből, a kapcsolat is megszűnik, típustól függetlenül; a panelen törölt kapcsolat a szövegbeli linket is eltávolítja. A Tulajdonságok panelen felvett kapcsolat a dokumentum végi „Kapcsolódó dokumentumok” szakaszba kerül linkként (V49).
+- **A cél tulajdonosának joga (V50):** a rá mutató `helyettesíti` kapcsolatot törölheti; ez rendszer által írt revízió a forráson (`link_removed_by_target`, értesítés a forrás tulajdonosának) — **egyetlen kifejezett kivétel a D31 színtér-írási határa alól.** A publikált forrás ettől nem esik `draft`-ba (V53, szűk kivétel a D29/V6 alól).
+- **Linkenként egy kapcsolat (V54):** több link ugyanarra a célra külön kapcsolat a saját típusával; a panel célonként csoportosít, az Atlaszon célonként egy él.
+- **Archivált cél (V51):** a link halvány, „archivált” jelöléssel; az Atlaszon az él nem látszik.
+- Kapcsolat átléphet színterek között; a cél a nyitott olvasás (D30) miatt mindig látható. „Visszahivatkozások" panel a dokumentumnézetben. Események: `link_added`, `link_removed`.
+- **Atlasz (V39):** minden explicit kapcsolat egységes erejű rugó az erőszimulációban (D28); a típust a vonalstílus jelzi; a közös címke halvány él.
+**Ütemezés (V38):** MVP-levélcsomag, a kiesési sorrendben az e-mail után.
+
+### D40 — Szerkesztési élmény markdown-tudás nélkül: élő előnézet, helyi menü, Tulajdonság-panel *(új, 2026-10-19 — módosítja D16-ot és D29-et)*
+
+**Cél:** a felhasználóknak ne kelljen markdown-szintaxist tanulniuk.
+**Alternatívák:** valódi WYSIWYG (Tiptap/Milkdown + `y-prosemirror`) — elvetve, mert a markdown-forrás pontos megőrzése nehezebb, és újranyitná a D29 szerkesztőválasztását; osztott nézet + helyi menü — elvetve, mert a szintaxis látható marad.
+**Döntés:**
+- **CodeMirror 6 élő előnézettel (V40)**, az Obsidian modellje szerint: a forrás markdown marad (a D29 Yjs-kötése, a D21 diff, a D4 keresés és az export változatlan), a jelölők rejtve vannak, a formázás azonnal látszik. Az osztott nézet megszűnik.
+- **Helyi menü jobb kattintásra (V41)** minden formázási és beszúrási lehetőséggel (formázás, bekezdéstípusok, listák, táblázat, külső link, dokumentum-kapcsolat típussal, @említés, assets-kép); billentyűparancsokkal és billentyűzetről is elérhető.
+- **Tulajdonság-panel (V42):** fajta, címkék, színtér, tulajdonos, esedékesség és kapcsolatok a dokumentum tetején; frontmatterként csak kimenetben jelenik meg, az igazság a DB.
+- **Forrásnézet-kapcsoló (V44)** haladóknak; alapértelmezés az élő nézet.
+- **Táblázat (V45):** cellánkénti helybeni szerkesztés; **lebegő formázósáv kijelöléskor (V46)**; érintőképernyőn hosszú nyomás + formázósáv (V47).
+- A `rehype-sanitize` és a képforrás-korlát (D16) az élő nézet renderelésére is vonatkozik.
+**Vállalt ár:** az élő előnézet saját CodeMirror-dekorációkat igényel (rejtett jelölők, táblázat-, lista- és linkmegjelenítés) — ez a szerkesztőcsere (D29, K3) legmunkaigényesebb része, és a K0-spike-nak is érintenie kell.
+
+### D41 — Értékelési módszertan: pilot a jelenlegi gyakorlathoz viszonyítva *(új, 2026-10-19; **10. verzió:** a jelenlegi eszköz és a hozzáférés nyitott: NY8, NY9)*
+
+**Döntés (V55–V60):** a Táltost a szervezet jelenlegi megoldásához (**Confluence vagy SharePoint**) viszonyítjuk, résztvevőn belüli, kiegyensúlyozott sorrendű összehasonlítással. **8–12 résztvevő legalább 3 csapatból**, vegyesen fejlesztők és nem fejlesztők. Forma: 45 perces moderált feladat-session (T1–T8) mindkét eszközben, majd **2 hetes használat** a Táltosban naplóadatokkal, a végén SUS és interjú. Mérőszámok: **megtalálási idő és siker, dokumentumkészítés ideje és hibái, SUS, adminisztrációs ráfordítás.** Környezet: **fejlesztői környezet, dummy korpusz** (D11), ugyanaz a korpusz a jelenlegi megoldás teszt-terében is. Kiértékelés: **csak leíró**, előre rögzített célértékek nélkül.
+**Vállalt ár:** a dummy tartalom és a fejlesztői környezet miatt a 2 hetes szakasz mesterséges; a kis minta miatt következtetéses statisztika nincs. Részletek: [[Értékelés/Pilot-terv]].
+
+### D42 — Többformátumú tartalom: tartalom-címzett blobok Postgresben, formátumonkénti kezelő-registry *(új, 2026-10-23 — felülírja a D15 csatolmány-tilalmát; második ütem)*
+
+**Probléma:** a tudásanyag egy része nem markdown: generált HTML-riportok, `.skill` csomagok (ZIP: `SKILL.md` + szkriptek), PDF, Excel. Ezek verziózása és diffje a D15 alapján eddig nem volt cél.
+**Döntés:** a rendszer ezeket is tárolja és verziózza; **megvalósítás a második ütemben**, az adatmodell már most így készül.
+- **Tárolás Postgresben (a D1 egy igazságforrás elve marad):** `blobs` (SHA-256 → `bytea`, `STORAGE EXTERNAL`, deduplikáció), `revision_files (revision_id, path, blob_sha256)` fájllista, `blob_derivatives` (kinyert szöveg, cellák, oldalképek; újragenerálható). **Korlát: 25 MB fájlonként**, a `.skill` csomag kibontva is. Object storage (MinIO) csak akkor, ha a pilot indokolja.
+- `documents.format` (`markdown`, `html_report`, `skill_bundle`, `pdf`, `xlsx`, `md_file`) a `kind` (D34) mellett külön tengely.
+- **A `.skill` csomag kibontva tárolódik** (fájlfa); a csomagon belüli `.md` és `.py` fájlok **egyszemélyes CodeMirror-szerkesztővel** módosíthatók (közös szerkesztés nélkül); a mentés piszkozat-revízió, és a D45 review-ján megy át. Letöltéskor a ZIP újra összeáll. Ellenőrzés: zip slip, zip bomb, kötelező `SKILL.md`.
+- **HTML-riport:** csak a generált kimenet tárolódik (a generáló forrás nem). Megjelenítés külön originről, `<iframe sandbox="allow-scripts">`-ben, `allow-same-origin` nélkül, szigorú CSP-vel. Diff: normalizált HTML szövegdiff + képernyőkép-alapú vizuális diff.
+- **PDF:** oldalankénti szövegdiff, pdf.js-megjelenítés. **Excel:** cellaszintű diff (sorillesztés később).
+- **Export (D21):** nem markdown formátumnál az eredeti fájl letöltése. **MCP (D38):** a kinyert szöveg + letöltési link az eredetihez.
+- A kinyerés a mentéssel azonos tranzakcióban fut (D22: nincs worker queue); a `search_vector` a `documents.search_text`-re is kiterjed (D4).
+- Részletek: [[Adattárolás/Többformátumú tartalom és verziókövetés]].
+**Mit ír felül:** a D15 „képfeltöltés és csatolmány-kezelés nem funkció” mondatát a fenti formátumokra. A statikus képek (assets) kezelése változatlan.
+**Vállalt ár:** nagyobb adatbázis és `pg_dump`; formátumonkénti kinyerő- és diff-kód; a HTML-riportok izolálása külön originnel.
+
+### D43 — Szerepkörök: Rendszeradminisztrátor, Színtérgazda, Szerző *(új, 2026-10-23 — felülírja a D31 szerepkör-részét)*
+
+**Döntés:**
+- **Globálisan** egy adminisztratív szerep van: a **Rendszeradminisztrátor** (a korábbi Admin összevont utódja): allowlist, színterek létrehozása és lezárása, a kezdeti Színtérgazda kijelölése, fajta-lista (D34), rendszerszintű audit. **Tartalmi joga nincs**: tartalmat csak akkor lát és szerkeszt, ha az adott színtérnek tagja. **Saját magát bármely színtérbe felveheti** további feltétel nélkül; ez eseményként naplózódik (`member_added`, `self_assigned`).
+- **Színtéren belül két szerep:** **Szerző** (olvas, szerkeszt, változást indítványoz, review-er lehet) és **Színtérgazda** (+ tagok felvétele és eltávolítása, előléptetés Színtérgazdává, visszaminősítés, színtér leírása és színe). A korábbi Olvasó és Jóváhagyó szerep megszűnik.
+- **Delegált tagság:** a kezdeti Színtérgazdát a Rendszeradminisztrátor jelöli ki, utána a Színtérgazda kezeli a tagságot. A Rendszeradminisztrátor bármikor felülírhat.
+- **Projekt-tér kérése:** bármely felhasználó kérheti (név, cél, javasolt Színtérgazda); a Rendszeradminisztrátor hagyja jóvá és hozza létre (a kérés a dashboardján jelenik meg, D46).
+- **Az Általános színtérben minden allowlistre felvett felhasználó automatikusan Szerző.** Színtérgazdáját a Rendszeradminisztrátor jelöli ki.
+- **A Tulajdonos megmarad** (D31 kötelező gazda, D33 címzett): felelősséget jelent, jogot nem.
+- **Védelmek:** legalább egy Rendszeradminisztrátor (409 `last_admin`); minden színtérben legalább egy Színtérgazda (409 `last_space_manager`); utolsó Színtérgazda és dokumentum-tulajdonos nem törölhető az allowlistről; egy színtérben a review-hoz legalább három tag kell (409 `not_enough_reviewers`).
+- **Ellenőrzés:** egyetlen backendoldali policy-függvény (`can(user, action, resource)`) a REST middleware-ben (D26) és a Hocuspocus `onAuthenticate`-ben (D29); a jogosultsági mátrix minden cellája táblavezérelt teszteset.
+- **Entra ID csoport-claimek** (automatikus belépés vagy tagság): jövőbeli munka.
+- Adatmodell: `users.is_admin` → `users.system_role`; `space_members.role ∈ {author, space_manager}`; `space_requests`, `membership_requests`.
+Részletek és jogosultsági mátrix: [[Felhasználók/Szerepkörök]].
+
+### D44 — Zárt színterek *(új, 2026-10-23 — felülírja a D30 nyitott olvasását)*
+
+**Döntés:** a színtér tartalmát **csak a tagjai látják**. Minden olvasó út a tagságra szűr: lista, keresés (D4, D36), Atlasz (D28), kapcsolatok és visszahivatkozások (D39), értesítések (D35), export, MCP (D38). A szűrés egyetlen „látható dokumentumok” lekérdezés-építőben él (Postgres RLS mérlegelendő), és minden olvasó végpontra van teszt.
+- **Idegen színtérbe mutató link:** a link szövege megmarad, a cél címe rejtve; kattintásra „Ez a dokumentum egy olyan színtérben van, amelynek nem vagy tagja” üzenet, a színtér Színtérgazdáival és **„Felvétel kérése”** gombbal. A kérés a Színtérgazdák dashboardján jelenik meg (D46). Az Atlaszon ilyen él nincs.
+- **Kapcsolat csak olyan színtér dokumentumára hozható létre, amelynek a felhasználó tagja** (a V35 „a célszíntérben nem kell jog” úgy módosul: tagság kell, írási jog nem); a dokumentumkereső eleve csak a saját színtereket mutatja.
+- **Duplikálás (V26):** bármely színtérbe, amelynek a felhasználó tagja; a másolat Piszkozatként indul, és a célszíntér review-ján megy át (D45).
+- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható.
+- **Sablonok (D47):** a Jóváhagyott sablonok minden felhasználónak felkínálhatók — az egyetlen kivétel a zártság alól.
+- **Atlasz:** alapból az aktuális színtér Jóváhagyott dokumentumai; a felhasználó további színterei facetként bekapcsolhatók (a V25 „a többi halványan látszik” módosul); 300 csomópont fölött a kevés kapcsolatú csomópontok címkefürtbe vonódnak.
+**Mit ír felül:** a D30 „olvasás mindig nyitott” elvét, a D6 olvasási nyitottságát és a D39 „a cél a nyitott olvasás miatt mindig látható” mondatát.
+**Vállalt ár:** a láthatósági szűrés minden olvasó úton kötelező — egy kifelejtett végpont adatszivárgás. A közös tudás csak az Általános színtérben marad mindenkinek elérhető.
+
+### D45 — Review-folyamat két review-errel *(új, 2026-10-23 — felülírja a D32-t és a D29 V6–V7 szabályát)*
+
+**Döntés:** minden tartalmi változás — új dokumentum vagy feltöltés, tartalommódosítás, metaadat-frissítés, visszaállítás régi verzióra, bármilyen törlés — csak **két megjelölt review-er jóváhagyásával** válik véglegessé.
+- **Állapotok:** **Piszkozat** (közös szerkesztés, D29) → **Review-ra vár** (beküldve, tartalom befagyva) → **Jóváhagyott** (mindkét review-er jóváhagyta) vagy **Átdolgozandó** (legalább egy elutasította). A korábbi `draft`, `review`, `tesztelt`, `publikált` státusz megszűnik.
+- **Review-erek:** a beküldő (indítványozó) jelöl meg két különböző színtér-tagot, saját magán kívül. A piszkozat közreműködői lehetnek review-erek.
+- **Elutasítás** csak indoklással; az indoklás kommentként jelenik meg az eseményfolyamban, és a másik függő döntés megszűnik.
+- **Elakadt review:** az indítványozó vagy a Színtérgazda kicserélheti a review-ert; helyette dönteni senki nem dönthet. Emlékeztető a napi összefoglalóban (D46).
+- Dokumentumonként **egyszerre egy függő kérés**; Review-ra várás alatt a tartalom csak visszavonás után módosítható. A soha be nem küldött piszkozat review nélkül eldobható.
+- **Az alapnézet a legutóbbi változatot mutatja** (a függőt is), állapotjelvénnyel; a legutóbbi Jóváhagyott állapot a Verziók fülön érhető el. Az MCP (D38) és az export csak a Jóváhagyott revíziót adja (`documents.approved_revision_id`).
+- **Nem megy át review-n:** kommentek (D20), kedvencek, követés, tagság- és szerepkezelés, és a **„Még aktuális” megerősítés** (D33, mert a tartalom nem változik).
+- **Verziószám:** az `iteration` a Jóváhagyott változások száma (v1, v2 …). A változásleírás mindig opcionális. Diff: soronkénti, a módosult sorokon belül szószintű kiemeléssel (D21).
+- **Adatmodell:** `change_requests (document_id, kind, base_revision_id, proposed_revision_id, initiator_id, state)` részleges egyedi indexszel a függő kérésre; `change_request_reviewers (reviewer_id, decision, reason)`. A döntés, a kérés lezárása és a `documents` frissítése egy tranzakció (`SELECT … FOR UPDATE`).
+- **Események:** `review_requested`, `review_approved`, `review_rejected`, `review_withdrawn`, `reviewer_replaced`, `change_approved`, `change_rejected`.
+Részletek: [[Dokumentumok/Státusz-workflow]].
+**Mit ír felül:** a D32 Jóváhagyó-szerepét és a D6 „nem kikényszerített workflow” elvét; a D29 „publikált dokumentum szerkesztése draftba viszi” szabályát (V6–V7) és a V53 kivételt (a `helyettesíti` kapcsolat cél általi törlése is változás, de rendszer-revízióként review nélkül marad, mint eddig).
+**Vállalt ár:** jelentős review-terhelés (minden apró javítás két embert vesz igénybe); kis színtér nem működik három tag alatt.
+
+### D46 — Személyes feladat-dashboard és értesítési csatornák *(új, 2026-10-23 — módosítja a D35-öt; MVP)*
+
+**Döntés:**
+- **Belépés után a főoldal a személyes dashboard** (az Atlasz egy kattintásra): rám váró review-k, saját függő indítványaim, Átdolgozandó anyagaim, esedékes felülvizsgálatok (a hozzájuk írt kommentekkel kiemelve), @említések; Színtérgazdáknak a felvételi kérések; Rendszeradminisztrátornak a színtér-kérések. Forrása az értesítési réteg (D35).
+- **Csatorna:** alkalmazáson belül **WebSocket** (a `/collab` mellett egy értesítési csatorna; a D35 polling helyett). E-mail: azonnali a review-kérés, minden emlékeztető (felülvizsgálat, elakadt review) **napi összefoglalóba** vonva.
+- **E-mail-küldés:** SMTP-absztrakció (Nodemailer); fejlesztésben Mailpit-mock (D11), élesben céges SMTP-relay; Microsoft Graph-adapter jövőbeli munka. **Levéltörzs:** eseménytípus, cím, színtér, kezdeményező és link; tartalom nem.
+
+### D47 — Létrehozási utak: üres és duplikálás MVP, sablon és fájlimport hátrasorolva *(új, 2026-10-23 — módosítja a D17-et)*
+
+**Döntés:** új markdown dokumentum négy úton jöhet létre:
+- **Üres** és **duplikálás** — MVP (3. pont).
+- **Létrehozás sablonból** — hátrasorolva (második ütem). Sablonként jelölés (`is_template`) metaadat-változás, ezért két review-er hagyja jóvá (D45); a Jóváhagyott sablonok globálisan használhatók (D44 kivétel).
+- **Létrehozás forrásból = fájlimport** — hátrasorolva (második ütem). Egyenként egy `.txt`, `.md` vagy `.docx` fájl; szerveroldali pandoc (`-t gfm`), előnézet mentés előtt, `rehype-sanitize`; a `.docx` képei kimaradnak (D15). Az eredeti fájl nem tárolódik, az `imported_from` esemény rögzíti a nevét. Tömeges import: jövőbeli munka.
+**Fogalomváltás:** a D17 „létrehozás forrásból” gyűjtőneve megszűnik; „forrásból” ettől kezdve csak a fájlimportot jelenti. A D17 megvalósítási egyesítése (új UUID, első revízió, `származik` kapcsolat) a duplikálásra és a sablonból létrehozásra érvényes; a státusz Piszkozat (D45).
+
+### D48 — Adatmegőrzés és mentés *(új, 2026-10-23 — lezárja az NY4-et)*
+
+**Döntés — „a tudás megmarad, a zaj törlődik”:**
+
+| Adat | Végleges törlés |
+|---|---|
+| Dokumentum, Jóváhagyott revízió | nincs automatikus törlés |
+| Archivált dokumentum | 2 év után |
+| Törölt komment | 90 nap után |
+| Értesítés | 90 nap után |
+| Elutasított vagy visszavont kérés piszkozat-revíziói, hivatkozás nélküli blobok (D42) | 1 év után |
+| Eseménynapló | 5 év után |
+
+- **Kilépő munkavállaló:** a neve a revíziókban és eseményekben a retenciós ideig marad (jogos érdek), utána pszeudonimizálva („Volt munkatárs #id”); a tulajdonjogot kilépéskor kötelező átadni.
+- **Végleges törlés:** automatikus, a D22 szerinti cron-feladat a policy szerint; a Rendszeradminisztrátor előtte heti listát kap, és egy tételt visszatarthat (legal hold).
+- **Backup (D4 kiegészítése):** napi `pg_dump`, 30 napos és 12 havi megőrzés, külön gépen vagy tárolón titkosítva, havi visszaállítási próba. A véglegesen törölt adat a mentésekből a megőrzési idő lejártával tűnik el.
+
+### D49 — Kisebb döntések a 2026-10-23-i átvizsgálásból *(új)*
+
+- **Keresés (D4, D36):** a `search_vector` a címkéket és a fajtát kis súllyal tartalmazza, a szerzőnevet nem (arra facet van). Szemantikus keresés (pgvector): jövőbeli munka, a pilot méri a `pg_trgm` elégségét. **Duplikátum-figyelmeztetés (V13): csak a cím alapján**, a felhasználó színterein belül.
+- **Szűrők:** a „Csapat” facet helyett Színtér facet (csak a saját színterek); a szűrők az URL-ben élnek; mentett nézetek: második ütem.
+- **Kedvenc és követés** külön fogalom (D18, D35). **Vágólap:** alapból frontmatter nélkül (csak a szöveg), második opcióként frontmatterrel.
+- **Közös szerkesztés (D29):** a szerzőséghez elég a checkpointonkénti résztvevőlista; „Kövesd X-et” nincs (második ütem); a jelenlét-sorban minden, a dokumentumot néző tag látszik.
+- **Bejelentkezés (D5):** OIDC-mock nincs; fejlesztésben is valódi Google OIDC, a tesztekben session-injektálás.
+- **MCP és API (D38):** a dokumentált `/api/v1` REST az alap, az MCP-szerver vékony réteg fölötte (egy jogosultsági pont). **Export (D21):** a `.docx` egy Táltos-arculatú `reference.docx` sablont használ ([[Branding]]).
+- **Allowlist (NY3 lezárva):** MVP-ben konfigurációból; második ütemben Rendszeradminisztrátor-felület „inaktív tulajdonosok” listával.
+- **Felülvizsgálat (D33):** egy hibát jelző komment nem zárja le az esedékességet; csak a „Még aktuális” vagy egy Jóváhagyott módosítás.
+- **Munkamenet (NY10, D26):** abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc; a WebSocket-forgalom aktivitásnak számít.
+- **Dashboard (D46):** egy review 3 munkanap után számít elakadtnak (kiemelés, napi összefoglaló); a blokkok időrendben, színtér-szűrővel.
+- **Vészhelyzeti tükör (NY5): elvetve.** A backup elég; az elveszett vészhelyzeti olvashatóság vállalt korlát marad.
+
+## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
+
+- `documents` — **stabil `id` (UUID, a rendszer generálja, soha nem változik)**; cím, slug/URL-út (attribútum, átnevezéskor változhat — az id nem!), státusz, tulajdonos, **sablon-jelölés (is_template)**, **jelenlegi tartalom** (vagy pointer a legfrissebb `document_revisions` sorra — implementációs részlet), **`search_vector` generált oszlop** (`tsvector`, magyar konfiguráció + `pg_trgm` a ragozás-tűrő kereséshez, mindig szinkronban a tartalommal), soft delete jelölés (archívum, D8)
+- **`document_revisions` *(új tábla, a Git-történet helyettesítője)*** — dokumentum (id), **teljes szövegű pillanatkép** (a mentéskori tartalom), szerző, időbélyeg, iteration-szám, opcionális `restored_from_revision_id` (ha visszaállításból jött) — *elsődleges adat, mentendő; korábban ezt a szerepet a Git-történet töltötte be*
+- `categories` — kategória mint entitás: név (egyedi), leírás; *mentendő adat*; használatban lévő nem törölhető/nevezhető át
+- `document_categories` — dokumentum↔kategória kapcsolótábla (több-a-többhöz) — **tisztán relációs, elsődleges adat** *(korábban: „a repóból újraépíthető" — ez a megkülönböztetés megszűnt, mert nincs második forrás)*
+- `favorites` — felhasználó↔dokumentum (privát kedvencek) — elsődleges adat, mentendő
+- `events` — dokumentum (id-ra hivatkozik), típus (created/edited/status_changed/deleted/restored/renamed/duplicated_from/comment_edited/comment_deleted/category_created stb.), felhasználó, időbélyeg, részletek (JSONB) — elsődleges adat, mentendő
+- `comments` — dokumentum (id), szerző, tartalom, időbélyeg, szerkesztve-jelölés, soft delete jelölés; rendszerüzenetek az `events`-ből vetítve — elsődleges adat, mentendő
 - `locks` — dokumentum (id), felhasználó, megszerzés ideje, utolsó heartbeat
-- `allowlist` — engedélyezett e-mail címek — *elsődleges adat, mentendő*
-- `users` — OIDC-ből érkező identitások (név, e-mail, avatar); a `favorites` hivatkozásai miatt már nem tisztán eldobható cache (D18)
+- `allowlist` — engedélyezett e-mail címek — elsődleges adat, mentendő
+- `users` — OIDC-ből érkező identitások (név, e-mail, avatar); a `favorites` hivatkozásai miatt nem tisztán eldobható cache
 
-A frontmatter (YAML a .md fájl elején) hordozza a Gitben is a metaadatokat (**id**, status, owner, iteration, **categories: névlista**, **template-jelölés**) — az index ebből épül, így a repo önmagában is teljes értékű, és a dokumentum-identitás átnevezés után is megmarad (URL-ek, kommentek, események nem szakadnak el).
+**Változások a 9. verzióban (D29–D38):**
+- `documents`: + `space_id`, `kind`, `review_due_at`; a tulajdonos kötelező (D31)
+- `categories` → `tags` (`normalized_name UNIQUE`), `document_categories` → `document_tags` (D34)
+- új: `spaces` (`color` is, D37), `space_members (space_id, user_id, role)`, `user_space_colors`, `users.is_admin` (D30, D31)
+- új: `document_collab_state` (Yjs-állapot, `bytea`); `document_revisions` + `contributors` (D29)
+- megszűnik: `locks` (D29)
+- új: `notifications`, `subscriptions` (D35); `document_links` (D39)
+**Változások a 10. verzióban (D42–D49):**
+- `users.is_admin` → `users.system_role` (`user` | `system_admin`); `space_members.role ∈ {author, space_manager}` (D43)
+- új: `space_requests`, `membership_requests` (D43, D44)
+- új: `change_requests`, `change_request_reviewers`; `documents` + `approved_revision_id`, `review_state` (gyorsítótár); a `status` oszlop megszűnik (D45)
+- második ütem: `blobs`, `revision_files`, `blob_derivatives`; `documents` + `format`, `search_text` (D42)
+- új eseménytípusok: `review_requested`, `review_approved`, `review_rejected`, `review_withdrawn`, `reviewer_replaced`, `change_approved`, `change_rejected`, `space_requested`, `membership_requested`, `system_admin_granted`, `system_admin_revoked`, `imported_from`
 
-## 5. MVP scope és ütemezés
+**(9. verzió:)**
+- új eseménytípusok: `owner_changed`, `review_due_set`, `review_due_soon`, `review_due`, `review_reminder`, `review_confirmed`, `tag_created`, `space_*`, `member_*`, `role_changed`
 
-**MVP (kötelező a demóhoz):**
-1. Google OIDC login + e-mail allowlist (kérésenkénti ellenőrzéssel)
-2. Dokumentum CRUD webes markdown szerkesztővel (react-md-editor; mentés = commit a worker queue-n át); létrehozás üres canvasból, sablonból vagy duplikálással — egységes „létrehozás forrásból" művelet (D17)
-3. Verziótörténet nézet + korábbi verzió visszaállítása (lokális clone-ból) + **diff-nézet UI két verzió között (D21)**
-4. Teljes szövegű keresés (magyar konfig) + kategória(címke)/státusz szűrés + **kedvencek-szűrő**
-5. Lock heartbeat-tel
-6. Eseménynaplózás + kommentfolyam rendszerüzenetekkel; komment-szerkesztés és -törlés auditnyommal (D20)
-7. Reindex parancs + automatizált konzisztencia-ellenőrzés (D4)
-8. Archívum + visszaállítás felület
-9. Postgres backup (ütemezett pg_dump) — üzemeltetési MVP-elem, nem halasztható
-10. **Kategóriakezelés** — kategória-entitások CRUD-ja a védelmi szabályokkal (D19)
-11. **Kedvencek** — privát megjelölés és szűrés (D18)
-12. **Vágólapra másolás + nyers .md letöltés** (D21)
-13. **Export .pdf/.docx** szerveroldali pandoc-pipeline-nal (D21) — *hátrasorolt csomag: határidő-nyomás esetén elsőként esik ki*
+**Megszűnt koncepció: a frontmatter mint önálló forrás.** A korábbi tervben a .md fájl elején élő YAML frontmatter hordozta a metaadatokat (id, status, owner, iteration, categories, template-jelölés), és a repo emiatt volt „önmagában is teljes értékű". Ez a szerep a Postgres-only architektúrában **tárgytalanná válik**: minden metaadat közvetlen relációs oszlop/tábla, egyetlen forrásból (a DB-ből) olvasva. Az exportált `.md` fájl (D15/D21) továbbra is tartalmazhat egy minimális frontmatter-blokkot a hordozhatóság kedvéért, de ez immár **kimeneti formátum**, nem a rendszer belső forrás-igazsága.
 
-**Második ütem:** lock-átvétel, allowlist-karbantartó felület, státusz-riportok, data retention szerinti időzített végleges törlés (NY4).
+## 5. MVP scope és ütemezés *(módosítva — Postgres-only pivot)*
 
-**Jövőbeli munka (szakdolgozatban fejezetként):** Microsoft Entra ID integráció (App Registration, csoport-claimek), Azure Repos-ra állás (mirror push + konfigcsere), céges domain + TLS, esetleges olvasó-tükör.
+**MVP (kötelező a demóhoz) — 9. verzió, az NY6 lezárásaként:**
+1. OIDC login + allowlist (kérésenkénti ellenőrzéssel) + allowlist-védelem (D5, D31)
+2. Zárt színterek + Rendszeradminisztrátor, Színtérgazda, Szerző + kötelező gazda (D30, D31, D43, D44)
+3. Dokumentum létrehozása üresen vagy duplikálással (D17, D47) + kötelező fajta + címkék felajánlással (D34)
+4. **Valós idejű közös szerkesztés** (D29) — a korábbi „Lock heartbeat-tel" pont helyett; **megállási feltétel:** ha a K0-spike (H5 WP3) nem teljesül, a pont visszaáll a D7 lock-modellre, és a D29 a második ütembe kerül
+5. Verziótörténet + diff + visszaállítás (checkpoint-revíziókból, D21, D29)
+6. Review-folyamat két review-errel, kötelező elutasítási indoklással, és felülvizsgálati esedékesség (D45, D33)
+7. Teljes szövegű keresés (magyar) + facetek + rangsor relevanciával és frissességgel (D4, D36)
+8. Élő Atlasz az SPA-ban, színtér szerinti színezéssel (D28, D37)
+9. Eseménynaplózás + lapos kommentfolyam + @említés (D20, D35)
+10. Értesítések alkalmazáson belül, WebSocketen (D35, D46)
+11. Archívum + visszaállítás (D8)
+12. Postgres backup (D4) — üzemeltetési MVP-elem, nem halasztható
+13. Kedvencek (D18)
+14. Vágólap + nyers .md letöltés (D21)
+15. Felülvizsgálati értesítések ütemezve (D33)
+16. Kapcsolatok és visszahivatkozások (D39)
+17. E-mail értesítés (D35)
+18. Duplikátum-figyelmeztetés cím alapján (D36, D49)
+19. Export .pdf/.docx (D21) — *hátrasorolt: határidő-nyomásnál elsőként esik ki*
+20. **Személyes feladat-dashboard főoldalként (D46)** — *új a 10. verzióban; a review-folyamat (6.) belépési pontja, ezért nem eshet ki*
 
-## 6. Ismert korlátok, vállalt kockázatok
+**Kiesési sorrend határidő-nyomásnál (hátulról):** 19 → 18 → 17 → 16 → a 8. ponton belül az egyéni átszínezés → 15. Az 1–14. és a 20. pont nem eshet ki. Részletek és munkacsomagok: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomag-terv (10. verzió)]].
 
-- A státusz-workflow nem kikényszerített (D6) — szervezeti fegyelemre épül, az audit-nyom a védvonal.
-- **Az audit megbízhatósági gyökere az alkalmazás-backend:** a commitokat a backend készíti a rendszer-kulccsal, a commit author mező általa írt metaadat, kriptográfiai kötés nélkül. Az auditnyom hitelessége az alkalmazás integritásán áll — belső rendszernél vállalt kockázat, kimondva.
-- Az átláthatóság az írást fedi, az olvasást nem; a teljes olvasási nyitottság tartalompolitikai korlátot jelent (D6).
-- **Commit-identitás és adatvédelem:** a felhasználó neve/e-mailje a Git-történetben megváltoztathatatlanul megmarad, kilépő munkavállaló esetén is. Jogalapja a munkaköri tevékenység dokumentálása (jogos érdek); a szakdolgozat adatkezelési fejezetében rögzítendő.
-- **A vészhelyzeti elérés (D10: clone + Obsidian) a szöveget adja, a képeket nem:** a képek az alkalmazás assets-ében élnek (D15), így a repo önálló olvasásakor a képhivatkozások törötten jelennek meg. A tudás szöveges lényege elérhető marad — a korlát vállalt és a belső oktatásban kimondandó.
+**Kimondott ár:** az MVP a 8. verzió 12 pontjáról 19 pontra nő. Új: színterek és szerepkörök, jóváhagyás, Atlasz az SPA-ban, értesítések, felülvizsgálat, kapcsolatok, e-mail, duplikátum-figyelmeztetés; a lock helyére a közös szerkesztés lép, a kategóriakezelés a címkékbe olvad. A D21 scope-fegyelme és a kiesési sorrend ezért kritikusabb, mint eddig; a legnagyobb egyedi kockázat a 4. pont, amelyet a megállási feltétel véd.
+
+**Értékelés (D41):** a pilot az MVP 1–14. pontjának elkészülte után indul (H5 WP22 előkészítéssel); a kiesett MVP-pontok a pilotban nem mérhetők.
+
+**Második ütem:** többformátumú tartalom (D42), létrehozás sablonból és fájlimport (D47), allowlist-felület „inaktív tulajdonosok” listával (D49), mentett szűrőnézetek, „Kövesd X-et” (D49), MCP-elérés (D38), szövegrészhez kötött kommentek (D35), ~~lock-átvétel~~ (tárgytalan, D29), allowlist-karbantartó felület, státusz-riportok, data retention szerinti időzített végleges törlés (NY4).
+
+**Jövőbeli munka (szakdolgozatban fejezetként):** Microsoft Entra ID integráció (App Registration, csoport-claimek → belépés és színtér-tagság, D43), Microsoft Graph e-mail-adapter (D46), szemantikus keresés (pgvector, D49), tömeges fájlimport (D47), céges domain + TLS. *(Az olvasó-tükör elvetve: NY5.)* *(A korábbi „Azure Repos-ra állás [mirror push + konfigcsere]" pont törölve — tárgytalan.)*
+
+## 6. Ismert korlátok, vállalt kockázatok *(módosítva — Postgres-only pivot)*
+
+- ~~A státusz-workflow nem kikényszerített (D6).~~ **10. verzió:** a review-folyamat kikényszerített (D45). **Új kockázat: review-terhelés** — minden apró javítás két review-ert kíván; három tag alatti színtérben nincs review (D43).
+- **Az audit megbízhatósági gyökere az alkalmazás-backend:** a revíziókat és eseményeket a backend írja a saját adatbázis-hozzáférésével; a szerző-mező (`author`/`user_id`) általa írt metaadat, kriptográfiai kötés nélkül. Az auditnyom hitelessége az alkalmazás integritásán és az adatbázis-hozzáférés korlátozásán áll — belső rendszernél vállalt kockázat, kimondva. *(Ugyanaz a vállalt kockázat, mint korábban a Git commit-authoré volt — csak a mechanizmus más.)*
+- Az átláthatóság az írást fedi, az olvasást nem. **10. verzió:** a színterek zártak (D44); **új kockázat: a láthatósági szűrés minden olvasó úton kötelező**, egy kifelejtett végpont adatszivárgás — védelem: egyetlen lekérdezés-építő és végpontonkénti teszt.
+- **Revízió-identitás és adatvédelem:** a felhasználó neve/e-mailje a `document_revisions.author`/`events.user_id` mezőkben megmarad, kilépő munkavállaló esetén is. Jogalapja a munkaköri tevékenység dokumentálása (jogos érdek); a szakdolgozat adatkezelési fejezetében rögzítendő. **Enyhülés a korábbi helyzethez képest:** mivel ez egy adatbázis-sor, nem egy kriptográfiailag láncolt, elvileg megváltoztathatatlan Git-history-bejegyzés, a data retention policy (NY4) szükség esetén technikailag könnyebben tud pszeudonimizálást/törlést végrehajtani rajta — ez a Postgres-only pivot egyik apró, de valós GDPR-előnye.
+- **Elveszett képesség: nincs offline/klónozható vészhelyzeti olvasási mód.** A korábbi tervben szerverleállás esetén a repo klónozható és Obsidiannal olvasható volt. Ez megszűnt: teljes leállás esetén a helyreállítás kizárólag a pg_dump backupon és a szolgáltatás újraindításán múlik. **Vállalt korlát** — az NY5 olvasó-tükör a 10. verzióban elvetve, a korlát végleges.
 - A magyar full-text keresés stemmer-minősége korlátos; a `pg_trgm` kombináció enyhíti, szemantikus keresés (pgvector) későbbi opció.
-- Valós idejű közös szerkesztés (Google Docs-élmény) tudatosan nincs — a lock-modell zárja ki az ütközést.
-- **Az MVP a 3. grilling után 13 pontos** — a scope-fegyelem szabály (D21) és az export-csomag hátrasorolása a kompenzáció; további bővítés csak naplón át.
+- ~~Valós idejű közös szerkesztés (Google Docs-élmény) tudatosan nincs — a lock-modell zárja ki az ütközést.~~ **Megszűnt korlát (D29).** Új kockázatok: WebSocket-infrastruktúra, Yjs-állapot mérete, szerkesztőcsere.
+- ~~**Publikált dokumentum javítása (D29, D32)**~~ **10. verzió (D45):** egy javítás alatt a dokumentum alapnézete a függő változatot mutatja; az MCP és az export a legutóbbi Jóváhagyott revíziót adja, így nem esik ki.
+- **Kilépő munkavállaló (D31):** az allowlistről törlés tulajdonjog-átadást igényel; az Entra ID-ban letiltott, de allowlisten maradt fiók felderítése a második ütem „inaktív tulajdonosok” listája (D49); pszeudonimizálás a retenciós idő után (D48).
+- **Címke-redundancia (D34):** utólagos összevonás nincs, a védelem kizárólag a beíráskori felajánlás.
+- **Egyéni Atlasz-színek (D37):** két felhasználó ugyanazt a térképet eltérő színekkel láthatja.
+- **Új, korábban nem létező kockázat: a teljes revíziótörténet tárhelyigénye.** Minden mentés teljes szövegű pillanatkép (nem delta) — ez egyszerűbb és megbízhatóbb, mint egy delta-lánc, de a mentésszámmal arányosan növeli az adatbázis méretét. 200 fős szervezetnél, markdown szövegnél ez valószínűleg nem válik szűk keresztmetszetté, de egy becslés (várható dokumentumszám × várható mentés/dokumentum × átlagos dokumentumméret) érdemes lenne a dolgozatba, hogy a döntés ne csak érveléssel, hanem számmal is alá legyen támasztva.
+- Az MVP a Postgres-only pivottal 13-ról 12 pontra csökkent (a reindex/konzisztencia-ellenőrzés tétel tárgytalanná vált) — a scope-fegyelem szabály (D21) és az export-csomag hátrasorolása változatlanul él.
 - Egyszemélyes fejlesztés és üzemeltetés a bevezetésig: busz-faktor 1; a dokumentáció és az átadási terv ezért a projekt része.
 
-## 7. Nyitott kérdések
+## 7. Nyitott kérdések *(módosítva — Postgres-only pivot)*
 
-- **NY1 — Statikus képek bekerülési útja: LEZÁRVA (2. grilling).** A képek nem a tartalom-repóban, hanem az alkalmazás szintjén kezelt assets mappában élnek (javasoltan mountolt volume); feltöltési funkció nincs, hozzáadásuk fejlesztői/üzemeltetői művelet. Részletek: D15.
-- **NY2 — Azure Repos branch policy:** ha a céges DevOps-szabályzat kötelező PR-review-t ír elő a main branchre, az a „mentés = commit main-re" modellt ellehetetleníti. **A DevOps-adminnal egyeztetendő MOST, nem éles bevezetéskor** — szükség esetén a tudásbázis-repo policy-kivételt kap (a service account bypass jogot).
-- **NY3 — Allowlist-karbantartás módja:** felület vs. konfig (korábbról nyitott; második ütem).
-- **NY4 — Data retention policy (új, 3. grilling):** a soft delete-elt rekordok (kommentek, dokumentumok, kategóriák) végleges törlésének retenciós ideje, köre és GDPR-vonatkozásai; időzített, automatizált törlési folyamatként tervezendő. A felhasználó fejti ki — a részletek megérkezéséig minden soft delete-elt adat megmarad. Kapcsolódó feszültség előre jelezve: a Git-történet és az `events` auditnyom természeténél fogva nem felejt — a retention policy hatóköre valószínűleg csak a Postgres-oldali soft delete-ekre terjedhet ki reálisan; tisztázandó.
+- **NY1 — Statikus képek bekerülési útja: LEZÁRVA.** A képek nem a Postgresben, hanem az alkalmazás szintjén kezelt assets mappában élnek (javasoltan mountolt volume); feltöltési funkció nincs, hozzáadásuk fejlesztői/üzemeltetői művelet. Részletek: D15.
+- ~~**NY2 — Azure Repos branch policy**~~ **— MEGSZŰNT, tárgytalanná vált a Postgres-only pivottal.** Nincs többé Azure Repos-függés a tartalom-tárolásban, tehát nincs branch-policy-ütközés a „mentés = szinkron írás" modellel. *(Ez volt az előző kritikai átvizsgálás legsúlyosabb, architektúra-blokkoló kockázata — a pivot ezt önmagában megoldja.)*
+- **NY3 — Allowlist-karbantartás módja: LEZÁRVA (10. verzió)** — MVP-ben konfiguráció, második ütemben Rendszeradminisztrátor-felület (D49).
+- **NY4 — Data retention policy: LEZÁRVA (10. verzió)** — D48. *Eredeti kérdés:* a soft delete-elt rekordok (kommentek, dokumentumok, kategóriák, **és immár a `document_revisions` sorok is**) végleges törlésének retenciós ideje, köre és GDPR-vonatkozásai; időzített, automatizált törlési folyamatként tervezendő (lásd D22 — cron-alapú megoldás elegendő). **Egyszerűsödés a korábbi állapothoz képest:** korábban nyitva maradt a kérdés, hogy a retention policy kiterjedhet-e a Git-történetre (ami elvileg nem felejt) — ez most tárgytalan, mert nincs külön, a policy hatókörén kívül eső történeti forrás: minden törölhető adat a Postgresben van, tehát a retention policy egységesen, kivétel nélkül alkalmazható rá.
+- **NY5 — Vészhelyzeti olvashatóság pótlása: ELVETVE (10. verzió)** — a backup (D48) elég, a korlát vállalt. *Eredeti javaslat:* megfontolandó egy **ütemezett, egyirányú `.md`-exportáló job** (pl. napi, a backup mellett), amely minden dokumentum jelenlegi állapotát sima `.md` fájlként ír egy mountolt volume-ra/object storage-ba — nem verziózott, csak egy olvasható tükörpéldány. Ez részben pótolná az elvesztett „klónozható és Obsidiannal olvasható" képességet, minimális extra komplexitással (egy egyszerű, cron-vezérelt export-szkript, nem egy teljes git-alréteg). Eldöntendő: megéri-e az MVP-be vagy elég a második ütembe.
+
+- **NY6 — MVP-hatókör újraszámolása: LEZÁRVA (9. verzió).** 19 pontos MVP (a D39-cel) kiesési sorrenddel és megállási feltétellel, lásd 5. fejezet és [[Tervezés/Tervezés (hatodik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomag-terv (9. verzió)]].
+- **NY7 — Kapcsolatok: LEZÁRVA (9. verzió)** — D39.
+- **NY8 — A pilot összehasonlítási alapja *(új, 10. verzió)*:** Confluence vagy SharePoint a szervezet tényleges eszköze, és létrehozható-e benne dummy teszt-tér (D41).
+- **NY9 — A pilot hozzáférése és moderálása *(új, 10. verzió)*:** hogyan érik el a résztvevők a fejlesztői környezetet (alagút vagy céges VPN), és ki moderál (fejlesztő vagy semleges kolléga).
+- **NY10 — Munkamenet-élettartam: LEZÁRVA (10. verzió)** — abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc; a nyitott közös szerkesztés (WebSocket-forgalom) aktívnak számít (D49).
+
+## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*
+
+A jelen napló hatóköre a fő architektúra-döntésekre terjed ki; a következő, a naplóból hivatkozott részletdokumentumok **szintén érintettek** a pivot által, de nem részei a jelen fájlnak:
+
+- **`tudasbazis-db-sema-b4.md`** — a konkrét DDL frissítendő: `document_revisions` tábla felvétele, `search_vector` generált oszlop szintaxisa, a `documents.last_commit_hash`-jellegű mezők törlése.
+- **`tudasbazis-api-kontraktus-b5.md`** — `baseCommitHash` → `baseRevisionId` átnevezés; a „lokális commit szinkron / push aszinkron" szakaszok törlése, egyszerű szinkron tranzakciós mentés-leírásra cserélve.
+- **A 9. verzió nyomán:** a B4 séma a D29–D38 táblaváltozásaival, a B5 API-kontraktus a `/collab` végponttal és az új erőforrásokkal (színterek, címkék, értesítések), a H5 munkacsomagok ✅ újratervezve: [[Tervezés/Tervezés (hatodik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomag-terv (9. verzió)]].
+- **A 10. verzió nyomán ✅:** [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma (10. verzió)]], [[Tervezés/Tervezés (hetedik kör)/tudasbazis-api-kontraktus-b5|B5 API-kontraktus (10. verzió)]], [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomag-terv (10. verzió)]]. A korábbi B4 és B5 (negyedik kör) és a H5 (hatodik kör) változástörténetként megmarad.
+- **`tudasbazis-munkacsomagok-h5.md`** — a Git-írási alrendszerre épülő munkacsomag törlése/átalakítása; a kockázat-előrehozás elve (D27) új célpontra (keresőindex + diff-motor) irányítandó át.

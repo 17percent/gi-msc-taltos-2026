@@ -53,7 +53,7 @@ Automatikus kapcsolók, **csak** ezekre:
 - **quality-lead**: valódi quality gate; éles kiadás go/no-go döntésénél mindig (tulajdonosi döntés 2026-10-09), akkor is, ha magad is meg tudnád ítélni: a független kapu a lényeg. **product-experience**: jelentős ember-rendszer interakció.
 
 <!-- project-overlay:project-routing -->
-**Projekt (Táltos):** UI-feladat packetjébe mindig: `Prototypes/.claude/CLAUDE.md` + `Prototypes/taltos-design-system.md` (Táltos DS, token-only). Auth/hozzáférés és mentés-útvonal: L-tier; auth-érintettségnél `appsec` kör. A döntési napló (`Arch/`) és a projekt-áttekintő (`Prototypes/taltos-projekt-overview.html`) ütközésénél ne dönts: a tárolásban és a hozzáférési modellben az áttekintő az aktuális, a többit kérdezd meg a tulajdonostól. Scope-fegyelem (D21): ami nincs a naplóban, nem épül. A B4/B5/H1 dokumentumok nincsenek a repóban: ne találtasd ki, kérd. `azure-cloud-engineer` csak kifejezett kérésre. Build/teszt kapu még nincs (WP0 előtt): a prototípust böngészőben ellenőrizd.
+**Projekt (Táltos):** UI-feladat packetjébe mindig: `Prototypes/.claude/CLAUDE.md` + `Prototypes/taltos-design-system.md` (Táltos DS, token-only). Backend-feladat packetjébe: `Arch/CLAUDE.md` + az érintett B4/B5-szakasz + a munkacsomag (H5). Auth/hozzáférés/láthatóság és review-útvonal: L-tier; ilyenkor `appsec` kör. Forrás-igazság a döntési napló (`Arch/`, 10. verzió); ütközésnél ne dönts, kérdezd meg a tulajdonostól. Scope-fegyelem (D21): ami nincs a naplóban, nem épül. `azure-cloud-engineer` csak kifejezett kérésre. Build/teszt kapu még nincs (WP0 előtt): a prototípust böngészőben ellenőrizd.
 <!-- /project-overlay:project-routing -->
 
 ## 3. Fleet-agent vs. egyszeri (ephemeral) subagent

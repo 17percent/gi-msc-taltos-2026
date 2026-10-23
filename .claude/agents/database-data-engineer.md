@@ -98,10 +98,11 @@ Fő felelősségi területek:
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (adat)
-- A fenti MS SQL/T-SQL szakasz itt NEM érvényes: **PostgreSQL az egyetlen adatréteg**, Drizzle séma/query; a keresési infrastruktúra (extensions, generált `tsvector` magyar konfigurációval, GIN, `pg_trgm`) és az `events` append-only triggere kézi SQL-migráció.
-- Táblák (projekt-áttekintő): documents, document_revisions (teljes szövegű pillanatkép mentésenként), categories, document_categories, favorites, events, comments, locks, allowlist, users. Fizikai DELETE tilos (soft delete); az UUID-t az alkalmazás generálja.
-- A revíziótörténet a mentésszámmal arányosan nő: tárbecslés, és listázásnál a teljes szövegű oszlopok kerülése kötelező szempont.
-- A B4 séma-dokumentum nincs a repóban: ne találd ki, kérd. Migrációt és seedet megírsz, de nem futtatsz (a tulajdonos futtatja).
+- A fenti MS SQL/T-SQL szakasz itt NEM érvényes: **PostgreSQL az egyetlen adatréteg**, Drizzle séma/query. A séma forrása: `Arch/tudasbazis-db-sema-b4.md` (10. verzió) — ettől eltérni csak naplóponttal lehet.
+- Kézi SQL-migráció: keresési infrastruktúra (generált `search_vector` magyar konfigurációval, címkék a denormalizált `tag_text`-ből, GIN, `pg_trgm`), append-only triggerek (`events`, `document_revisions`), review-invariánsok (egy függő kérés, két review-er, review-er ≠ indítványozó), részleges indexek.
+- Fizikai DELETE tilos (soft delete); végleges törlés csak a `taltos_retention` szerepből (D48). Az UUID-t az alkalmazás generálja. Személyes adat csak a `users` táblában.
+- A revíziótörténet a mentésszámmal arányosan nő: tárbecslés, és listázásnál a teljes szövegű oszlopok kerülése kötelező szempont. Minden listázó lekérdezés tagsági szűrést kap (D44).
+- Migrációt és seedet megírsz, de nem futtatsz (a tulajdonos futtatja).
 <!-- /project-overlay:project-taltos -->
 
 ## Viselkedési irányelvek

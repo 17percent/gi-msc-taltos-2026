@@ -110,8 +110,8 @@ A követelményekből gyors, stabil és informatív automatizált visszacsatolá
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (tesztelés)
 - A fenti .NET/Blazor/C++/MS SQL szakasz itt NEM érvényes. A TS tesztkeretet a WP0 rögzíti; addig nincs tesztparancs: ne találj ki, a repo `package.json` scriptjeit kövesd, ha már léteznek.
-- AC-k → tesztek (a H1 user story-k nincsenek a repóban: kérd el). Kiemelt: mentés-útvonal (párhuzamos mentés, 412, lock-lejárat), auth (allowlistről levett user: 403 `not_on_allowlist`, CSRF), sanitize (XSS-payloadok).
-- DB-t író integrációs teszt: megírod, nem futtatod (a tulajdonos futtatja).
+- A tesztek forrása a munkacsomagok kész-kritériuma (`Arch/tudasbazis-munkacsomagok-h5.md`, 10. verzió). Kiemelt: táblavezérelt jogosultsági mátrixteszt; **láthatósági teszt minden olvasó végponton** (nem tag nem kap címet, tartalmat, darabszámot); a review-állapotgép minden átmenete és versenyhelyzete (két egyidejű második jóváhagyás, két egyidejű beküldés, 412); auth (allowlistről levett user: 403 `not_on_allowlist`, CSRF, 8 óra / 60 perc); sanitize (XSS-payloadok); közös szerkesztés konvergenciája és `readOnly`.
+- OIDC-mock nincs: tesztben session-injektálás (D49). DB-t író integrációs teszt: megírod, nem futtatod (a tulajdonos futtatja).
 - Prototípus: nincs tesztfutató; ellenőrzés böngészőben (konzol hibamentes, mindkét téma) vagy repón kívüli Node + jsdom harnesszel.
 <!-- /project-overlay:project-taltos -->
 

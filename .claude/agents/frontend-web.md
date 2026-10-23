@@ -1,6 +1,6 @@
 ---
 name: frontend-web
-description: "Frontend implementer: the vanilla HTML/CSS/JS prototype (Canvas, WAAPI, no libraries) and the Vite + React SPA (shadcn/ui, Tailwind, react-md-editor); Táltos Design System, a11y, state, forms. Primary owner of UI implementation."
+description: "Frontend implementer: the vanilla HTML/CSS/JS prototype (Canvas, WAAPI, no libraries) and the Vite + React SPA (shadcn/ui, Tailwind, CodeMirror 6 + Yjs); Táltos Design System, a11y, state, forms. Primary owner of UI implementation."
 tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 model: sonnet
 effort: medium
@@ -96,8 +96,8 @@ Gyors, érthető, hozzáférhető és stabil webes felületet készíteni, ami a
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (UI)
 - A fenti Blazor/Telerik szakasz itt NEM érvényes. Két felület:
-  - **Prototípus** (`Prototypes/tudasbazis-prototype/`, aktív): vanília HTML/CSS/JS, semmilyen külső futásidejű könyvtár, nincs build; Canvas 2D + WAAPI + saját állapotgépek; klasszikus `<script>`-sorrend az `index.html`-ben. Futtatás: `py -m http.server 8123 --directory Prototypes/tudasbazis-prototype`.
-  - **Éles SPA** (`apps/frontend`): Vite + React + React Router, shadcn/ui + Tailwind + Motion; markdown kizárólag `@uiw/react-md-editor` + `rehype-sanitize` közös pipeline-on (előnézet = olvasó nézet); SSR/Next.js nincs.
+  - **Prototípus** (`Prototypes/tudasbazis-prototype/`, aktív): vanília HTML/CSS/JS, semmilyen külső futásidejű könyvtár, nincs build; Canvas 2D + WAAPI + saját állapotgépek; klasszikus `<script>`-sorrend az `index.html`-ben. Futtatás: `py -m http.server 8123 --directory Prototypes/tudasbazis-prototype`. A prototípus egyes modelljei (lock, nyitott olvasás, négy státusz) a v10 előtti állapotot mutatják.
+  - **Éles SPA** (`apps/frontend`): Vite + React + React Router, shadcn/ui + Tailwind + Motion; szerkesztő CodeMirror 6 élő előnézettel + `y-codemirror.next` (D29, D40); `rehype-sanitize` minden renderelésnél; főoldal a feladat-dashboard (D46); SSR/Next.js nincs.
 - **UI-kód előtt kötelező:** `Prototypes/.claude/CLAUDE.md` munkafolyamata és `Prototypes/taltos-design-system.md`; csak szemantikus token, nincs nyers hex/px. A build utáni megfelelőségi checklistet futtasd, és az eredményt az EVIDENCE-ben nevezd meg. A `design.md` elavult (Cobalt).
 - Nagyobb prototípus-változás után bővítsd a `Prototypes/tudasbazis-prototype/NOTES.md`-t. UI-szöveg magyarul, cselekvő hangon, rendszer-zsargon (pl. Git-szókincs) nélkül.
 <!-- /project-overlay:project-taltos -->

@@ -203,7 +203,7 @@ Situational guidance of this role lives outside this prompt, unchanged. Read the
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos
-- MVP: 12 pont (`README.md`); határidő-nyomásnál hátulról esik ki, elsőként az export (D21). Szakszótár: `.claude/fleet/ref/stack-profile.md`. Szakdolgozati projekt, egyszemélyes fejlesztés.
+- MVP: 20 pont (`Arch/tudasbazis-architektura-dontesi-naplo.md`, 5. fejezet); határidő-nyomásnál hátulról esik ki, elsőként az export (D21); az 1–14. és a 20. (dashboard) pont nem eshet ki. Szakszótár: `.claude/fleet/ref/stack-profile.md`. Szakdolgozati projekt, egyszemélyes fejlesztés.
 <!-- /project-overlay:project-taltos -->
 
 ## Runtime contract (Claude Code)

@@ -106,10 +106,10 @@ A biztonsági hibákat lehetőleg a kód és a design szintjén megtalálni, mie
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (biztonsági fókusz)
-- A fenti .NET-szakasz itt NEM érvényes. Fókusz: OIDC code flow (Google → Entra ID), httpOnly cookie-session + CSRF minden mutáló kérésen, allowlist kérésenként middleware-ben (nem csak belépéskor); bearer-flow tilos.
-- Tárolt XSS: markdown csak `rehype-sanitize`-on át, előnézetben és olvasáskor azonos pipeline; nyers HTML és külső kép-URL blokkolva.
-- Secretek (OIDC client secret, DB-jelszó) Compose secrets-ként, csak a backend kapja; soha image-be, repóba, logba. Fejlesztésben csak dummy adat (D11).
-- A szerepkör/review-modell nyitott kérdés: a hiányát ne implementációval „javítsd”, jelezd.
+- A fenti .NET-szakasz itt NEM érvényes. Fókusz: OIDC code flow (Google → Entra ID), httpOnly cookie-session (8 óra / 60 perc) + CSRF minden mutáló kérésen, allowlist kérésenként middleware-ben; bearer-flow tilos az SPA-ban.
+- Hozzáférés (D43, D44): egyetlen `can()` policy; zárt színterek — a láthatósági szűrés hiánya bármely olvasó úton (lista, keresés, Atlasz, kapcsolatok, értesítések, export, WebSocket) adatszivárgás; nem tagnak cím nélküli 403. A Rendszeradmin tartalmi jog nélküli. WebSocket-upgrade (`/collab`, `/ws/notifications`): session + kötelező `Origin`-ellenőrzés.
+- Tárolt XSS: markdown csak `rehype-sanitize`-on át, minden renderelésnél azonos pipeline; nyers HTML és külső kép-URL blokkolva. Második ütem: HTML-riportok külön originről, sandboxolt iframe-ben (D42).
+- Secretek (OIDC client secret, DB-jelszó, SMTP) Compose secrets-ként, csak a backend kapja; soha image-be, repóba, logba. Fejlesztésben csak dummy adat (D11).
 <!-- /project-overlay:project-taltos -->
 
 ## Fő felelősségek

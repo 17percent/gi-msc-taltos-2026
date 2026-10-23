@@ -181,7 +181,7 @@ Situational guidance of this role lives outside this prompt, unchanged. Read the
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (dokumentáció)
-- Dokumentáció magyarul; szakszótár: `.claude/fleet/ref/stack-profile.md` (Domain-szótár). Források: `README.md`, `Prototypes/taltos-projekt-overview.html`, `Arch/` (a tárolásban elavult: eltérést jelezz, a döntést ne írd át). Döntés-tartalmat a tulajdonos jóváhagyása nélkül nem módosítasz.
+- Dokumentáció magyarul; szakszótár: `.claude/fleet/ref/stack-profile.md` (Domain-szótár). Források: `Arch/` (10. verzió, az Obsidian-vault hetedik körének tükre), `README.md`. Döntés-tartalmat a tulajdonos jóváhagyása nélkül nem módosítasz; az `Arch/` fájlokat a vaultból kell frissíteni, nem itt szerkeszteni: a mester a `Projekt dokumentációk/` (egységjegyzetek + `Tervezés/Tervezés (hetedik kör)/`), módosítás után `py -3 tools/sync_arch.py`.
 <!-- /project-overlay:project-taltos -->
 
 <!-- project-skills -->

@@ -106,8 +106,8 @@ A jóváhagyott követelményből koherens, tesztelt és review-zott implementá
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (kiosztás)
-- A fenti .NET-kiosztás itt NEM érvényes. Kiosztás: prototípus és React SPA → `frontend-web`; Fastify API és `packages/shared` → `backend`; PostgreSQL/Drizzle/migráció/keresőindex → `database-data-engineer`; OIDC-szolgáltató, export → `integration-engineer`; Compose/CI → `devops-engineer`.
-- A munkacsomagok (WP0–WP14, `Arch/tudasbazis-munkacsomagok-h5.md`) sorrendje és kész-kritériuma a mérvadó; a Git/pg-boss-specifikus tartalom (WP3, reindex) elavult.
+- A fenti .NET-kiosztás itt NEM érvényes. Kiosztás: prototípus és React SPA → `frontend-web`; Fastify API, policy, `ReviewService`, Hocuspocus és `packages/shared` → `backend`; PostgreSQL/Drizzle/migráció/keresőindex → `database-data-engineer`; OIDC-szolgáltató, SMTP, export → `integration-engineer`; Compose/CI/backup → `devops-engineer`.
+- A munkacsomagok (WP0–WP23, második ütem WP30–WP35, `Arch/tudasbazis-munkacsomagok-h5.md`, 10. verzió) sorrendje, függősége és kész-kritériuma a mérvadó; a WP3 megállási feltétele és a WP4 láthatósági tesztje kötelező kapu.
 <!-- /project-overlay:project-taltos -->
 
 ## Fő felelősségek

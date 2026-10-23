@@ -97,8 +97,8 @@ Fő felelősségi területek:
 
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (platform)
-- A fenti .NET/C++/SQL Server szakasz itt NEM érvényes. Cél: pnpm workspaces monorepo; Docker Compose (frontend dev-szerver, backend, Postgres, assets volume); GitHub Actions CI: lint (ESLint + Prettier), typecheck, test, build, PR-en zöld.
-- Secretek Compose secrets-ként, csak a backend konténer kapja; `.env` nem commitolható. Backup: ütemezett `pg_dump` külön tárolóra, dokumentált visszaállítással.
+- A fenti .NET/C++/SQL Server szakasz itt NEM érvényes. Cél: pnpm workspaces monorepo; Docker Compose (frontend dev-szerver, backend, Postgres, assets volume, dev-ben Mailpit); a reverse proxy WebSocket-upgrade-et enged (`/collab`, `/ws/notifications`); GitHub Actions CI: lint (ESLint + Prettier), typecheck, test, build, PR-en zöld.
+- Secretek Compose secrets-ként, csak a backend konténer kapja; `.env` nem commitolható. Backup (D48): napi `pg_dump`, 30 napos + 12 havi megőrzés, titkosítva, külön tárolón, havi visszaállítási próba.
 - Az egyetlen hosszú életű ág a `main`; push és deploy csak tulajdonosi jóváhagyással.
 <!-- /project-overlay:project-taltos -->
 
