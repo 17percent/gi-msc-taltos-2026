@@ -109,7 +109,7 @@ Egyszerű, indokolt és fejleszthető architektúrát adni, amely teljesíti a k
 <!-- project-overlay:project-taltos -->
 ## Projekt: Táltos (architektúra)
 - A fenti .NET-megkötések itt NEM érvényesek; rögzített stack és rétegszabályok: `.claude/fleet/ref/stack-profile.md`.
-- Forrás-hierarchia: a döntési napló (`Arch/tudasbazis-architektura-dontesi-naplo.md`, 10. verzió, D1–D52) az egyetlen forrás-igazság; utána B4, B5, H5 és `Arch/CLAUDE.md`. Ütközést jelezz, ne dönts.
+- Forrás-hierarchia: a döntési napló (`Arch/tudasbazis-architektura-dontesi-naplo.md`, 10. verzió, D1–D54) az egyetlen forrás-igazság; utána B4, B5, H5 és `Arch/CLAUDE.md`. Ütközést jelezz, ne dönts.
 - Nyitott, a tulajdonosé: NY8 (pilot-alap), NY9 (pilot-hozzáférés), az MCP-olvasás naplózása (D38). Scope-fegyelem (D21): új igény csak naplóponttal.
 - ADR-javaslatnál a döntési napló formáját kövesd (D-pont, indoklás, ár).
 <!-- /project-overlay:project-taltos -->

@@ -8,7 +8,7 @@
 
 | # | Döntés | Indoklás / ár |
 |---|---|---|
-| A1 | **Session: httpOnly cookie + CSRF-védelem** *(változatlan)*; abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc, a WebSocket-forgalom aktivitásnak számít (NY10) | A token soha nem jár a böngésző JS-terében. `SameSite=Lax` + double-submit CSRF-token a mutáló kéréseken. A WebSocket-upgrade ugyanazt a cookie-t használja, kötelező `Origin`-ellenőrzéssel (D29). A munkamenet a Postgres `sessions` táblában él (D51a): újraindítást túlél, a kijelentkezés és az allowlistről levétel azonnal visszavonja; a `last_seen_at` írása legfeljebb percenként egyszer. |
+| A1 | **Session: httpOnly cookie + CSRF-védelem** *(változatlan)*; abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc, a WebSocket-forgalom aktivitásnak számít (NY10) | A token soha nem jár a böngésző JS-terében. `SameSite=Lax` + double-submit CSRF-token a mutáló kéréseken. A WebSocket-upgrade ugyanazt a cookie-t használja, kötelező `Origin`-ellenőrzéssel (D29). A munkamenet a Postgres `sessions` táblában él (D51a): újraindítást túlél, a kijelentkezés és az allowlistről levétel azonnal visszavonja; a `last_seen_at` írása legfeljebb percenként egyszer. **Megvalósítás (WP2, D53):** 32 bájtos véletlen token a sütiben (`__Host-taltos_sid` Secure módban, fejlesztésben `taltos_sid`), a táblában csak a SHA-256 hash-e; a `Secure` jelző a konfigurációból jön, soha nem az `X-Forwarded-Proto`-ból. A CSRF-token a session-token HMAC-je, az `X-CSRF-Token` fejlécben jár; minden nem biztonságos metódushoz engedélyezett `Origin` kell. A WebSocket-upgrade érvényes munkamenet és allowlist nélkül 401/403-mal, a kapcsolat előtt elutasul; a nyitott kapcsolat a munkamenet lejártakor vagy visszavonásakor bontódik. |
 | A2 | **Hibaformátum: RFC 9457 Problem Details** + stabil `code` mező *(változatlan)* | A `code` kontraktus, a `detail` szövege szabadon változhat. |
 | A3 | **Mentés két szintje (D29):** a tartalom a `/collab` WebSocketen folyamatosan perzisztálódik; revíziót a `POST …/checkpoints` vagy a szerver (kilépés, tétlenség) hoz létre | A korábbi „mentés = commit” REST-végpont megszűnt. A checkpoint nem véglegesít: a Jóváhagyott állapot csak a review-döntéssel jön létre (D45). |
 | A4 | **Optimista ellenőrzés `baseRevisionId`-vel** a review-ra küldésen és a metaadat-változáson | A beküldés megmondja, melyik Jóváhagyott revízióra épül; ha közben más Jóváhagyott változás történt, **412 `stale_base_revision`**. |
@@ -23,15 +23,15 @@
 
 ## 2. Végpontlista
 
-Minden `/api/v1/*` végpont: allowlist-ellenőrzés kérésenként (D5) → hiánya **403 `not_on_allowlist`**. Mutáló kérések CSRF-token nélkül → **403 `csrf_failed`**. Jogosultsághiány: **403 `forbidden`** (vagy a specifikus kód). Az „Ki” oszlop a [[Felhasználók/Szerepkörök|jogosultsági mátrixot]] követi.
+Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **401 `unauthenticated`**; allowlist-ellenőrzés kérésenként (D5) → hiánya **403 `not_on_allowlist`**, és a munkamenet visszavonódik. Mutáló kérések CSRF-token nélkül → **403 `csrf_failed`**. Jogosultsághiány: **403 `forbidden`** (vagy a specifikus kód). Az „Ki” oszlop a [[Felhasználók/Szerepkörök|jogosultsági mátrixot]] követi.
 
 ### Auth és identitás
 | Metódus + út | Ki | Leírás |
 |---|---|---|
-| `GET /auth/login` | bárki | Redirect az OIDC szolgáltatóhoz (fejlesztésben is valódi Google, D49) |
-| `GET /auth/callback` | bárki | Code flow lezárása, session-cookie, `users` upsert, `last_login_at` |
-| `POST /auth/logout` | belépett | A munkamenet visszavonása a `sessions` táblában (D51a) |
-| `GET /api/v1/me` | belépett | Név, e-mail, avatar, `systemRole`, a színterei szereppel, CSRF-token |
+| `GET /auth/login` | bárki | Mindig 302 az OIDC szolgáltatóhoz (fejlesztésben is valódi Google, D49): Authorization Code + PKCE (S256) + state + nonce; ezek egy aláírt, httpOnly, `Path=/auth`, 10 perces sütiben (D53) |
+| `GET /auth/callback` | bárki | A code flow lezárása; csak `email_verified === true`. Siker: új session-süti (a kérés régi munkamenete visszavonva), `users` upsert, `last_login_at`, 302 → `/`. Hibák: 302 → `/?error=not_on_allowlist` (hitelesített, de nem engedélyezett cím), `/?error=setup_pending` (még nincs Rendszeradmin, és nem a `BOOTSTRAP_ADMIN_EMAIL` lépett be, D54), `/?error=login_failed` (minden más) — munkamenet nélkül. A hibakódok a `@taltos/shared` `LoginError` típusában |
+| `POST /auth/logout` | belépett | CSRF-token és engedélyezett `Origin` kell. A munkamenet visszavonása a `sessions` táblában (D51a), a süti törlése, a munkamenet nyitott WebSocketjeinek bontása; 204. Érvényes munkamenet nélkül 401, de a sütit ekkor is törli |
+| `GET /api/v1/me` | belépett | A `@taltos/shared` `MeResponse`: `{ id, displayName, email, avatarUrl, systemRole, spaces: [{ id, name, type, role }], csrfToken }`, `Cache-Control: no-store` |
 | `GET /api/v1/me/dashboard` | belépett | A dashboard blokkjai (D46): `reviewRequests`, `ownRequests`, `changesRequested`, `reviewsDue`, `mentions`; Színtérgazdának `membershipRequests`, Rendszeradminnak `spaceRequests`. Query: `spaceId` (szűrő), `limit`. Elakadt review-k (3 munkanap) `stale: true` jelzővel. |
 
 ### Színterek és tagság (D30, D43, D44)

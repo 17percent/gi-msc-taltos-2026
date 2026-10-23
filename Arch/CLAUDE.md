@@ -19,7 +19,7 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - Személyes adat (név, e-mail) csak a `users` táblában él; minden más `user_id`-vel hivatkozik (D48).
 
 ### Szerepkörök és láthatóság (D43, D44)
-- Globális szerep: **Rendszeradminisztrátor** (allowlist, színterek, kezdeti Színtérgazda, fajta-lista). Az első Rendszeradmin és az Általános színtér kezdő Színtérgazdája a friss telepítésen elsőként belépő felhasználó (D52, egyszeri, sorosított rendszerindítás). **Tartalmi joga nincs**: tartalmat csak színtér-tagként lát és szerkeszt.
+- Globális szerep: **Rendszeradminisztrátor** (allowlist, színterek, kezdeti Színtérgazda, fajta-lista). Az első Rendszeradmin és az Általános színtér kezdő Színtérgazdája a `BOOTSTRAP_ADMIN_EMAIL` címmel elsőként belépő felhasználó (D52, D54; egyszeri, sorosított rendszerindítás; addig más belépés `setup_pending`). **Tartalmi joga nincs**: tartalmat csak színtér-tagként lát és szerkeszt.
 - Színtér-szerepek: **Szerző** és **Színtérgazda**. Más szerepet (Olvasó, Jóváhagyó, Auditor, Vendég) NE vezess be.
 - A színterek **zártak**: nem tag semmit nem lát a tartalomból. MINDEN olvasó lekérdezés (lista, keresés, Atlasz, kapcsolatok, értesítések, export, MCP) a „látható dokumentumok” lekérdezés-építőn megy át. Új olvasó végpont = új láthatósági teszt.
 - Minden jogosultsági döntés az egyetlen `can(user, action, resource)` policy-függvényen át megy — REST-middleware-ben és a Hocuspocus `onAuthenticate`-ben is. A felület csak elrejt, nem véd.
@@ -52,7 +52,8 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - Hibaválasz: RFC 9457 Problem Details + stabil `code` mező, a katalógus szerinti kódokkal. Ad-hoc hibaformátumot NE találj ki.
 - Review-ra küldés kötelezően `baseRevisionId`-vel; eltérésnél 412 `stale_base_revision`.
 - Allowlist-ellenőrzés MINDEN kérésnél (D5). Session: httpOnly cookie, a Postgres `sessions` táblában (D51a), 8 óra abszolút lejárat, 60 perc tétlenség; CSRF-token minden mutáló kérésen. Bearer-token flow-t NE vezess be az SPA-ban.
-- OIDC: fejlesztésben is valódi Google; OIDC-mockot NE építs — tesztekben session-injektálás (D49).
+- OIDC: fejlesztésben is valódi Google; OIDC-mockot NE építs — tesztekben session-injektálás (D49). Kliens: `openid-client` (Authorization Code + PKCE, state, nonce), cookie: `@fastify/cookie`, CSRF: saját double-submit (D53). A `Secure` cookie-flag konfigurációból jön, SOHA nem az `X-Forwarded-Proto`-ból.
+- Allowlist: a konfiguráció a forrás, induláskor szinkronizálva; eltávolításkor soft delete csak a 409-es védelmek mellett (D53).
 - Valós idejű csatorna: `/collab` és `/ws/notifications`; polling NINCS.
 
 ### Frontend
@@ -72,7 +73,7 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - A munka egysége a munkacsomag (`tudasbazis-munkacsomagok-h5.md`, 10. verzió: WP0–WP23, második ütem WP30–WP35). Tartsd a sorrendet és a függőségeket; a csomag „kész”-kritériuma a definíció.
 - A funkcionális elvárások forrása a munkacsomagok „kész”-kritériumai, a napló D-pontjai és a vault egységjegyzetei (pl. `Felhasználók/Szerepkörök`, `Dokumentumok/Státusz-workflow`). A jogosultsági mátrix minden cellája egy teszteset.
 - Csomag-zárás: CI zöld + az érintett naplópontok visszaellenőrizve + rövid összefoglaló (mi készült, milyen döntéseket hoztál a szabad sávban, mibe ütköztél).
-- Nyitott kérdést NE dönts el magad — jelenleg: **NY8** (a pilot összehasonlítási alapja), **NY9** (a pilot hozzáférése és moderálása), az MCP-olvasás naplózása (D38), valamint **NY11–NY19** (említés-formátum, címkék láthatósága, kapcsolatok tárolása és értesítése, tulajdonjog-átadás, e-mail-beállítások, Rendszeradmin audit-láthatósága, a konfigból töltött allowlist szemantikája, kisebb szabályok). Mindegyiknél a napló megnevezi, melyik munkacsomag előtt kell eldönteni.
+- Nyitott kérdést NE dönts el magad — jelenleg: **NY8** (a pilot összehasonlítási alapja), **NY9** (a pilot hozzáférése és moderálása), az MCP-olvasás naplózása (D38), valamint **NY11–NY19** (említés-formátum, címkék láthatósága, kapcsolatok tárolása és értesítése, tulajdonjog-átadás, e-mail-beállítások, Rendszeradmin audit-láthatósága, kisebb szabályok; az NY18 lezárva: D52, D53). Mindegyiknél a napló megnevezi, melyik munkacsomag előtt kell eldönteni.
 
 ## Stack-rögzítés (nem újratárgyalható a napló nélkül)
 
@@ -82,7 +83,7 @@ TypeScript end-to-end · Node.js + Fastify (JSON Schema → generált OpenAPI) �
 
 | Fájl | Szerep |
 |---|---|
-| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D52, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
+| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D54, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
 | `tudasbazis-db-sema-b4.md` | Séma-referencia: Drizzle-kód, kézi SQL-migrációk, S1–S25 mikrodöntések (a D51-kiegészítéssel), DB-szerepek, retenció táblánként |
 | `tudasbazis-api-kontraktus-b5.md` | API-referencia: A1–A12 elvek, végpontlista szerepkörrel, hibakód-katalógus |
 | `tudasbazis-munkacsomagok-h5.md` | WP0–WP23 + WP30–WP35: sorrend, függőségek, kész-kritériumok, kiesési sorrend |

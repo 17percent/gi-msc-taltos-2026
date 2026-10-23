@@ -12,6 +12,10 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, WP2 előtt): **D52** — rendszerindítás: az első felhasználó (a tulajdonos) az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája. Az NY18 első fele lezárva, a második (a konfigból töltött allowlist szemantikája) nyitott marad.*
 
+*10. verzió kiegészítése (2026-10-23, WP2 előtt): **D53** — allowlist-szinkron a konfigból védelmekkel (az NY18 lezárva), `openid-client` + `@fastify/cookie`, saját double-submit CSRF, minimális belépő felület; a Google OAuth-klienst a tulajdonos hozza létre.*
+
+*10. verzió kiegészítése (2026-10-23, a WP2 review-ja): **D54** — a rendszerindítás csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (a D52 módosítása; addig mások `setup_pending`), az archivált dokumentum tulajdonosa kivehető az allowlistből (a D53 pontosítása).*
+
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
 
 *8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
@@ -502,7 +506,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 **Indoklás:** a B4 jelenlegi formájában a review-er eltávolítása hibát dobott volna, a Jóváhagyott dokumentum nem lett volna szerkeszthető, a cron-események nem lettek volna naplózhatók, és a második ütemes retenció az FK-k miatt nem lett volna megvalósítható; ezeket utólag, éles adattal drága javítani.
 **Vállalt ár:** az `events` hivatkozásait nem védi FK (az alkalmazás és a tesztek felelőssége); egy új tábla (`sessions`) és néhány új mező/enum-érték. A részletek a B4-ben (10. verzió, D51-kiegészítés).
 
-### D52 — Rendszerindítás: az első felhasználó az első Rendszeradminisztrátor és az Általános színtér gazdája *(új, 2026-10-23 — lezárja az NY18 első felét; kiegészíti a D43-at)*
+### D52 — Rendszerindítás: az első felhasználó az első Rendszeradminisztrátor és az Általános színtér gazdája *(új, 2026-10-23 — lezárja az NY18 első felét; kiegészíti a D43-at; **módosítva: D54** — csak a `BOOTSTRAP_ADMIN_EMAIL` címmel)*
 
 **Alternatívák:** a konfigurációban megadott e-mail kapja a jogot (pl. `BOOTSTRAP_ADMIN_EMAIL`); kézi SQL-beavatkozás az első telepítés után.
 **Döntés (tulajdonos):**
@@ -514,6 +518,27 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Indoklás:** nincs külön konfigurációs kulcs vagy kézi SQL-lépés; a tulajdonos az első telepítés után egyszerűen belép, és azonnal kezelheti az allowlistet és a színtereket.
 **Vállalt ár:** a jogot az kapja, aki elsőként lép be. Az első élesítéskor ezért az allowlistben a tulajdonos lépjen be elsőként (célszerűen addig csak ő szerepeljen benne); ezt az üzembe helyezési útmutató rögzíti (WP2).
+
+### D53 — A WP2 döntései: allowlist-szinkron, auth-függőségek, minimális belépő felület *(új, 2026-10-23 — lezárja az NY18-at; kiegészíti a D5, D26, D49 pontot)*
+
+**Döntés (tulajdonos):**
+- **A konfigurációból töltött allowlist (NY18 lezárva):** a konfiguráció a forrás, a backend induláskor szinkronizál. Új cím → felvétel; a konfigból eltávolított cím → soft delete, de csak ha a 409-es védelmek engedik (nem dokumentum-tulajdonos, nem utolsó Színtérgazda, nem utolsó Rendszeradminisztrátor) — különben aktív marad, és figyelmeztetés megy a naplóba; újra felvett cím → ugyanaz a sor újra aktív. Események: `allowlist_added`, `allowlist_removed`, aktor nélkül (D51d).
+- **Auth-függőségek:** `openid-client` (6.x; OpenID-tanúsított: discovery, Authorization Code + PKCE, state és nonce, teljes token-validálás — Google-re és Entra ID-ra is) és `@fastify/cookie`. A double-submit CSRF saját, kis kód (a token a `GET /me` válaszában, B5 A1); külön CSRF-csomag nincs.
+- **Minimális belépő felület a WP2-ben:** Bejelentkezés gomb (a backend `/auth/login`-ra irányít), a fejlécben név és Kijelentkezés a `GET /me` alapján, érthető üzenet `not_on_allowlist` esetén — a Táltos DS tokenjeivel. A prototípus csillagképes belépő képernyője (`Prototypes/taltos-login-handoff.md`) egy későbbi felület-csomag.
+- **Google OAuth-kliens:** a tulajdonos hozza létre a WP2 végén (redirect URI: `http://localhost:8080/auth/callback`, `http://localhost:5173/auth/callback`); a secret a Compose-secretbe kerül (D13). OIDC-mock nincs (D49).
+
+**Indoklás:** a konfig-szinkron az MVP-ben is lehetővé teszi egy távozó kolléga kivételét, a védelmek pedig megakadályozzák, hogy ezzel gazdátlan dokumentum vagy színtér maradjon; a tanúsított OIDC-kliens csökkenti a saját kód hibalehetőségét a legérzékenyebb részen.
+**Vállalt ár:** két új futásidejű függőség; a konfigból „eltávolított”, de védett felhasználó aktív marad, amíg a tulajdonjogot át nem adják (NY15).
+
+### D54 — A WP2 review-jának döntései: a rendszerindítás szigorítása, archivált dokumentumok és az allowlist *(új, 2026-10-23 — módosítja a D52-t és pontosítja a D53-at)*
+
+**Előzmény:** a WP2 kód- és biztonsági review-ja két tulajdonosi kérdést vetett fel.
+**Döntés (tulajdonos):**
+- **Rendszerindítás csak a megadott címmel (a D52 módosítása):** az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája **csak a konfigurációban megadott `BOOTSTRAP_ADMIN_EMAIL`** címmel belépő felhasználó lehet (a tulajdonos). Amíg nincs Rendszeradminisztrátor, más (allowlistes) felhasználó nem léphet be: munkamenet nélkül a `/?error=setup_pending` címre kerül („a rendszer még nincs beállítva”), mert az Általános színtérnek még nincs gazdája. A D52 többi része változatlan: egyszeri, sorosított, egyetlen `system_bootstrapped` esemény; a dummy seed fejlesztésben saját Rendszeradmint hoz.
+- **Archivált dokumentumok és az allowlist (a D53 pontosítása):** az `owner_handover_required` védelem csak az archiválatlan dokumentumokra él; aki csak archivált dokumentumok tulajdonosa, kivehető az allowlistből. Egy ilyen dokumentum archívumból visszahozásakor (`unarchive`, D51g) a tulajdonost át kell adni — ennek módja az NY15-tel együtt dől el.
+
+**Indoklás:** a „bárki, aki elsőként belép” kockázat (D52 vállalt ára) egy konfigurációs értékkel megszűnik; az archívum a régi anyagok helye, nem akadályozhatja egy távozó kolléga kivételét.
+**Vállalt ár:** egy új kötelező konfigurációs érték; a rendszer az első Rendszeradmin belépéséig mások számára zárva van; az archívumban lehetnek távozott tulajdonosú dokumentumok.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 
@@ -629,7 +654,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **NY15 — Tulajdonjog-átadás (D31, D48; WP4 előtt):** a 409 `owner_handover_required` felkínálja, de csak adminisztratív átadás-végpont van. Ki adhat át (tulajdonos, Színtérgazda), és review-köteles-e?
 - **NY16 — E-mail-beállítások és leiratkozás (D46; WP18 előtt):** a H5 WP18 említi, de nincs napló-pontja; D21 szerint addig nem épül.
 - **NY17 — A Rendszeradmin audit-láthatósága (D43; WP9 előtt):** a rendszerszintű audit és a retenciós előnézet címet és komment-szöveget adhat, holott a Rendszeradminnak nincs tartalmi joga. Mely mezőket láthatja?
-- **NY18 — A konfigurációból töltött allowlist szemantikája (D49; WP2 előtt):** mi történik a konfigból eltávolított allowlist-sorral (soft delete, a 409-es védelmek futtatása, újrafelvétel)? *~~Az első Rendszeradmin és az Általános színtér kezdő Színtérgazdája~~ — **lezárva: D52** (az első felhasználó, a tulajdonos).*
+- **NY18 — Az első Rendszeradmin és a konfigurációból töltött allowlist: LEZÁRVA** — az első Rendszeradmin és az Általános kezdő Színtérgazdája: D52; a konfig-szinkron szemantikája: D53.
 - **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); a függő review sorsa a projekt-tér lezárásakor (WP4); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP3, WP14); a legal hold hatóköre (WP33).
 
 ## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*

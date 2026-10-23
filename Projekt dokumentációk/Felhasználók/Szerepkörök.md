@@ -30,7 +30,7 @@ Egy helyen legyen leírva, milyen szerepek léteznek, ki osztja ki őket, és me
 | Szerep | Ki kapja | Lényeg |
 |---|---|---|
 | **Felhasználó** | mindenki, aki az allowlisten van és belépett | beléphet; azokat a színtereket látja, amelyeknek tagja |
-| **Rendszeradminisztrátor** | egy másik Rendszeradminisztrátor nevezi ki; az elsőt a rendszerindítás adja: a friss telepítésen elsőként belépő felhasználó, aki egyben az Általános színtér kezdő Színtérgazdája (D52) | allowlist, színterek, kezdeti Színtérgazda kijelölése, fajta-lista, rendszerszintű audit; **tartalmi jog csak tagként** |
+| **Rendszeradminisztrátor** | egy másik Rendszeradminisztrátor nevezi ki; az elsőt a rendszerindítás adja: a friss telepítésen a `BOOTSTRAP_ADMIN_EMAIL` címmel elsőként belépő felhasználó, aki egyben az Általános színtér kezdő Színtérgazdája (D52, D54) | allowlist, színterek, kezdeti Színtérgazda kijelölése, fajta-lista, rendszerszintű audit; **tartalmi jog csak tagként** |
 
 ### Színtér-szerepek
 

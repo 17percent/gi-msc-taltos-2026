@@ -35,7 +35,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
 | [[Felhasználók/Bejelentkezés\|Bejelentkezés]] | OIDC (Google → Entra ID) | 1 | ✅ |
-| [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ · 📘 első Rendszeradmin: D52 · ❓ konfig-szemantika (NY18) |
+| [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ · 📘 első Rendszeradmin: D52 · 📘 konfig-szinkron: D53 |
 | [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF, Postgres `sessions` tábla (D51a) | — | ⚙️ · 📘 D51a |
 | [[Felhasználók/Jogosultságok\|Jogosultságok]] | alapelvek; az érvényes mátrix a Szerepkörökben | 2 | 📘 D43, D44 |
 | [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix | 2 | 📘 D43 · ❓ tulajdonos-átadás végpontja |
@@ -99,6 +99,8 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 - ✅ **v10 (2026-10-23):** a vault nyitott kérdései és naplóütközései átvizsgálva → D42–D49 (többformátum, szerepkörök, zárt színterek, review-folyamat, dashboard, létrehozási utak, adatmegőrzés, kisebb döntések). NY3, NY4 lezárva, NY5 elvetve; MVP 20 pont.
 - ✅ **D51 (2026-10-23, a B4 átvizsgálása):** tíz séma-pontosítás — munkamenet-tár (`sessions`), review-er kiesése, „Módosítás indítása”, aktor nélküli rendszeresemények, élő vs Jóváhagyott metaadat, esedékesség beküldéskor, `unarchive`, FK nélküli `events`-hivatkozások, checkpoint-retenció, fizikai törlés kivételei. Az egységjegyzetek ehhez igazítva.
 - ✅ **D52 (2026-10-23):** rendszerindítás — a friss telepítésen elsőként belépő felhasználó (a tulajdonos) az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája. Az NY18 első fele ezzel lezárva.
-- ❓ **Nyitott a naplóban: NY11–NY19** (többek közt: említés-formátum, címkék láthatósága színtereken át, kapcsolat-típus tárolása, cross-space értesítés, tulajdonjog-átadás, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, a konfigból töltött allowlist szemantikája, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
+- ✅ **D53 (2026-10-23):** a WP2 döntései — allowlist-szinkron a konfigból a 409-es védelmekkel (az NY18 ezzel teljesen lezárva), `openid-client` + `@fastify/cookie`, saját CSRF, minimális belépő felület.
+- ✅ **D54 (2026-10-23, a WP2 review-ja):** az első Rendszeradmin csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (addig mások `setup_pending`); az archivált dokumentum tulajdonosa kivehető az allowlistből.
+- ❓ **Nyitott a naplóban: NY11–NY17, NY19** (többek közt: említés-formátum, címkék láthatósága színtereken át, kapcsolat-típus tárolása, cross-space értesítés, tulajdonjog-átadás, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
 - Nyitott a naplóban: **NY8** (pilot összehasonlítási alapja), **NY9** (pilot hozzáférése és moderálása), ~~NY10~~ (lezárva: 8 óra / 60 perc).
 - ✅ A v10 részletdokumentumai: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-api-kontraktus-b5|B5 API]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomagok]] (WP0–WP23 + 6 második ütemes csomag).
