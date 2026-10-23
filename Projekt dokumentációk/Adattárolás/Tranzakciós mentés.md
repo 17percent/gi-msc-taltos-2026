@@ -17,7 +17,7 @@ A prototípus mentése egy lépésben új revíziót és `edited` eseményt hoz 
 
 ## Kapcsolódó döntések
 
-[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D1, D2 (minden írás a backend API-n át), D22 (worker queue elhagyva), D26 (`PUT …/content` kötelezően `baseRevisionId`-vel; eltérésnél 412).
+[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D1, D2 (minden írás a backend API-n át), D22 (worker queue elhagyva), D26 (kötelező `baseRevisionId` a review-ra küldésen, eltérésnél 412; ~~`PUT …/content`~~ a D29-cel megszűnt, a tartalom a `/collab` csatornán perzisztálódik).
 
 Egy mentés = egy ACID-tranzakció: új `document_revisions` sor + `documents` frissítés (a `search_vector` generált oszlop magától frissül) + `events` sor.
 

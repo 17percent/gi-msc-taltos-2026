@@ -21,12 +21,13 @@
 
 ### WP1 — Adatbázis-séma, migrációk, seed
 **Tartalom:** a B4 (10. verzió) 1. szakaszának sémája Drizzle-ben és a 3. szakasz kézi migrációi: keresési infrastruktúra (`search_vector` címkékkel és fajtával), append-only triggerek (`events`, `document_revisions`), review-invariánsok (egy függő kérés, két review-er, review-er ≠ indítványozó), részleges indexek; a `taltos_retention` DB-szerep létrehozása (használat: második ütem). Dummy seed (D11): Általános színtér minden seed-felhasználóval Szerzőként; legalább három csapat-tér 3–6 taggal; `document_kinds` a kilenc régi kategóriából; dokumentumonként 1–3 témacímke (V33); vegyes review-állapotok (Piszkozat, Review-ra vár, Átdolgozandó, Jóváhagyott).
-**Kész:** üres DB-ből a migráció hibátlan; a seed a B4-nek megfelelő (ellenőrző teszt); a DB-invariánsok negatív tesztjei (harmadik review-er, saját magát jelölő indítványozó, második függő kérés) hibát dobnak.
+**A D51 kiegészítése:** `sessions` tábla; adatbázis-szerepek (`taltos_owner` a migrációhoz, `taltos_app` az alkalmazáshoz DELETE-jog nélkül, kivéve a D51j kapcsolótábláit; `taltos_retention`); az `events` hivatkozásai FK nélkül; `unarchive` kérésfajta; a review-er megszűnt helye; `proposed_review_due_at`; a rendszeresemények NULL aktorral.
+**Kész:** üres DB-ből a migráció hibátlan; a seed a B4-nek megfelelő (ellenőrző teszt); a DB-invariánsok negatív tesztjei (harmadik review-er, saját magát jelölő indítványozó, második függő kérés, beküldés két review-er nélkül) hibát dobnak — a halasztott (deferred) triggerek a COMMIT-kor, ezt a teszt kezeli; egy megszűnt review-er hely nem dob hibát. Az író tesztek megírva; a futtatás a tulajdonosé (adatbázis-szabály).
 **Függőség:** WP0
 
 ### WP2 — Autentikáció, munkamenet, allowlist
 **Tartalom:** OIDC code flow (D5) — fejlesztésben is valódi Google, mock nincs; tesztekben session-injektálás (D49); httpOnly session + CSRF (D26), abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc, a WebSocket-forgalom aktivitásnak számít (NY10); kérésenkénti allowlist-middleware; allowlist seedelése konfigurációból (D49); `GET /me`; allowlist-védelem: törlés tiltva, amíg a felhasználó tulajdonos (409 `owner_handover_required`) vagy utolsó Színtérgazda; legalább egy Rendszeradmin (409 `last_admin`). Új felhasználó első belépéskor automatikusan Szerző az Általánosban (D43).
-**Kész:** allowlistes user belép és az Általános tagja; levett user következő kérése 403; a lejárat és a tétlenségi kiléptetés időutazásos teszttel ellenőrizve; a 409-es védőszabályok teszteltek.
+**Kész:** a munkamenet a `sessions` táblában él és újraindítást túlél (D51a); allowlistes user belép és az Általános tagja; levett user következő kérése 403; a lejárat és a tétlenségi kiléptetés időutazásos teszttel ellenőrizve; a 409-es védőszabályok teszteltek.
 **Függőség:** WP1
 
 ### WP3 — Közös szerkesztés spike (K0) ⚠️ *(megállási ponttal)*
@@ -54,7 +55,7 @@
 
 ### WP6 — Közös szerkesztés élesítése (K1–K7)
 **Tartalom:** `onAuthenticate` (session, allowlist, `Origin`, tagság a WP4 policy-jával); **írás csak Piszkozat és Átdolgozandó állapotban**, Review-ra váró dokumentumon és lezárt térben `readOnly` (D45, D44); perzisztencia (`document_collab_state` + materializált `documents.content`, debounce); checkpoint-logika és „Verzió mentése” (`contributors`, opcionális üzenet); jelenlét-UI (minden néző tag az avatar-sorban, D49), kapcsolati állapot; offline (`y-indexeddb`); **szerkesztési élmény (D40):** teljes élő előnézet, helyi menü, lebegő formázósáv, hosszú nyomás érintőképernyőn, cellánkénti táblázatszerkesztés, billentyűparancsok, Tulajdonság-panel, forrásnézet-kapcsoló; keményítés (rate limit, méretkorlát, kapcsolatbontás tagság-visszavonáskor); a lock-kód és a lock-UI nem kerül át az SPA-ba. *(Megszűnt: „publikált → draft” az első írásra.)*
-**Kész:** konvergencia-teszt több böngészőkontextussal; read-only kapcsolat update-je elutasítva (Review-ra vár, lezárt tér, nem tag); tagság visszavonásakor a kapcsolat bontódik; 20 egyidejű szerkesztő stabil; a helyi menü minden pontja billentyűzetről is elérhető.
+**Kész:** konvergencia-teszt több böngészőkontextussal; read-only kapcsolat update-je elutasítva (Jóváhagyott a „Módosítás indítása” előtt, Review-ra vár, lezárt tér, nem tag; D51c); tagság visszavonásakor a kapcsolat bontódik; 20 egyidejű szerkesztő stabil; a helyi menü minden pontja billentyűzetről is elérhető.
 **Függőség:** WP3, WP4, WP5
 
 ### WP7 — Verziótörténet, diff
@@ -64,10 +65,11 @@
 
 ### WP8 — Review-folyamat két review-errel ⚠️ *(a gerinc része)*
 **Tartalom:** `ReviewService` mint a Jóváhagyott állapot egyetlen írója (B4 S13):
-- **Beküldés** (`create`, `update`, `metadata`, `restore`, `delete`): javasolt revízió a piszkozatból, két review-er választása a tagok közül (az indítványozón kívül; a közreműködők választhatók), opcionális üzenet; a tartalom befagy. Hibák: `request_pending`, `not_enough_reviewers` (3 tag alatt), `invalid_reviewers`, `stale_base_revision`.
-- **Döntés:** jóváhagyás, illetve elutasítás kötelező indoklással (422 `reason_required`). Az elutasítás azonnal Átdolgozandó állapotba visz, az indoklás `review`-elemként jelenik meg a feedben. A második jóváhagyás egy tranzakcióban (`SELECT … FOR UPDATE`) véglegesít: `approved_revision_id`, `iteration + 1`, törlésnél `deleted_at`.
-- **Visszavonás, review-er csere** (indítványozó vagy Színtérgazda); kilépő review-er döntésének megszűnése.
-- **Felülvizsgálat (D33):** a Jóváhagyott állapotba kerüléskor kötelező esedékesség, alapérték 12 hónap.
+- **Módosítás indítása (D51c):** Jóváhagyott dokumentumon explicit lépés nyit új piszkozatot a legutóbbi Jóváhagyott revízióból (`edit_started`); addig a szerkesztő csak olvasható.
+- **Beküldés** (`create`, `update`, `metadata`, `restore`, `delete`, `unarchive`): javasolt revízió a piszkozatból (`delete` és `unarchive` esetén nincs), két review-er választása a tagok közül (az indítványozón kívül; a közreműködők választhatók), opcionális üzenet; a tartalom befagy. Hibák: `request_pending`, `not_enough_reviewers` (3 tag alatt), `invalid_reviewers`, `stale_base_revision`.
+- **Döntés:** jóváhagyás, illetve elutasítás kötelező indoklással (422 `reason_required`). Az elutasítás azonnal Átdolgozandó állapotba visz, az indoklás `review`-elemként jelenik meg a feedben. A második jóváhagyás egy tranzakcióban (`SELECT … FOR UPDATE`) véglegesít: `approved_revision_id`, `iteration + 1` (a kérésen is rögzítve), `review_due_at`, törlésnél `deleted_at`, `unarchive`-nál `deleted_at = NULL`, `restore`-nál a metaadat-pillanatkép visszaírása az élő táblákba (D51e).
+- **Visszavonás, review-er csere** (indítványozó vagy Színtérgazda); kilépő review-er helye megszűnik, a kérés a pótlásig nem dönthető el (D51b, `reviewer_removed`).
+- **Felülvizsgálat (D33, D51f):** az esedékesség a beküldéskor kötelező (12 hónapra előtöltve), a review tárgya, jóváhagyáskor lép érvénybe.
 - **Felület:** „Review-ra küldés” párbeszédablak; review-nézet a diffel (WP7) és a döntés gombjaival; állapotjelvény és állapot-facet.
 **Kész:** a teljes állapotgép tesztelt (minden átmenet és tiltott átmenet); versenyhelyzet-teszt (két egyidejű második jóváhagyás, két egyidejű beküldés); a négy szem elve és a review-er-szabályok teszteltek; az MCP, az export és a letöltés a Jóváhagyott revíziót adja.
 **Függőség:** WP4, WP6, WP7
@@ -93,7 +95,7 @@
 **Függőség:** WP4, WP11
 
 ### WP13 — Archívum
-**Tartalom:** archiválás `delete` review-kéréssel, visszaállítás archívumból `restore` review-kéréssel (WP8, D45); archívum-lista a saját színterekből.
+**Tartalom:** archiválás `delete` review-kéréssel, visszahozás archívumból `unarchive` review-kéréssel (WP8, D45, D51g); archívum-lista a saját színterekből, csak a valaha Jóváhagyott dokumentumokkal (az eldobott piszkozatok nélkül).
 **Kész:** archiválás → két jóváhagyás → archívum → visszaállítás → két jóváhagyás; események naplózva; láthatósági teszt.
 **Függőség:** WP8, WP9
 
@@ -118,7 +120,7 @@
 **Függőség:** WP8, WP10
 
 ### WP18 — E-mail értesítés
-**Tartalom:** SMTP-absztrakció Nodemailerrel (D46); dev-ben Mailpit, éles cím nem kaphat levelet (D11); **azonnali levél a review-kérésről**, minden emlékeztető (felülvizsgálat, 3 munkanapja függő review) **napi összefoglalóban**; levélben eseménytípus, cím, színtér, kezdeményező és link, tartalom nem; felhasználói beállítás és leiratkozás.
+**Tartalom:** SMTP-absztrakció Nodemailerrel (D46); dev-ben Mailpit, éles cím nem kaphat levelet (D11); **azonnali levél a review-kérésről**, minden emlékeztető (felülvizsgálat, 3 munkanapja függő review) **napi összefoglalóban**; levélben eseménytípus, cím, színtér, kezdeményező és link, tartalom nem. *A felhasználói beállítás és a leiratkozás nyitott (NY16): D-pont nélkül nem épül (D21).*
 **Kész:** Mailpitben a levelek a szabályok szerint jelennek meg; a napi összefoglaló egy levél felhasználónként.
 **Függőség:** WP10
 
@@ -141,7 +143,7 @@
 **Függőség:** WP5, WP8, WP9, WP10 (az Atlasz-élekhez WP12, a felvételi kérés felületéhez WP23)
 
 ### WP23 — Személyes feladat-dashboard *(új, MVP 20 — nem eshet ki)*
-**Tartalom:** belépés utáni főoldal (D46), az Atlasz egy kattintásra; blokkok: rám váró review-k, függő indítványaim (review-er-cserével), Átdolgozandó anyagaim (indoklással), esedékes felülvizsgálatok (kommentjelzéssel), @említések; Színtérgazdának felvételi kérések (elfogadás szereppel / elutasítás); Rendszeradminnak színtér-kérések (jóváhagyás a kezdeti Színtérgazdával / elutasítás). Időrend + színtér-szűrő; 3 munkanapja függő review kiemelve (D49); élő frissítés a WP10 WebSocket-csatornáján.
+**Tartalom:** belépés utáni főoldal (D46), az Atlasz egy kattintásra; blokkok: rám váró review-k, függő indítványaim (review-er-cserével és a megszűnt helyek pótlásával, D51b), Átdolgozandó anyagaim (indoklással), esedékes felülvizsgálatok (kommentjelzéssel), @említések; Színtérgazdának felvételi kérések (elfogadás szereppel / elutasítás); Rendszeradminnak színtér-kérések (jóváhagyás a kezdeti Színtérgazdával / elutasítás). Időrend + színtér-szűrő; 3 munkanapja függő review kiemelve (D49); élő frissítés a WP10 WebSocket-csatornáján.
 **Kész:** minden blokk a megfelelő szerepnek és csak neki jelenik meg; egy review-kérés a megjelölt review-ernél másodperceken belül megjelenik; a kérések elfogadása és elutasítása a dashboardról végigvihető; láthatósági teszt.
 **Függőség:** WP4, WP8, WP10 (a felülvizsgálati blokkhoz WP17)
 

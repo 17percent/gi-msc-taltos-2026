@@ -17,8 +17,8 @@ Az AI-asszisztensek (Claude, Copilot) közvetlenül, kimásolás nélkül érjé
 
 ## Javaslat
 
-- **Csak olvasás, csak a Jóváhagyott revízió** (D45), csak a felhasználó színtereiből (D44).
-- **MCP-eszközök (vázlat):** `search_documents` (szűrés kategóriára és színtérre), `get_document` (nyers Markdown, opcionális frontmatter), `list_categories`.
+- **Csak olvasás, csak a Jóváhagyott revízió és annak metaadat-pillanatképe** (D45, D51e), csak a felhasználó színtereiből (D44).
+- **MCP-eszközök (vázlat):** `search_documents` (szűrés fajtára, címkére és színtérre), `get_document` (nyers Markdown, opcionális frontmatter), `list_tags` (~~`list_categories`~~, D34/D38).
 - **Hitelesítés:** felhasználóhoz kötött hozzáférési token (allowlist-ellenőrzéssel); ez új hitelesítési út a D26 cookie-sessionje mellett, ezért külön biztonsági döntés kell róla.
 - **Naplózás:** az MCP-hozzáférés naplózandó-e? A D18 szerint az olvasás ma nincs naplózva.
 

@@ -6,6 +6,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, WP0): **D50** — reverse proxy (nginx a frontend-konténerben) és a fejlesztői eszközlánc.*
 
+*10. verzió kiegészítése (2026-10-23, a B4 átvizsgálása): **D51** — tíz séma-pontosítás a WP1 előtt (munkamenet-tár, review-er kiesése, „Módosítás indítása”, rendszeresemények, piszkozat/Jóváhagyott metaadat, esedékesség, `unarchive`, retenció és FK-k, checkpoint-retenció, fizikai törlés kivételei); új nyitott kérdések: NY11–NY19. A 2. és 4. fejezet a v10 állapotához igazítva.*
+
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
 
 *8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
@@ -26,37 +28,44 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 - Teszteltség / iterációk követése — a verziófogalom kettős: **revízió-történet** (minden mentés egy sor a `document_revisions` táblában) + `iteration` mező a `documents` táblán; harmadik, kézi „verziószám" tudatosan nincs
 - Verziókezelés, korábbi állapotok visszaállítása, **diff-nézet (MVP, D21)**
 - Komment szekció tudásanyagonként, rendszereseményekkel; komment-szerkesztés és -törlés auditnyommal (D20)
-- **Törlés-elv: minden törlés soft delete**, végleges törlés csak data retention policy szerinti időzített folyamatként (D20, részletek: NY4)
+- **Törlés-elv: minden törlés soft delete**, végleges törlés csak data retention policy szerinti időzített folyamatként (D20, D48); kivétel a privát kapcsoló- és párosítótáblák (kedvenc, követés, saját szín, címke-hozzárendelés) sora (D51j)
 - Hordozható szoftver: új környezetben új adatbázissal és új autentikációval üzembe helyezhető — **a Git-alapú tárolás elhagyásával ez immár szó szerint két elemre redukálódik: új PostgreSQL-instance + új OIDC-konfiguráció, nincs harmadik mozgó alkatrész (repo/kulcs)**
 - **Vágólapra másolás és exportálhatóság** `.md`, `.pdf` és `.docx` formátumba — **MVP (D21)**
 
 ## 2. Architektúra áttekintés
 
+*(10. verzió szerinti állapot, D29, D45, D46, D50, D51; a táblák teljes listája: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma]].)*
+
 ```
 Felhasználó (böngésző)
         │
         ▼
-React SPA — Vite + React Router (react-md-editor, kommentek, keresés)
-        │  REST API
+nginx a frontend-konténerben (D50) — kiszolgálja az SPA-t, proxyzza a backendet
+        │
+React SPA — Vite + React Router (CodeMirror 6 élő előnézettel, feladat-dashboard, Élő Atlasz)
+        │  REST /api/v1   ·   WebSocket /collab (Yjs)   ·   WebSocket /ws/notifications
         ▼
-Backend API — Node.js + Fastify (TypeScript)  ──► OIDC szolgáltató
-   │   lock-kezelés · audit · diff-számítás        (fejlesztés: Google,
-   │   (mentés = egyetlen DB-tranzakció)             éles: Microsoft Entra ID)
+Backend — Node.js + Fastify + Hocuspocus (TypeScript)  ──► OIDC szolgáltató
+   │   can() policy · láthatósági szűrés · ReviewService        (fejlesztés: Google,
+   │   eseménynaplózás · diff-számítás · cron (D22)              éles: Microsoft Entra ID)
    ▼
 PostgreSQL — EGYETLEN adatréteg (nincs külön forrás és index):
-   documents (jelenlegi állapot + generált tsvector-index)
-   document_revisions (teljes szövegű pillanatkép mentésenként — a Git-történet helyettesítője)
-   events, comments, favorites, allowlist, categories, locks, users
+   documents (élő állapot + generált tsvector), document_revisions (teljes szövegű pillanatkép)
+   document_collab_state (Yjs), change_requests + review-erek (D45)
+   spaces, space_members, users, sessions (D51), allowlist
+   tags, document_tags, document_links, events, comments, notifications, subscriptions, favorites
    ← mind elsődleges, mentendő adat (pg_dump, ill. WAL-alapú PITR mérlegelendő)
 ```
+
+*(Korábban, a 8. verzióig: react-md-editor, lock-kezelés a backendben, `categories` és `locks` tábla — kiváltva: D29, D34, D40.)*
 
 **Felelősség-megosztás:**
 
 | Réteg | Feladata |
 |---|---|
-| PostgreSQL | Egyetlen adatréteg: tartalom + teljes revíziótörténet + keresőindex (generált oszlop) + események/audit + kommentek + kedvencek + allowlist + lockok — minden elsődleges, mentendő adat |
-| Backend API | Minden írás egyetlen kapuja; egy DB-tranzakcióban ír revíziót és frissíti a dokumentum jelenlegi állapotát; lock-kezelés; eseménynaplózás; diff-számítás alkalmazásszinten |
-| Frontend | Szerkesztés, böngészés, keresés, kommentfolyam, diff-megjelenítés |
+| PostgreSQL | Egyetlen adatréteg: tartalom + teljes revíziótörténet + keresőindex (generált oszlop) + Yjs-állapot + review-kérések + események/audit + kommentek + értesítések + munkamenetek — minden elsődleges, mentendő adat |
+| Backend API | Minden írás egyetlen kapuja (D2); a jogosultság az egyetlen `can()` policy-n, minden olvasás a láthatósági lekérdezés-építőn át (D44); a Jóváhagyott állapotot kizárólag a `ReviewService` írja (D45); eseménynaplózás; diff-számítás alkalmazásszinten; a `/collab` és a `/ws/notifications` csatorna |
+| Frontend | Szerkesztés (közös, élő előnézettel), böngészés, keresés, dashboard, kommentfolyam, diff-megjelenítés |
 | OIDC szolgáltató | Csak autentikáció (jelszó- és identitáskezelés kiszervezve) |
 
 *(A korábbi verzióban itt szerepelt még a „Lokális Git clone" és „Remote repo" sor — ezek a Postgres-only pivottal megszűntek, lásd D1.)*
@@ -470,7 +479,27 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 **Indoklás:** nincs plusz konténer (a WP0 szolgáltatáslistája marad), és a böngésző egyetlen origint lát: a cookie- és CSRF-kezelés egyszerű marad (D26), a WebSocket-upgrade Origin-ellenőrzése (B5 A1) egy engedélyezett originre szűkül.
 **Vállalt ár:** TLS-terminálás nincs benne (élesben a céges infrastruktúra adja, vagy később kiegészítendő); az nginx-konfiguráció a frontend-image része, változása frontend-rebuildet kíván.
 
+### D51 — Séma-pontosítások a WP1 előtt *(új, 2026-10-23 — a B4 két független átvizsgálása nyomán; kiegészíti a D26, D29, D33, D45, D48 pontot)*
+
+**Előzmény:** a B4 átvizsgálása tíz olyan pontot talált, amelyet a dokumentumok leírnak, de a séma nem enged, vagy amely sehol nincs rögzítve. A tulajdonos mindegyikben döntött (2026-10-23):
+
+- **(a) Munkamenet-tár (D26, NY10):** Postgres `sessions` tábla (`id`, `user_id`, `created_at`, `last_seen_at`, `expires_at`). A `last_seen_at` írása ritkítva (legfeljebb percenként egyszer), a WebSocket-forgalom is frissíti. Újraindítást túlél; a kijelentkezés és az allowlistről levétel azonnal visszavonja. Nincs új infrastruktúra (D1).
+- **(b) Review-er kiesése (D43, D45):** ha egy megjelölt review-er kikerül a színtérből vagy az allowlistről, a sora „megszűnt” jelölést kap, a másik review-er döntése megmarad, az indítványozó új review-ert jelöl; a kérés addig nem dönthető el. Invariáns: beküldéskor pontosan két aktív review-er, később legfeljebb kettő. Új esemény: `reviewer_removed`; a dashboard jelzi a pótlást.
+- **(c) Jóváhagyott → Piszkozat:** explicit „Módosítás indítása” lépés (külön végpont) nyit új piszkozatot a legutóbbi Jóváhagyott revízióból; addig a szerkesztő csak olvasható. Az állapotot a `ReviewService` írja, eseményt naplóz (`edit_started`).
+- **(d) Rendszeresemények:** az `events.actor_id` nullable, de csak a rendszer-eseménytípusoknál lehet NULL (CHECK); a felület „Rendszer”-ként mutatja. Nincs ál-felhasználó.
+- **(e) Piszkozat és Jóváhagyott metaadat (D45):** az alkalmazáson belüli nézetek (lista, keresés, facetek, Atlasz) a legutóbbi (élő) metaadatot mutatják, állapotjelzővel. A Jóváhagyott változat a revízió `metadata`-pillanatképéből jön az export, az MCP, a nyers letöltés és a vágólap számára. Visszaállításkor a pillanatkép egy tranzakcióban íródik vissza az élő táblákba.
+- **(f) Felülvizsgálati esedékesség (D33):** a beküldéskor kötelező, 12 hónapra előtöltött `change_requests.proposed_review_due_at`; a két review-er ezzel együtt hagyja jóvá, jóváhagyáskor kerül a `documents.review_due_at`-be. Minden `create`, `update`, `metadata`, `restore` kérés új esedékességet ad; a `delete` és az `unarchive` nem.
+- **(g) Archívumból visszahozás:** külön `unarchive` kérésfajta (nincs javasolt revízió; jóváhagyáskor `deleted_at = NULL`, a legutóbbi Jóváhagyott revízió marad érvényes), külön `unarchived` eseménnyel. A `restore` ettől kezdve csak régi revízióra visszaállítást jelent.
+- **(h) Retenció és hivatkozások (D48):** az `events` dokumentum-, színtér- és kérés-hivatkozása FK nélküli uuid (mint az S12 többi naplóhivatkozásánál); a törölt dokumentumra mutató esemény „törölt dokumentum”-ként jelenik meg. A lezárt kérés javasolt revíziója törölhető: javasolt revízió csak függő kérésnél kötelező, `delete` és `unarchive` kérésnél mindig üres.
+- **(i) Checkpoint-revíziók és eldobott piszkozatok (D48 kiegészítése):** a köztes checkpoint-revízió (se nem Jóváhagyott, se nem függő kérés javaslata) 1 évvel azután törlődik, hogy egy újabb Jóváhagyott revízió meghaladta; a soha be nem küldött, eldobott piszkozat a revízióival együtt 1 évvel az eldobás után. A Jóváhagyott és a függő kérés revíziói soha nem törlődnek automatikusan.
+- **(j) Fizikai törlés kivételei (D20):** a privát kapcsoló- és párosítótáblák (`favorites`, `subscriptions`, `user_space_colors`, `document_tags`) sorai fizikailag törölhetők, mert nincs auditértékük (a címkék története a revízió-pillanatképben él). Az alkalmazás DB-szerepe csak ezekre kap DELETE-jogot.
+
+**Indoklás:** a B4 jelenlegi formájában a review-er eltávolítása hibát dobott volna, a Jóváhagyott dokumentum nem lett volna szerkeszthető, a cron-események nem lettek volna naplózhatók, és a második ütemes retenció az FK-k miatt nem lett volna megvalósítható; ezeket utólag, éles adattal drága javítani.
+**Vállalt ár:** az `events` hivatkozásait nem védi FK (az alkalmazás és a tesztek felelőssége); egy új tábla (`sessions`) és néhány új mező/enum-érték. A részletek a B4-ben (10. verzió, D51-kiegészítés).
+
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
+
+*Az érvényes séma a [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió, D51-kiegészítéssel)]]. Az alábbi alaplista a 8. verzió állapota, változástörténetként; az azóta történt változásokat a lenti „Változások” blokkok sorolják fel. A `categories`, `document_categories` és `locks` tábla megszűnt (D29, D34), a revízión nincs `iteration` (a jóváhagyott verziószám a `change_requests.iteration`-ben, D51).*
 
 - `documents` — **stabil `id` (UUID, a rendszer generálja, soha nem változik)**; cím, slug/URL-út (attribútum, átnevezéskor változhat — az id nem!), státusz, tulajdonos, **sablon-jelölés (is_template)**, **jelenlegi tartalom** (vagy pointer a legfrissebb `document_revisions` sorra — implementációs részlet), **`search_vector` generált oszlop** (`tsvector`, magyar konfiguráció + `pg_trgm` a ragozás-tűrő kereséshez, mindig szinkronban a tartalommal), soft delete jelölés (archívum, D8)
 - **`document_revisions` *(új tábla, a Git-történet helyettesítője)*** — dokumentum (id), **teljes szövegű pillanatkép** (a mentéskori tartalom), szerző, időbélyeg, iteration-szám, opcionális `restored_from_revision_id` (ha visszaállításból jött) — *elsődleges adat, mentendő; korábban ezt a szerepet a Git-történet töltötte be*
@@ -496,6 +525,12 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - új: `change_requests`, `change_request_reviewers`; `documents` + `approved_revision_id`, `review_state` (gyorsítótár); a `status` oszlop megszűnik (D45)
 - második ütem: `blobs`, `revision_files`, `blob_derivatives`; `documents` + `format`, `search_text` (D42)
 - új eseménytípusok: `review_requested`, `review_approved`, `review_rejected`, `review_withdrawn`, `reviewer_replaced`, `change_approved`, `change_rejected`, `space_requested`, `membership_requested`, `system_admin_granted`, `system_admin_revoked`, `imported_from`
+
+**Változások a 10. verzió D51-kiegészítésében:**
+- új: `sessions` (D51a); `change_requests` + `proposed_review_due_at` (D51f), `iteration` (a jóváhagyáskor kiadott verziószám); `change_kind` + `unarchive` (D51g); `document_collab_state` + a checkpoint előtti résztvevők
+- `change_request_reviewers`: megszűnt hely jelölése, ugyanaz a személy újra jelölhető (D51b); `events.actor_id` nullable a rendszereseményeknél (D51d); az `events` dokumentum-, színtér- és kérés-hivatkozása FK nélküli (D51h)
+- adatbázis-szerepek: `taltos_owner` (migráció), `taltos_app` (alkalmazás, DELETE csak a D51j kivételtábláin), `taltos_retention` (második ütem)
+- új eseménytípusok: `reviewer_removed`, `edit_started`, `unarchived`, `review_stalled`, `space_updated`, `kind_created`, `draft_discarded`
 
 **(9. verzió:)**
 - új eseménytípusok: `owner_changed`, `review_due_set`, `review_due_soon`, `review_due`, `review_reminder`, `review_confirmed`, `tag_created`, `space_*`, `member_*`, `role_changed`
@@ -528,7 +563,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Kiesési sorrend határidő-nyomásnál (hátulról):** 19 → 18 → 17 → 16 → a 8. ponton belül az egyéni átszínezés → 15. Az 1–14. és a 20. pont nem eshet ki. Részletek és munkacsomagok: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomag-terv (10. verzió)]].
 
-**Kimondott ár:** az MVP a 8. verzió 12 pontjáról 19 pontra nő. Új: színterek és szerepkörök, jóváhagyás, Atlasz az SPA-ban, értesítések, felülvizsgálat, kapcsolatok, e-mail, duplikátum-figyelmeztetés; a lock helyére a közös szerkesztés lép, a kategóriakezelés a címkékbe olvad. A D21 scope-fegyelme és a kiesési sorrend ezért kritikusabb, mint eddig; a legnagyobb egyedi kockázat a 4. pont, amelyet a megállási feltétel véd.
+**Kimondott ár:** az MVP a 8. verzió 12 pontjáról a 9. verzióban 19, a 10. verzióban 20 pontra nőtt (új a személyes dashboard, D46). Új: színterek és szerepkörök, jóváhagyás, Atlasz az SPA-ban, értesítések, felülvizsgálat, kapcsolatok, e-mail, duplikátum-figyelmeztetés; a lock helyére a közös szerkesztés lép, a kategóriakezelés a címkékbe olvad. A D21 scope-fegyelme és a kiesési sorrend ezért kritikusabb, mint eddig; a legnagyobb egyedi kockázat a 4. pont, amelyet a megállási feltétel véd.
 
 **Értékelés (D41):** a pilot az MVP 1–14. pontjának elkészülte után indul (H5 WP22 előkészítéssel); a kiesett MVP-pontok a pilotban nem mérhetők.
 
@@ -565,7 +600,19 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **NY7 — Kapcsolatok: LEZÁRVA (9. verzió)** — D39.
 - **NY8 — A pilot összehasonlítási alapja *(új, 10. verzió)*:** Confluence vagy SharePoint a szervezet tényleges eszköze, és létrehozható-e benne dummy teszt-tér (D41).
 - **NY9 — A pilot hozzáférése és moderálása *(új, 10. verzió)*:** hogyan érik el a résztvevők a fejlesztői környezetet (alagút vagy céges VPN), és ki moderál (fejlesztő vagy semleges kolléga).
-- **NY10 — Munkamenet-élettartam: LEZÁRVA (10. verzió)** — abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc; a nyitott közös szerkesztés (WebSocket-forgalom) aktívnak számít (D49).
+- **NY10 — Munkamenet-élettartam: LEZÁRVA (10. verzió)** — abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc; a nyitott közös szerkesztés (WebSocket-forgalom) aktívnak számít (D49). A tárolás: Postgres `sessions` tábla (D51a).
+
+*Új nyitott kérdések a B4 átvizsgálásából (2026-10-23). Egyik sem blokkolja a WP1-et; a zárójelben jelölt munkacsomag előtt kell eldönteni őket. A tárolásuk a sémában additív.*
+
+- **NY11 — Az @említés formátuma (D35; WP12 előtt):** a jelenlegi `@[név](user:uuid)` a megjelenítendő nevet a komment és a revízió szövegébe másolja, így a pszeudonimizálás (D48) nem éri el. Opciók: `@(user:uuid)`, a név megjelenítéskor a `users`-ből; vagy a névmaradás vállalása. Kell-e kinyert `comment_mentions` tábla?
+- **NY12 — A címkék láthatósága a zárt színterek között (D34, D44; WP5 előtt):** a globális címkelista, a darabszámok és a `tag_exists` 409 más színterek létezését árulhatják el. Opciók: a lista, a javaslat és a darabszám a látható dokumentumokra szűrve; vagy a kockázat dokumentált vállalása.
+- **NY13 — Kapcsolatok tárolása (D39; WP16 előtt):** a kapcsolattípus nem szerepel a szövegbeli linkben (`[cím](doc:uuid)`), így előfordulásonként nem párosítható; a „link eltűnik ⇒ kapcsolat megszűnik” szabály a `származik`-ot is törölné. A V50 (a `helyettesíti` cél általi törlése) review nélküli rendszer-revízió: kap-e `approved_revision_id`-t, `iteration`-t, és mi történik függő kérés vagy élő piszkozat mellett?
+- **NY14 — Kapcsolat-értesítés idegen színtérbe (D39 V36/V50, D44; WP16 előtt):** a cél tulajdonosa nem biztos, hogy tagja a forrás színterének. Kapjon csonk-értesítést és törlési jogot, vagy a V36/V50 csak közös tagságnál él?
+- **NY15 — Tulajdonjog-átadás (D31, D48; WP4 előtt):** a 409 `owner_handover_required` felkínálja, de csak adminisztratív átadás-végpont van. Ki adhat át (tulajdonos, Színtérgazda), és review-köteles-e?
+- **NY16 — E-mail-beállítások és leiratkozás (D46; WP18 előtt):** a H5 WP18 említi, de nincs napló-pontja; D21 szerint addig nem épül.
+- **NY17 — A Rendszeradmin audit-láthatósága (D43; WP9 előtt):** a rendszerszintű audit és a retenciós előnézet címet és komment-szöveget adhat, holott a Rendszeradminnak nincs tartalmi joga. Mely mezőket láthatja?
+- **NY18 — Az első Rendszeradmin és az Általános színtér kezdő Színtérgazdája (D43, D49; WP2 előtt):** konfigurációból jönnek-e, és mi történik a konfigból eltávolított allowlist-sorral (soft delete, újrafelvétel)?
+- **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); a függő review sorsa a projekt-tér lezárásakor (WP4); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP3, WP14); a legal hold hatóköre (WP33).
 
 ## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*
 

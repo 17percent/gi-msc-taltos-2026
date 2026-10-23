@@ -13,3 +13,7 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-23 13:01 | auto | code-reviewer | 58808 | 7 | 58 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=26743 cached=32065 |
 | 2026-10-23 14:08 | feature | appsec | 191706 | 17 | 188 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=66044 cached=125662 task=20261023-134728-wp0-skeleton-taltos-app phase=4-REVIEW tier=L |
 | 2026-10-23 14:12 | feature | code-reviewer | 1970233 | 63 | 420 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=141466 cached=1828767 task=20261023-134728-wp0-skeleton-taltos-app phase=4-REVIEW tier=L |
+| 2026-10-23 15:04 | auto | business-analyst | 1313027 | 87 | 497 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=226031 cached=1086996 |
+| 2026-10-23 15:05 | auto | database-data-engineer | 1015629 | 25 | 556 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=368793 cached=646836 |
+| 2026-10-23 15:44 | auto | business-analyst | 4338445 | 257 | 2867 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=547446 cached=3790999 |
+| 2026-10-23 15:46 | auto | database-data-engineer | 2997313 | 43 | 3013 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=709267 cached=2288046 |

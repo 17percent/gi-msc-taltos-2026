@@ -23,36 +23,36 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
-| [[Dokumentumok/Címkék\|Címkék]] | globális, szabadon megadott címkék, duplikátumszűrés | 3 | ✅ (átalakítandó: V24) |
-| [[Dokumentumok/Verziózás\|Verziózás]] | történet, diff, visszaállítás | 5 | ✅ |
-| [[Dokumentumok/Státusz-workflow\|Státusz-workflow]] | Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó, két review-er (2026-10-23) | 6 | ✅ (régi 4 státusz) · 📘 D45 |
-| [[Dokumentumok/Archívum\|Archívum]] | soft delete + visszaállítás | 11 | ✅ |
-| [[Dokumentumok/Kapcsolatok\|Kapcsolatok]] | explicit, típusos dokumentum-kapcsolatok | 16 | 📘 |
-| [[Dokumentumok/Felülvizsgálat\|Felülvizsgálat]] | szerző által megadott esedékesség, értesítés | 15 | 📘 |
+| [[Dokumentumok/Címkék\|Címkék]] | globális, szabadon megadott címkék, duplikátumszűrés; fajta külön mező (D34) | 3 | ✅ (prototípus: kategóriák) · 📘 D34 · ❓ láthatóság színtereken át |
+| [[Dokumentumok/Verziózás\|Verziózás]] | történet, diff, visszaállítás régi revízióra (review-val) | 5 | ✅ · 📘 D45 |
+| [[Dokumentumok/Státusz-workflow\|Státusz-workflow]] | Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó, két review-er; Módosítás indítása, `unarchive` (D45, D51) | 6 | ✅ (régi 4 státusz) · 📘 D45, D51 |
+| [[Dokumentumok/Archívum\|Archívum]] | archiválás és `unarchive` review-val, soft delete | 11 | ✅ · 📘 D45, D51g |
+| [[Dokumentumok/Kapcsolatok\|Kapcsolatok]] | explicit, típusos dokumentum-kapcsolatok | 16 | 📘 D39 · ❓ típus-tárolás, cross-space értesítés |
+| [[Dokumentumok/Felülvizsgálat\|Felülvizsgálat]] | beküldéskor megadott esedékesség, értesítés | 15 | 📘 D33, D51f |
 
 ## Felhasználók
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
 | [[Felhasználók/Bejelentkezés\|Bejelentkezés]] | OIDC (Google → Entra ID) | 1 | ✅ |
-| [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ |
-| [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF | — | ⚙️ |
-| [[Felhasználók/Jogosultságok\|Jogosultságok]] | színterenkénti szerepkörök | 2 | 📘 |
-| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix | 2 | 📘 D43 |
+| [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ · ❓ első Rendszeradmin forrása, konfig-szemantika |
+| [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF, Postgres `sessions` tábla (D51a) | — | ⚙️ · 📘 D51a |
+| [[Felhasználók/Jogosultságok\|Jogosultságok]] | alapelvek; az érvényes mátrix a Szerepkörökben | 2 | 📘 D43, D44 |
+| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix | 2 | 📘 D43 · ❓ tulajdonos-átadás végpontja |
 
 ## Kollaboráció
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
 | [[Kollaboráció/Színterek\|Színterek]] | csapat- és projekt-terek, Általános; **zárt: csak a tagok látják** | 2 | 📘 D44 |
-| [[Kollaboráció/Kommentek\|Kommentek]] | egyesített feed, auditált szerkesztés | 9 | ✅ |
+| [[Kollaboráció/Kommentek\|Kommentek]] | egyesített feed (comment, system, review), auditált szerkesztés, @említés a tagok közül | 9 | ✅ · 📘 D35, D45 · ❓ említés-formátum |
 | [[Kollaboráció/Valós idejű közös szerkesztés\|Valós idejű közös szerkesztés]] | Yjs + Hocuspocus, névcímkés kurzorok; kiváltja a zárolást | 4 | 📘 |
 
 ## Felfedezés
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
-| [[Felfedezés/Élő Atlasz\|Élő Atlasz]] | élő tudástérkép + találati lista | 8 | ✅ |
+| [[Felfedezés/Élő Atlasz\|Élő Atlasz]] | élő tudástérkép + találati lista; csak a saját színterek (D44) | 8 | ✅ · 📘 D44 |
 | [[Felfedezés/Keresés\|Keresés]] | cím + tartalom, kiemeléssel | 7 | ✅ |
 | [[Felfedezés/Szűrők\|Szűrők]] | facetek, kiemelés törlés helyett | 7 | ✅ |
 | [[Felfedezés/Kedvencek\|Kedvencek]] | privát, nem naplózott | 13 | ✅ |
@@ -69,10 +69,10 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
-| [[Nyomonkövetés/Eseménynapló\|Eseménynapló]] | append-only `events` | 9 | ✅ |
-| [[Nyomonkövetés/Értesítések\|Értesítések]] | alkalmazáson belül (WebSocket) + e-mail, napi összefoglaló | 10, 17 | 📘 D46 |
+| [[Nyomonkövetés/Eseménynapló\|Eseménynapló]] | append-only `events`; rendszeresemények aktor nélkül (D51d) | 9 | ✅ · 📘 D51 |
+| [[Nyomonkövetés/Értesítések\|Értesítések]] | alkalmazáson belül (WebSocket) + e-mail, napi összefoglaló | 10, 17 | 📘 D46 · ❓ e-mail beállítások/leiratkozás |
 | [[Nyomonkövetés/Feladat-dashboard\|Feladat-dashboard]] | főoldal: review-k, indítványok, felülvizsgálatok, kérések | 20 | 📘 D46 |
-| [[Transzparencia/Auditnapló\|Auditnapló]] | rendszerszintű audit nézet | 9 | ✅ |
+| [[Transzparencia/Auditnapló\|Auditnapló]] | dokumentum-, színtér- és rendszerszintű audit nézet, CSV | 9 | ✅ (rendszerszintű nézet) · 📘 D43 (színtér-szint) · ❓ rendszer-audit láthatósága |
 
 ## Kimenet és üzemeltetés
 
@@ -82,7 +82,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 | [[Kimenet/MCP és API\|MCP és API]] | AI-asszisztensek olvasási elérése | 2. ütem | 📘 |
 | [[Kimenet/Export\|Export]] | `.pdf`/`.docx` pandoc-kal | 19 | ✅ (mock) |
 | [[Üzemeltetés/Backup\|Backup]] | ütemezett `pg_dump` | 12 | ⚙️ |
-| [[Üzemeltetés/Adatmegőrzés\|Adatmegőrzés]] | „a tudás megmarad, a zaj törlődik”; automatikus végleges törlés | — | 📘 D48 |
+| [[Üzemeltetés/Adatmegőrzés\|Adatmegőrzés]] | „a tudás megmarad, a zaj törlődik”; automatikus végleges törlés (2. ütem) | — | 📘 D48, D51 · ❓ pszeudonimizálási idő, legal hold |
 | [[Üzemeltetés/Vészhelyzeti tükör\|Vészhelyzeti tükör]] | napi `.md`-tükör | — | ✖ elvetve (NY5) |
 
 ## Értékelés
@@ -94,8 +94,10 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 ## Teendők a naplóban
 
 - ✅ A [[Versenytárs-elemzés]] V1–V39 pontjai a [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D29–D41 pontjaiként rögzítve; a D6 felülírása (D31, D32) és a D28 átvétele megtörtént.
-- ✅ NY6 lezárva: 19 pontos MVP, kiesési sorrend és megállási feltétel — [[Tervezés/Tervezés (hatodik kör)/tudasbazis-munkacsomagok-h5|H5 v9]] → [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 v10]].
+- ✅ NY6 lezárva: kiesési sorrend és megállási feltétel (a v9-ben 19, a v10-ben 20 pontos MVP) — [[Tervezés/Tervezés (hatodik kör)/tudasbazis-munkacsomagok-h5|H5 v9]] → [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 v10]].
 - ✅ NY7 lezárva: Kapcsolatok = D39.
 - ✅ **v10 (2026-10-23):** a vault nyitott kérdései és naplóütközései átvizsgálva → D42–D49 (többformátum, szerepkörök, zárt színterek, review-folyamat, dashboard, létrehozási utak, adatmegőrzés, kisebb döntések). NY3, NY4 lezárva, NY5 elvetve; MVP 20 pont.
+- ✅ **D51 (2026-10-23, a B4 átvizsgálása):** tíz séma-pontosítás — munkamenet-tár (`sessions`), review-er kiesése, „Módosítás indítása”, aktor nélküli rendszeresemények, élő vs Jóváhagyott metaadat, esedékesség beküldéskor, `unarchive`, FK nélküli `events`-hivatkozások, checkpoint-retenció, fizikai törlés kivételei. Az egységjegyzetek ehhez igazítva.
+- ❓ **Nyitott a naplóban: NY11–NY19** (többek közt: említés-formátum, címkék láthatósága színtereken át, kapcsolat-típus tárolása, cross-space értesítés, tulajdonjog-átadás, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, az első Rendszeradmin forrása, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
 - Nyitott a naplóban: **NY8** (pilot összehasonlítási alapja), **NY9** (pilot hozzáférése és moderálása), ~~NY10~~ (lezárva: 8 óra / 60 perc).
 - ✅ A v10 részletdokumentumai: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-api-kontraktus-b5|B5 API]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomagok]] (WP0–WP23 + 6 második ütemes csomag).

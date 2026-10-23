@@ -9,7 +9,7 @@ mvp: "csak prototípus"
 # Zárolás
 
 > [!note] Kiváltva
-> Az éles alkalmazásban a lock + heartbeat megoldás megszűnik, helyét a [[Kollaboráció/Valós idejű közös szerkesztés|valós idejű közös szerkesztés]] veszi át (D7 felülírása, tervezett D28). Ez a jegyzet a prototípus működését dokumentálja.
+> Az éles alkalmazásban a lock + heartbeat megoldás megszűnik, helyét a [[Kollaboráció/Valós idejű közös szerkesztés|valós idejű közös szerkesztés]] veszi át (D7 felülírása: D29). Ez a jegyzet a prototípus működését dokumentálja.
 
 ## Cél
 

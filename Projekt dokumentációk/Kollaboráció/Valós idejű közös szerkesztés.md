@@ -64,7 +64,7 @@ Böngésző (React SPA)                           Backend (Node.js)
 
 ## Adatmodell-változások
 
-- **Új:** `document_collab_state (document_id PK/FK, ydoc_state bytea, state_vector bytea, updated_at)` — a Yjs-dokumentum kódolt állapota.
+- **Új:** `document_collab_state (document_id PK/FK, state bytea, updated_at)` — a Yjs-dokumentum kódolt állapota (a végleges oszlopok a B4-ben; ~~`ydoc_state`, `state_vector`~~ korábbi vázlat). A checkpoint előtti közreműködők perzisztálása és a Yjs-generáció kezelése ❓ nyitott (NY11–NY19 a naplóban).
 - **`documents.content`** megmarad mint *materializált* szöveg: a szerver a Y.Text tartalmát debounce-szal visszaírja, így a generált `search_vector` (D4) magától frissül.
 - **`document_revisions`**: változatlan szerkezet (teljes szövegű pillanatkép), plusz `contributors uuid[]` (vagy külön `document_revision_contributors` tábla) — egy revíziónak több szerzője lehet.
 - **Megszűnik:** `locks` tábla, a lock-végpontok, a `lock_acquired` / `lock_released` / `lock_expired` események.
@@ -106,7 +106,7 @@ A klasszikus „Mentés” gomb értelmét veszti: minden változás azonnal a s
 
 ## Kapcsolat a többi egységgel
 
-- **[[Dokumentumok/Státusz-workflow|Státusz-workflow]]:** nyitott kérdés, hogy `review` vagy `publikált` státuszban szabad-e élőben szerkeszteni (lásd lent).
+- **[[Dokumentumok/Státusz-workflow|Státusz-workflow]]:** (D45, D51c) írás csak Piszkozat és Átdolgozandó állapotban; Review-ra váró és Jóváhagyott dokumentumon (a „Módosítás indítása” lépésig), valamint lezárt térben a kapcsolat `readOnly`. ~~Nyitott kérdés volt, hogy `review` vagy `publikált` státuszban szabad-e szerkeszteni.~~
 - **[[Kollaboráció/Kommentek|Kommentek]]:** a Yjs `RelativePosition` lehetővé teszi, hogy a komment szövegrészhez kötődjön, és szerkesztés közben is a helyén maradjon. Ez megválaszolja a Kommentek „sorhoz/szakaszhoz kötés” kérdését, de külön ütem (döntve: második ütem, [[Versenytárs-elemzés]] V19).
 - **[[Nyomonkövetés/Értesítések|Értesítések]]:** checkpoint-alapú, nem leütés-alapú értesítés.
 - **[[Nyomonkövetés/Eseménynapló|Eseménynapló]]:** az `events` append-only marad, csak a granularitás változik.
@@ -148,7 +148,7 @@ A sorrend kockázat-előrehozó (D27 szellemében): a szerkesztőcsere és a per
 
 ## Nyitott kérdések
 
-- ~~**Státusz és élő szerkesztés**~~ **Döntve ([[Versenytárs-elemzés]] V6–V7):** egy `publikált` dokumentumon az írási joggal rendelkező kapcsolat első Yjs-update-je után a szerver ugyanabban a tranzakcióban `draft`-ra állítja a státuszt. Munkapéldány nincs, az olvasók az élő tartalmat látják draft jelvénnyel.
+- ~~**Státusz és élő szerkesztés** — Döntve (V6–V7): egy `publikált` dokumentumon az első Yjs-update `draft`-ra állítja a státuszt.~~ **Felülírva (D45, D51c):** nincs automatikus állapotváltás az első írásra; a Jóváhagyott dokumentum szerkesztője csak olvasható, amíg valaki az explicit „Módosítás indítása” lépéssel (`edit_started`) új Piszkozatot nem nyit a legutóbbi Jóváhagyott revízióból.
 - ~~Kötelező mentési üzenet?~~ **Döntve (D45):** nem, a változásleírás mindig opcionális. A checkpoint nem véglegesít: a szerkesztés Piszkozatban folyik, véglegesíteni a Review-ra küldés és a két jóváhagyás tud.
 - ~~Szerzőség?~~ **Döntve (D49):** elég a checkpointonkénti résztvevőlista; a review-kérés ezt csatolja.
 - ~~„Kövesd X-et”?~~ **Döntve (D49):** második ütem.

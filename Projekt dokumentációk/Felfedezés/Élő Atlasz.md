@@ -17,11 +17,11 @@ A kezdőoldal ne egy lista, hanem élő tudástérkép legyen: tájékozódás �
 - Egyetlen csomóponttípus: a dokumentum. Egységes méret; a színt a kategória adja. *(Felülírva: V28, lásd lent.)*
 - A térkép és a lista egy store-ból szinkronizál (hover és kiválasztás kétirányú).
 - A szűrés **kiemel, nem töröl**: a kiszűrt csomópont üres, halvány, nem kattintható karika marad (7. kör).
-- A lista az akadálymentes elsődleges nézet. 900 px alatt a lista a fő nézet. ≤150 csomópontos sapka.
+- A lista az akadálymentes elsődleges nézet. 900 px alatt a lista a fő nézet. ≤150 csomópontos sapka *(prototípus; az éles alkalmazásban 300 csomópont fölött címkefürtbe vonás, D44)*.
 
 ## Kapcsolódó döntések
 
-D28 (élő erőszimulációs elrendezés, Obsidian-szerű interakció) és D37 (színezés a színtérből) — Döntési napló v9. [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D19.
+[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D28 (élő erőszimulációs elrendezés, Obsidian-szerű interakció), D37 (színezés a színtérből), D39 (explicit élek), D44 (csak a saját színterek, fürtözés), D51e (az Atlasz az élő metaadatot mutatja állapotjelzővel). ~~D19~~ — felülírta a D34.
 
 ## Nyitott kérdések
 

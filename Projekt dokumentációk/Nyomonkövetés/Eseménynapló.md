@@ -24,6 +24,11 @@ Események a seedben és a műveletekből: `created`, `edited`, `status_changed`
 ## Nyitott kérdések
 
 - ~~Eseménytípus-katalógus bővítése?~~ **Döntve (v10, 4. fejezet):** színterek és szerepek (`space_*`, `member_*`, `role_changed`, `system_admin_*`, `space_requested`, `membership_requested`), review (`review_requested`, `review_approved`, `review_rejected`, `review_withdrawn`, `reviewer_replaced`, `change_approved`, `change_rejected`), import (`imported_from`).
+- **D51 kiegészítések:**
+  - **Új eseménynevek:** `reviewer_removed` (a review-er kiesett, D51b), `edit_started` („Módosítás indítása”, D51c), `unarchived` (D51g), `review_stalled` (3 munkanapja függő review), `space_updated` (leírás, szín), `kind_created` (fajta-lista bővítése), `draft_discarded` (soha be nem küldött piszkozat eldobása).
+  - **Rendszeresemények (D51d):** a cron által írt események (`review_due_soon`, `review_due`, `review_reminder`, `review_stalled`, `retention_purge`, `user_pseudonymized`) aktor nélküliek, az `actor_id` ilyenkor NULL; a felület „Rendszer”-ként mutatja. Emberi eseménynél az `actor_id` kötelező.
+  - **Hivatkozások (D51h):** az események dokumentum-, színtér- és kérés-hivatkozása FK nélküli; a törölt dokumentumra mutató esemény „törölt dokumentum”-ként jelenik meg.
+- ❓ **Nyitott (NY11–NY19 a naplóban):** a rendszerszintű audit láthatósága és szűrői; az események részletei (`details`) nem tartalmazhatnak nevet vagy e-mailt — a szabály rögzítése.
 - ~~Az értesítések forrása?~~ **Döntve (D35, D46):** igen, ugyanabban a tranzakcióban.
 - **Megőrzés (D48):** 5 év.
 

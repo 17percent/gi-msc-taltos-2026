@@ -17,7 +17,7 @@ Másolás a vágólapra és nyers `.md` letöltés, egy minimális frontmatterre
 
 ## Kapcsolódó döntések
 
-[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D21. Az exportált frontmatter kimeneti formátum, nem belső igazságforrás (4. fejezet).
+[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D21, D45, D51e: a nyers letöltés (`GET …/raw`) és a vágólap a legutóbbi Jóváhagyott revízió tartalmát és metaadat-pillanatképét adja. A frontmatter pontos tartalma ❓ nyitott (NY11–NY19 a naplóban). Az exportált frontmatter kimeneti formátum, nem belső igazságforrás (4. fejezet).
 
 ## Nyitott kérdések
 
@@ -25,4 +25,4 @@ Másolás a vágólapra és nyers `.md` letöltés, egy minimális frontmatterre
 
 ## Kapcsolódó egységek
 
-[[Kimenet/Export|Export]] · [[Üzemeltetés/Vészhelyzeti tükör|Vészhelyzeti tükör]]
+[[Kimenet/Export|Export]] · ~~[[Üzemeltetés/Vészhelyzeti tükör|Vészhelyzeti tükör]]~~ (elvetve, NY5)

@@ -17,7 +17,7 @@ Nem UI-elem, a prototípusban nincs.
 
 ## Kapcsolódó döntések
 
-[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D4 (ütemezett `pg_dump` az egyetlen backup-mechanizmus), D18 (a `favorites` is mentendő), D10 (hosting).
+[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D4 (ütemezett `pg_dump` az egyetlen backup-mechanizmus), D18 (a `favorites` is mentendő), D10 (hosting), D48 (megőrzés), D51a (a `sessions` tábla része a dumpnak, de elvesztése csak kijelentkeztet; a `document_collab_state` a `documents.content`-ből újraépíthető).
 
 ## Nyitott kérdések
 
@@ -26,4 +26,4 @@ Nem UI-elem, a prototípusban nincs.
 
 ## Kapcsolódó egységek
 
-[[Adattárolás/Adatmodell|Adatmodell]] · [[Üzemeltetés/Vészhelyzeti tükör|Vészhelyzeti tükör]] · [[Üzemeltetés/Adatmegőrzés|Adatmegőrzés]]
+[[Adattárolás/Adatmodell|Adatmodell]] · ~~[[Üzemeltetés/Vészhelyzeti tükör|Vészhelyzeti tükör]]~~ (elvetve, NY5) · [[Üzemeltetés/Adatmegőrzés|Adatmegőrzés]]

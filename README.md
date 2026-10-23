@@ -47,7 +47,7 @@ Utána: <http://localhost:8123>
 ├── .github/workflows/taltos-app-ci.yml   CI: lint, formázás, typecheck, teszt, build + Compose-füstpróba
 ├── tools/sync_arch.py                 az Arch/ tükör frissítése / ellenőrzése a vaultból
 ├── Arch/                              Architektúra-terv, 10. verzió (a vault aktuális körének tükre — nem itt szerkesztjük)
-│   ├── tudasbazis-architektura-dontesi-naplo.md   D1–D49 döntések, követelmények, 20 pontos MVP, nyitott kérdések
+│   ├── tudasbazis-architektura-dontesi-naplo.md   D1–D51 döntések, követelmények, 20 pontos MVP, nyitott kérdések
 │   ├── tudasbazis-db-sema-b4.md                   PostgreSQL-séma (Drizzle + kézi SQL-migrációk)
 │   ├── tudasbazis-api-kontraktus-b5.md            REST /api/v1 + WebSocket kontraktus, hibakódok
 │   ├── tudasbazis-munkacsomagok-h5.md             WP0–WP23 (+ második ütem), függőségek, kész-kritériumok

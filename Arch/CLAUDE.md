@@ -26,7 +26,9 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - Nem tag hozzáférése: 403 `not_space_member` a színtér nevével és a Színtérgazdákkal, a dokumentum címe NÉLKÜL.
 
 ### Review-folyamat (D45)
-- Állapotok: Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó. A régi `draft/review/tested/published` státusz NINCS.
+- Állapotok: Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó. A régi `draft/review/tested/published` státusz NINCS. Jóváhagyottból Piszkozat csak az explicit „Módosítás indítása” lépéssel lesz (D51c); addig a szerkesztő `readOnly`.
+- Kérésfajták: `create`, `update`, `metadata`, `restore` (régi revízióra), `delete` (archiválás), `unarchive` (archívumból vissza, D51g). Beküldéskor pontosan két aktív review-er; ha egy kiesik, a helye megszűnik, és a kérés a pótlásig nem dönthető el (D51b). Az esedékesség a beküldéskor kötelező, a review tárgya (D51f).
+- Az alkalmazáson belüli nézetek az élő (legutóbbi) metaadatot mutatják állapotjelzővel; a Jóváhagyott változat a revízió `metadata`-pillanatképe (D51e).
 - Minden tartalmi változás (létrehozás, módosítás, metaadat, visszaállítás, archiválás) csak két megjelölt review-er jóváhagyásával véglegesedik. A Jóváhagyott állapotot (`approved_revision_id`, `iteration`, `deleted_at`) KIZÁRÓLAG a `ReviewService` írhatja.
 - Review nélküli kivételek: komment, kedvenc, követés, tagság- és szerepkezelés, „Még aktuális” megerősítés, soha be nem küldött piszkozat eldobása, a `helyettesíti` kapcsolat cél általi törlése (V50).
 - Az MCP, az export és a nyers letöltés mindig a legutóbbi Jóváhagyott revíziót adja.
@@ -34,7 +36,9 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 ### Adatbázis
 - Drizzle a séma- és query-réteg (D25). A keresési infrastruktúra, az append-only triggerek, a review-invariánsok és a részleges indexek KÉZI SQL-migrációban élnek — NE erőltesd TS-sémába.
 - A séma forrása: `tudasbazis-db-sema-b4.md` (10. verzió). Ettől eltérni csak a napló módosításával lehet.
-- Fizikai DELETE TILOS az alkalmazáskódból; minden törlés soft delete (D20). Végleges törlés csak a második ütemes retenciós folyamat, a `taltos_retention` DB-szerepből (D48).
+- Fizikai DELETE TILOS az alkalmazáskódból; minden törlés soft delete (D20). Egyetlen kivétel a privát kapcsoló- és párosítótáblák sora: `favorites`, `subscriptions`, `user_space_colors`, `document_tags` (D51j). Végleges törlés csak a második ütemes retenciós folyamat, a `taltos_retention` DB-szerepből (D48, D51i).
+- Az alkalmazás a `taltos_app` szereppel csatlakozik (DELETE csak a D51j tábláin, TRUNCATE soha); a migráció a `taltos_owner` szerepé. Superuserrel az alkalmazás NEM csatlakozik.
+- Az `events` dokumentum-, színtér- és kérés-hivatkozása FK nélküli uuid (D51h); a rendszeresemények `actor_id`-ja NULL (D51d).
 - Az `events` és a `document_revisions` append-only — a triggereket kikapcsolni, megkerülni TILOS.
 - Minden mutáló művelet eseményt naplóz (katalógus: B4 2. szakasz). Új eseménytípus = TS-union bővítés, NEM DB-migráció.
 
@@ -47,7 +51,7 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - Kontraktus: `tudasbazis-api-kontraktus-b5.md` (10. verzió). Új végpont vagy szemantika-változás csak a dokumentum frissítésével.
 - Hibaválasz: RFC 9457 Problem Details + stabil `code` mező, a katalógus szerinti kódokkal. Ad-hoc hibaformátumot NE találj ki.
 - Review-ra küldés kötelezően `baseRevisionId`-vel; eltérésnél 412 `stale_base_revision`.
-- Allowlist-ellenőrzés MINDEN kérésnél (D5). Session: httpOnly cookie, 8 óra abszolút lejárat, 60 perc tétlenség; CSRF-token minden mutáló kérésen. Bearer-token flow-t NE vezess be az SPA-ban.
+- Allowlist-ellenőrzés MINDEN kérésnél (D5). Session: httpOnly cookie, a Postgres `sessions` táblában (D51a), 8 óra abszolút lejárat, 60 perc tétlenség; CSRF-token minden mutáló kérésen. Bearer-token flow-t NE vezess be az SPA-ban.
 - OIDC: fejlesztésben is valódi Google; OIDC-mockot NE építs — tesztekben session-injektálás (D49).
 - Valós idejű csatorna: `/collab` és `/ws/notifications`; polling NINCS.
 
@@ -68,7 +72,7 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - A munka egysége a munkacsomag (`tudasbazis-munkacsomagok-h5.md`, 10. verzió: WP0–WP23, második ütem WP30–WP35). Tartsd a sorrendet és a függőségeket; a csomag „kész”-kritériuma a definíció.
 - A funkcionális elvárások forrása a munkacsomagok „kész”-kritériumai, a napló D-pontjai és a vault egységjegyzetei (pl. `Felhasználók/Szerepkörök`, `Dokumentumok/Státusz-workflow`). A jogosultsági mátrix minden cellája egy teszteset.
 - Csomag-zárás: CI zöld + az érintett naplópontok visszaellenőrizve + rövid összefoglaló (mi készült, milyen döntéseket hoztál a szabad sávban, mibe ütköztél).
-- Nyitott kérdést NE dönts el magad — jelenleg: **NY8** (a pilot összehasonlítási alapja), **NY9** (a pilot hozzáférése és moderálása), az MCP-olvasás naplózása (D38).
+- Nyitott kérdést NE dönts el magad — jelenleg: **NY8** (a pilot összehasonlítási alapja), **NY9** (a pilot hozzáférése és moderálása), az MCP-olvasás naplózása (D38), valamint **NY11–NY19** (említés-formátum, címkék láthatósága, kapcsolatok tárolása és értesítése, tulajdonjog-átadás, e-mail-beállítások, Rendszeradmin audit-láthatósága, az első Rendszeradmin forrása, kisebb szabályok). Mindegyiknél a napló megnevezi, melyik munkacsomag előtt kell eldönteni.
 
 ## Stack-rögzítés (nem újratárgyalható a napló nélkül)
 
@@ -78,8 +82,8 @@ TypeScript end-to-end · Node.js + Fastify (JSON Schema → generált OpenAPI) �
 
 | Fájl | Szerep |
 |---|---|
-| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D50, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
-| `tudasbazis-db-sema-b4.md` | Séma-referencia: Drizzle-kód, kézi SQL-migrációk, S1–S13 mikrodöntések, retenció táblánként |
+| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D51, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
+| `tudasbazis-db-sema-b4.md` | Séma-referencia: Drizzle-kód, kézi SQL-migrációk, S1–S25 mikrodöntések (a D51-kiegészítéssel), DB-szerepek, retenció táblánként |
 | `tudasbazis-api-kontraktus-b5.md` | API-referencia: A1–A12 elvek, végpontlista szerepkörrel, hibakód-katalógus |
 | `tudasbazis-munkacsomagok-h5.md` | WP0–WP23 + WP30–WP35: sorrend, függőségek, kész-kritériumok, kiesési sorrend |
 

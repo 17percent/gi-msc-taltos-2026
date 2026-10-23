@@ -15,7 +15,7 @@ A pilot azt vizsgálja, hogy a Táltos a jelenlegi gyakorlathoz (Confluence vagy
 
 - **K1 — Megtalálás:** mennyi idő alatt és milyen sikerrel talál meg a felhasználó egy adott tudásanyagot?
 - **K2 — Rögzítés:** markdown-tudás nélkül is létre tud-e hozni egy dokumentumot sablonból, címkével és kapcsolattal (D40), és ehhez mennyi idő és segítség kell?
-- **K3 — Adminisztráció:** mekkora ráfordítás egy színtér, tagság, szerepkör és tulajdonjog-átadás kezelése (D30, D31)?
+- **K3 — Adminisztráció:** mekkora ráfordítás egy színtér, tagság, szerepkör, review és tulajdonjog-átadás kezelése (D30, D31, D43, D45)? (A tulajdonjog-átadás végpontja ❓ nyitott, NY11–NY19 a naplóban — a T8 ettől függ.)
 - **K4 — Észlelt használhatóság:** milyen SUS-pontszámot ad a két megoldás?
 
 ## Design
@@ -40,13 +40,13 @@ A pilot azt vizsgálja, hogy a Táltos a jelenlegi gyakorlathoz (Confluence vagy
 
 | # | Feladat | Kutatási kérdés | Érintett döntés |
 |---|---|---|---|
-| T1 | Keresd meg a(z) X témájú, publikált promptot, és másold ki | K1 | D4, D36, D21 |
+| T1 | Keresd meg a(z) X témájú, Jóváhagyott promptot, és másold ki | K1 | D4, D36, D21 |
 | T2 | Keresd meg, melyik dokumentum váltotta fel az Y guide-ot | K1 | D39 (`helyettesíti`) |
 | T3 | Találd meg a Z csapat összes agent-definícióját | K1 | D30, D34 (facet) |
-| T4 | Hozz létre egy új promptot sablonból, adj neki címkét, és kapcsold a meglévő W dokumentumhoz `épít_rá` típussal | K2 | D17, D34, D39, D40 |
+| T4 | Hozz létre egy új promptot (üresen vagy duplikálással; ~~sablonból~~ — a sablonból létrehozás a D47 szerint második ütem), adj neki címkét, és kapcsold a meglévő W dokumentumhoz `épít_rá` típussal | K2 | D17, D34, D39, D40, D47 |
 | T5 | Formázz meg egy bekezdést listává, és szúrj be egy táblázatot | K2 | D40 |
-| T6 | Kérj jóváhagyást a dokumentumodra, majd egy másik szereppel hagyd jóvá vagy utasítsd el indoklással | K3 | D32 |
-| T7 | Hozz létre egy projekt-színteret, adj hozzá két tagot Szerző és Jóváhagyó szereppel | K3 | D30, D31 |
+| T6 | Küldd review-ra a dokumentumodat két review-errel, majd review-erként hagyd jóvá vagy utasítsd el indoklással | K3 | D45 (~~D32~~) |
+| T7 | Kérj projekt-teret (Rendszeradmin-jóváhagyással), majd Színtérgazdaként vegyél fel két tagot Szerzőként (~~Szerző és Jóváhagyó szereppel~~) | K3 | D30, D43, D44 (~~D31~~) |
 | T8 | Add át egy dokumentum tulajdonjogát egy kollégának | K3 | D31 |
 
 A T6–T8 feladatot a jelenlegi megoldásban az ottani legközelebbi megfelelővel kell elvégezni (pl. oldal-engedélyek, space-jogosultságok); ahol nincs megfelelő, ott „nem támogatott” jelölés kerül az eredménybe.

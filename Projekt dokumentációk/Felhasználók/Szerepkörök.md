@@ -80,7 +80,7 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 - **Legalább egy Rendszeradminisztrátor mindig van** (409 `last_admin`, változatlan).
 - **Minden színtérnek legalább egy Színtérgazdája van:** az utolsó Színtérgazda nem távolítható el és nem minősíthető vissza (409 `last_space_manager`).
 - **Egy színtérnek legalább három tagja kell legyen,** különben nincs két review-er az indítványozón kívül. Kevesebb tag esetén a Review-ra küldés nem érhető el, és a felület ezt jelzi (409 `not_enough_reviewers`).
-- **Review-er eltávolítása:** ha egy megjelölt review-er kikerül a színtérből vagy az allowlistről, a függő döntése megszűnik. Az indítványozó új review-ert jelöl, a másik review-er meglévő döntése megmarad.
+- **Review-er eltávolítása (D51b):** ha egy megjelölt review-er kikerül a színtérből vagy az allowlistről, a sora „megszűnt” jelölést kap (`reviewer_removed`), és a slot üres marad. A másik review-er meglévő döntése megmarad; az indítványozó új review-ert jelöl, a kérés addig nem dönthető el, a dashboard jelzi a pótlást.
 - **Allowlist-törlés:** nem törölhető, aki utolsó Színtérgazda, vagy aki dokumentum tulajdonosa (409 `owner_handover_required`, változatlan).
 - **Rendszeradminisztrátor saját magát veszi fel egy színtérbe:** további feltétel nélkül megteheti; külön esemény jelöli (`member_added`, `self_assigned: true`), értesítés nincs.
 - **Projekt-tér kérése:** bármely felhasználó kérheti (név, cél, javasolt Színtérgazda); a Rendszeradminisztrátor hagyja jóvá és hozza létre. A kérés a [[Nyomonkövetés/Feladat-dashboard|dashboardján]] jelenik meg.
@@ -122,7 +122,7 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 - ~~Entra ID csoportok?~~ **Döntve (D43):** jövőbeli munka.
 - ~~Projekt-tér létrehozása?~~ **Döntve (D43):** kérés + Rendszeradminisztrátori jóváhagyás.
 - ~~Lezárt projekt-tér szerepei?~~ **Döntve (D44):** megmaradnak, minden csak olvasható.
-- Nincs nyitott kérdés.
+- ❓ **Nyitott (NY11–NY19 a naplóban):** a dokumentum-tulajdonos átadásának végpontja, jogosultja és review-köteles volta (D31); a Rendszeradminisztrátor felülírási joga a felvételi kérések döntésében; a rendszerszintű audit láthatósága.
 
 ## Kapcsolódó döntések
 

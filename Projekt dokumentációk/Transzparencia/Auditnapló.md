@@ -22,6 +22,7 @@ Audit nézet (`#/audit`): az összes esemény egy táblázatban. Az eseménynapl
 ## Nyitott kérdések
 
 - ~~Ki láthatja az auditnaplót?~~ **Döntve (D43):** a dokumentum eseményeit a színtér tagjai; a színtér-szintű nézetet a Színtérgazda; a rendszerszintű naplót a Rendszeradminisztrátor.
+- ❓ **Nyitott (NY11–NY19 a naplóban):** a rendszerszintű audit láthatósága és a CSV-export szűrői/személyes adatai; a rendszeresemények („Rendszer” aktor, D51d) és a törölt dokumentumra mutató események („törölt dokumentum”, D51h) megjelenítése az audit nézetben.
 - ~~Exportálható legyen (CSV)?~~ **Döntve:** igen; a Színtérgazda a saját színteréről, a Rendszeradminisztrátor rendszerszinten.
 - ~~Pszeudonimizálás retenció után?~~ **Döntve (D48):** az eseménynapló 5 évig marad; a kilépő munkavállaló neve a retenciós idő után „Volt munkatárs #id”.
 

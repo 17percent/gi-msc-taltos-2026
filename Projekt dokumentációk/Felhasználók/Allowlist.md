@@ -26,6 +26,7 @@ Csak kifejezetten engedélyezett e-mail-címek léphessenek be, minden kérésn�
   - Az allowlist nem csökkenhet nullára: legalább egy Rendszeradminisztrátor mindig marad (409 `last_admin`).
 - ~~Inaktív tulajdonosok?~~ **Döntve (D49):** második ütem: Rendszeradminisztrátor-felület „inaktív tulajdonosok” listával (X napja nem lépett be), az átadáshoz. Kilépéskor a tulajdonjog átadása kötelező (D48).
 - ~~NY3: felület vagy konfiguráció?~~ **Döntve (D49):** MVP-ben konfiguráció, második ütemben felület.
+- ❓ **Nyitott (NY11–NY19 a naplóban):** az MVP-ben a konfigból töltött allowlist szemantikája (konfigból törlés = soft delete és a védelmek futtatása, újrafelvétel); honnan jön az első Rendszeradminisztrátor és az Általános színtér kezdeti Színtérgazdája.
 - ~~Entra ID csoportalapú belépés?~~ **Döntve (D43):** jövőbeli munka; addig az allowlist az egyetlen belépési feltétel.
 - ~~Ki az allowlist gazdája?~~ **Döntve (2026-10-23):** a Rendszeradminisztrátor (a korábbi Admin). Új tiltás: utolsó Színtérgazda sem törölhető az allowlistről. Lásd [[Felhasználók/Szerepkörök|Szerepkörök]].
 

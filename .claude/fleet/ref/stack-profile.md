@@ -95,7 +95,7 @@ A flotta általános jelei (pl. SQL/migráció, titok, kriptó) változatlanul �
 | Kérdés | Hol nézd |
 |---|---|
 | Aktuális architektúra, MVP, nyitott kockázatok | `Arch/tudasbazis-architektura-dontesi-naplo.md` (10. verzió), `README.md` |
-| Döntések indoklása (D1–D49), NY-pontok | `Arch/tudasbazis-architektura-dontesi-naplo.md` |
+| Döntések indoklása (D1–D51), NY-pontok | `Arch/tudasbazis-architektura-dontesi-naplo.md` |
 | Munkacsomag, sorrend, kész-kritérium | `Arch/tudasbazis-munkacsomagok-h5.md` |
 | Kőbe vésett fejlesztési szabályok | `Arch/CLAUDE.md` |
 | Tokenek, komponens-receptek, UI-szabályok | `Prototypes/taltos-design-system.md`, `Prototypes/.claude/CLAUDE.md` |

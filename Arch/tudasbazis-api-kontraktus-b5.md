@@ -1,6 +1,6 @@
 # Tudásbázis — API-kontraktus (B5, 10. verzió)
 
-*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29 és a D42–D49 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
+*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49 és a D51 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
 
 *Változás a korábbi B5-höz képest ([[Tervezés/Tervezés (negyedik kör)/tudasbazis-api-kontraktus-b5|B5, napló v6 szerint]]): a Git-szemantika (commit hash, push, reindex), a lock (D7) és a kategóriák (D19) megszűntek. Új: közös szerkesztés WebSocketen (D29), színterek és szerepek (D43, D44), review-folyamat (D45), dashboard és értesítési csatorna (D46), címkék és fajta (D34), kapcsolatok (D39), felülvizsgálat (D33).*
 
@@ -8,7 +8,7 @@
 
 | # | Döntés | Indoklás / ár |
 |---|---|---|
-| A1 | **Session: httpOnly cookie + CSRF-védelem** *(változatlan)*; abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc, a WebSocket-forgalom aktivitásnak számít (NY10) | A token soha nem jár a böngésző JS-terében. `SameSite=Lax` + double-submit CSRF-token a mutáló kéréseken. A WebSocket-upgrade ugyanazt a cookie-t használja, kötelező `Origin`-ellenőrzéssel (D29). |
+| A1 | **Session: httpOnly cookie + CSRF-védelem** *(változatlan)*; abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc, a WebSocket-forgalom aktivitásnak számít (NY10) | A token soha nem jár a böngésző JS-terében. `SameSite=Lax` + double-submit CSRF-token a mutáló kéréseken. A WebSocket-upgrade ugyanazt a cookie-t használja, kötelező `Origin`-ellenőrzéssel (D29). A munkamenet a Postgres `sessions` táblában él (D51a): újraindítást túlél, a kijelentkezés és az allowlistről levétel azonnal visszavonja; a `last_seen_at` írása legfeljebb percenként egyszer. |
 | A2 | **Hibaformátum: RFC 9457 Problem Details** + stabil `code` mező *(változatlan)* | A `code` kontraktus, a `detail` szövege szabadon változhat. |
 | A3 | **Mentés két szintje (D29):** a tartalom a `/collab` WebSocketen folyamatosan perzisztálódik; revíziót a `POST …/checkpoints` vagy a szerver (kilépés, tétlenség) hoz létre | A korábbi „mentés = commit” REST-végpont megszűnt. A checkpoint nem véglegesít: a Jóváhagyott állapot csak a review-döntéssel jön létre (D45). |
 | A4 | **Optimista ellenőrzés `baseRevisionId`-vel** a review-ra küldésen és a metaadat-változáson | A beküldés megmondja, melyik Jóváhagyott revízióra épül; ha közben más Jóváhagyott változás történt, **412 `stale_base_revision`**. |
@@ -30,7 +30,7 @@ Minden `/api/v1/*` végpont: allowlist-ellenőrzés kérésenként (D5) → hiá
 |---|---|---|
 | `GET /auth/login` | bárki | Redirect az OIDC szolgáltatóhoz (fejlesztésben is valódi Google, D49) |
 | `GET /auth/callback` | bárki | Code flow lezárása, session-cookie, `users` upsert, `last_login_at` |
-| `POST /auth/logout` | belépett | Session érvénytelenítése |
+| `POST /auth/logout` | belépett | A munkamenet visszavonása a `sessions` táblában (D51a) |
 | `GET /api/v1/me` | belépett | Név, e-mail, avatar, `systemRole`, a színterei szereppel, CSRF-token |
 | `GET /api/v1/me/dashboard` | belépett | A dashboard blokkjai (D46): `reviewRequests`, `ownRequests`, `changesRequested`, `reviewsDue`, `mentions`; Színtérgazdának `membershipRequests`, Rendszeradminnak `spaceRequests`. Query: `spaceId` (szűrő), `limit`. Elakadt review-k (3 munkanap) `stale: true` jelzővel. |
 
@@ -45,7 +45,7 @@ Minden `/api/v1/*` végpont: allowlist-ellenőrzés kérésenként (D5) → hiá
 | `GET /api/v1/spaces/:id/members` | tag | Tagok szereppel |
 | `POST /api/v1/spaces/:id/members` | Színtérgazda, Rendszeradmin | Felvétel: `{ userId, role }`. Rendszeradmin saját magát is felveheti (`self_assigned`, értesítés nélkül) |
 | `PATCH /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Szerepváltás (előléptetés, visszaminősítés) → `role_changed`; utolsó gazdánál **409 `last_space_manager`**; tulajdonos visszaminősítése nem érinti a tulajdonjogot |
-| `DELETE /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Eltávolítás; utolsó gazdánál **409 `last_space_manager`**; ha a tag tulajdonos, **409 `owner_handover_required`**; ha függő review-er, a döntése megszűnik |
+| `DELETE /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Eltávolítás; utolsó gazdánál **409 `last_space_manager`**; ha a tag tulajdonos, **409 `owner_handover_required`**; ha függő review-er, a helye megszűnik (D51b): a döntése elvész, a másik review-eré megmarad, a kérés a pótlásig nem dönthető el → `reviewer_removed`, az indítványozó dashboardján pótlandóként |
 | `POST /api/v1/spaces/:id/membership-requests` | nem tag | Felvétel kérése: `{ viaDocumentId?, message? }`; függő kérésnél **409 `request_pending`** |
 | `POST /api/v1/membership-requests/:id/decision` | Színtérgazda | `{ approve: boolean, role? }` |
 | `POST /api/v1/space-requests` | belépett | Projekt-tér kérése: `{ name, purpose, proposedManagerId }` |
@@ -55,21 +55,22 @@ Minden `/api/v1/*` végpont: allowlist-ellenőrzés kérésenként (D5) → hiá
 ### Dokumentumok (D44 láthatósággal)
 | Metódus + út | Ki | Leírás |
 |---|---|---|
-| `GET /api/v1/documents` | belépett | Lista + keresés a saját színterekből. Query: `q` (FTS + trgm, snippettel), `spaceId`, `kind`, `tag`, `reviewState` (`draft`, `pending`, `changes_requested`, `approved`), `owner`, `favorites=true`, `template=true`, `archived=true`, `limit`, `offset`. A szűrők az URL-ben élnek (D49). |
+| `GET /api/v1/documents` | belépett | Lista + keresés a saját színterekből. Query: `q` (FTS + trgm, snippettel), `spaceId`, `kind`, `tag`, `reviewState` (`draft`, `pending`, `changes_requested`, `approved`), `owner`, `favorites=true`, `template=true`, `archived=true`, `limit`, `offset`. A szűrők az URL-ben élnek (D49). A lista, a keresés és a facetek az élő (legutóbbi) metaadatot mutatják, állapotjelzővel (D51e). Az `archived=true` csak a valaha Jóváhagyott, archivált dokumentumokat adja, az eldobott piszkozatokat nem. |
 | `GET /api/v1/documents/similar?title=&spaceId=` | tag | Duplikátum-figyelmeztetés: legfeljebb 5 hasonló cím (D36, D49) |
 | `POST /api/v1/documents` | Szerző (a célszíntérben) | Létrehozás Piszkozatként: `{ spaceId, title, kind, tagIds?, sourceDocumentId? }`. Forrással = duplikálás bármely saját színtérből (D44); `szarmazik` kapcsolat, `duplicated_from` mindkét oldalon. Sablon forrásként: második ütem (D47). |
 | `GET /api/v1/documents/:id` | tag | Metaadat, a legutóbbi változat (függő is), `reviewState`, `approvedRevisionId`, `iteration`, a függő kérés, kedvenc és követés. Nem tagnak **403 `not_space_member`** (A10). |
-| `DELETE /api/v1/documents/:id/draft` | indítványozó | Soha be nem küldött piszkozat eldobása, review nélkül (D45); egyébként **409 `has_approved_revision`** |
-| `GET /api/v1/documents/:id/raw?frontmatter=true\|false` | tag | Nyers .md a legutóbbi Jóváhagyott revízióból; alapból frontmatter nélkül (D49) |
+| `DELETE /api/v1/documents/:id/draft` | indítványozó | Soha be nem küldött piszkozat eldobása, review nélkül (D45) → `draft_discarded`; a revízióival együtt 1 év után véglegesen törlődik (D51i). Egyébként **409 `has_approved_revision`** |
+| `GET /api/v1/documents/:id/raw?frontmatter=true\|false` | tag | Nyers .md a legutóbbi Jóváhagyott revízióból (tartalom és a revízió `metadata`-pillanatképe, D51e); alapból frontmatter nélkül (D49) |
 | `GET /api/v1/documents/:id/export?format=pdf\|docx` | tag | Pandoc-konverzió a Jóváhagyott revízióból (A7) |
-| `PUT /api/v1/documents/:id/favorite` · `DELETE …` | tag | Kedvenc (D18), idempotens |
-| `PUT /api/v1/documents/:id/subscription` · `DELETE …` | tag | Követés (D35), idempotens |
+| `PUT /api/v1/documents/:id/favorite` · `DELETE …` | tag | Kedvenc (D18), idempotens; a `DELETE` fizikai törlés (D51j) |
+| `PUT /api/v1/documents/:id/subscription` · `DELETE …` | tag | Követés (D35), idempotens; a `DELETE` fizikai törlés (D51j) |
 | `POST /api/v1/documents/:id/review-confirmation` | tag | „Még aktuális” (D33): új esedékesség, review nélkül → `review_confirmed` |
 
 ### Szerkesztés és revíziók (D29, D45)
 | Metódus + út | Ki | Leírás |
 |---|---|---|
-| `WS /collab` | tag | Hocuspocus: Yjs-szinkron és Awareness. `onAuthenticate`: session + allowlist + tagság (A9); írási jog csak Piszkozat vagy Átdolgozandó állapotban, Review-ra váró és lezárt térbeli dokumentumon `readOnly` |
+| `WS /collab` | tag | Hocuspocus: Yjs-szinkron és Awareness. `onAuthenticate`: session + allowlist + tagság (A9); írási jog csak Piszkozat vagy Átdolgozandó állapotban; Jóváhagyott, Review-ra váró és lezárt térbeli dokumentumon `readOnly` |
+| `POST /api/v1/documents/:id/edits` | Szerző | **„Módosítás indítása” (D51c):** Jóváhagyott dokumentumon új piszkozatot nyit a legutóbbi Jóváhagyott revízióból → `edit_started`; ettől írható a `/collab`. Már Piszkozat vagy Átdolgozandó állapotban idempotens (200). Függő kérésnél **409 `request_pending`**, lezárt projekt-térben **403 `space_closed`** |
 | `POST /api/v1/documents/:id/checkpoints` | Szerző | „Verzió mentése”: piszkozat-revízió `{ message? }` → `edited` esemény a `contributors`-szal |
 | `GET /api/v1/documents/:id/revisions` | tag | Revíziók listája (Jóváhagyott jelöléssel, `iteration`), lapozva |
 | `GET /api/v1/documents/:id/revisions/:revId` | tag | Tartalom és metaadat adott revízión |
@@ -78,11 +79,11 @@ Minden `/api/v1/*` végpont: allowlist-ellenőrzés kérésenként (D5) → hiá
 ### Review-folyamat (D45)
 | Metódus + út | Ki | Leírás |
 |---|---|---|
-| `POST /api/v1/documents/:id/change-requests` | Szerző | Beküldés: `{ kind: create\|update\|metadata\|restore\|delete, baseRevisionId, reviewerIds: [a, b], message?, metadata?, restoreFromRevisionId? }`. A piszkozatból javasolt revízió jön létre, a tartalom befagy. Hibák: **409 `request_pending`**, **409 `not_enough_reviewers`** (3 tag alatt), **422 `invalid_reviewers`** (nem tag, azonos vagy saját maga), **412 `stale_base_revision`** |
+| `POST /api/v1/documents/:id/change-requests` | Szerző | Beküldés: `{ kind: create\|update\|metadata\|restore\|delete\|unarchive, baseRevisionId, reviewerIds: [a, b], proposedReviewDueAt?, message?, metadata?, restoreFromRevisionId? }`. A piszkozatból javasolt revízió jön létre, a tartalom befagy. A `proposedReviewDueAt` a `create`, `update`, `metadata` és `restore` kérésnél kötelező (a felület 12 hónapra előtölti; a review tárgya, D51f), a `delete` és az `unarchive` kérésnél tilos. A `restore` régi revízióra állít vissza; az **`unarchive`** archívumból hoz vissza, javasolt revízió nélkül (D51g). Hibák: **409 `request_pending`**, **409 `not_enough_reviewers`** (3 tag alatt), **422 `invalid_reviewers`** (nem tag, azonos vagy saját maga), **412 `stale_base_revision`** |
 | `GET /api/v1/change-requests/:id` | tag | Kérés, review-erek döntésekkel, diff-hivatkozás |
-| `POST /api/v1/change-requests/:id/decision` | megjelölt review-er | `{ decision: approved\|rejected, reason? }`; elutasításnál `reason` kötelező (**422 `reason_required`**). A második jóváhagyás egy tranzakcióban véglegesít (`approved_revision_id`, `iteration`, archiváláskor `deleted_at`). Már lezárt kérésnél **409 `request_closed`** |
+| `POST /api/v1/change-requests/:id/decision` | megjelölt review-er | `{ decision: approved\|rejected, reason? }`; elutasításnál `reason` kötelező (**422 `reason_required`**). A második jóváhagyás egy tranzakcióban véglegesít (`approved_revision_id`, `iteration`, `review_due_at` a javasoltból; archiváláskor `deleted_at`, `unarchive`-nál `deleted_at = NULL`; `restore`-nál a revízió `metadata`-pillanatképe visszaíródik az élő táblákba, D51e). Dönteni csak két aktív review-er mellett lehet (megszűnt hely, D51b). Már lezárt kérésnél **409 `request_closed`** |
 | `POST /api/v1/change-requests/:id/withdraw` | indítványozó | Visszavonás → a dokumentum újra Piszkozat |
-| `POST /api/v1/change-requests/:id/reviewers/:reviewerId/replace` | indítványozó, Színtérgazda | `{ newReviewerId }` → `reviewer_replaced`; a másik review-er döntése megmarad |
+| `POST /api/v1/change-requests/:id/reviewers/:reviewerId/replace` | indítványozó, Színtérgazda | `{ newReviewerId }` → `reviewer_replaced`; aktív review-er cseréjére és megszűnt hely pótlására (D51b) is; a másik review-er döntése megmarad. Korábban lecserélt személy újra jelölhető |
 
 ### Kommentfolyam (A6, D20, D35)
 | Metódus + út | Ki | Leírás |
@@ -99,7 +100,7 @@ Minden `/api/v1/*` végpont: allowlist-ellenőrzés kérésenként (D5) → hiá
 | `GET /api/v1/kinds` · `POST /api/v1/kinds` | belépett · Rendszeradmin | Fajta-lista; bővítés csak Rendszeradminnak |
 | `GET /api/v1/documents/:id/links` | tag | Kimenő kapcsolatok és visszahivatkozások; idegen színtérbe mutatónál `{ hidden: true, spaceId }`, cím nélkül (D44) |
 
-A kapcsolatok és a címkék a piszkozat metaadatának részei: a tartalommal együtt a review-ra küldéskor véglegesednek (D45). Kivétel a cél tulajdonosának `helyettesíti`-törlése (V50): `DELETE /api/v1/links/:id/by-target`, rendszer-revízió review nélkül.
+A kapcsolatok és a címkék a piszkozat metaadatának részei: a tartalommal együtt a review-ra küldéskor véglegesednek (D45). Kivétel a cél tulajdonosának `helyettesíti`-törlése (V50): `DELETE /api/v1/links/:id/by-target`, rendszer-revízió review nélkül. *A rendszer-revízió pontos szemantikája (`approved_revision_id`, `iteration`, függő kérés vagy élő piszkozat mellett) és az idegen színtérbeli cél kezelése nyitott: NY13, NY14 — a WP16 előtt dől el.*
 
 ### Értesítések (D35, D46)
 | Metódus + út | Ki | Leírás |
@@ -111,14 +112,14 @@ A kapcsolatok és a címkék a piszkozat metaadatának részei: a tartalommal eg
 ### Audit és adminisztráció
 | Metódus + út | Ki | Leírás |
 |---|---|---|
-| `GET /api/v1/documents/:id/events` | tag | A dokumentum eseményei |
+| `GET /api/v1/documents/:id/events` | tag | A dokumentum eseményei; ember nélküli (cron) eseménynél `actor: null`, a felületen „Rendszer” (D51d) |
 | `GET /api/v1/spaces/:id/events?format=json\|csv` | Színtérgazda | Színtér-szintű audit, CSV-exporttal |
-| `GET /api/v1/events?format=json\|csv` | Rendszeradmin | Rendszerszintű audit (szűrők: `spaceId`, `documentId`, `type`, `actorId`, időablak) |
+| `GET /api/v1/events?format=json\|csv` | Rendszeradmin | Rendszerszintű audit (szűrők: `spaceId`, `documentId`, `type`, `actorId`, időablak). A véglegesen törölt dokumentumra mutató esemény „törölt dokumentum”-ként jelenik meg (D51h). *Hogy a Rendszeradmin mely mezőket láthatja (cím, komment-szöveg): NY17.* |
 | `GET /api/v1/admin/users` | Rendszeradmin | Felhasználók, `systemRole`, utolsó belépés |
 | `PUT /api/v1/admin/users/:id/system-role` | Rendszeradmin | `{ systemRole }`; utolsó adminnál **409 `last_admin`** |
-| `POST /api/v1/admin/users/:id/handover` | Rendszeradmin | Adminisztratív tulajdonos-átadás (`admin_handover`), ha a színtérnek nincs elérhető Színtérgazdája |
-| `GET /api/v1/admin/retention/preview` | Rendszeradmin | A következő végleges törlés tételei (D48) |
-| `PUT /api/v1/admin/retention/holds/:documentId` · `DELETE …` | Rendszeradmin | Legal hold (D48) |
+| `POST /api/v1/admin/users/:id/handover` | Rendszeradmin | Adminisztratív tulajdonos-átadás (`admin_handover`), ha a színtérnek nincs elérhető Színtérgazdája. *A rendes (tulajdonos vagy Színtérgazda általi) átadás végpontja nyitott: NY15.* |
+| `GET /api/v1/admin/retention/preview` | Rendszeradmin | *Második ütem (WP33).* A következő végleges törlés tételei (D48, D51i) |
+| `PUT /api/v1/admin/retention/holds/:documentId` · `DELETE …` | Rendszeradmin | *Második ütem (WP33).* Legal hold (D48); a hatóköre nyitott: NY19 |
 | `GET /healthz` | bárki | Liveness |
 
 Az allowlist az MVP-ben konfigurációból töltődik (D49); a karbantartó végpontok (`/admin/allowlist`) a második ütemben.
