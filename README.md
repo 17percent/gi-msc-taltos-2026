@@ -43,6 +43,8 @@ Utána: <http://localhost:8123>
 │   ├── Táltos – Áttekintés.md         a funkcionális egységek térképe, állapotjelöléssel
 │   ├── Dokumentumok/, Felhasználók/, Kollaboráció/, …   egységjegyzetek (funkcionális részletek)
 │   └── Tervezés/Tervezés (hetedik kör)/                 az aktuális tervkör (v10); a korábbi körök történetiek
+├── taltos-app/                        az alkalmazás: pnpm monorepo (apps/backend, apps/frontend, packages/shared), Compose — lásd taltos-app/README.md
+├── .github/workflows/taltos-app-ci.yml   CI: lint, formázás, typecheck, teszt, build + Compose-füstpróba
 ├── tools/sync_arch.py                 az Arch/ tükör frissítése / ellenőrzése a vaultból
 ├── Arch/                              Architektúra-terv, 10. verzió (a vault aktuális körének tükre — nem itt szerkesztjük)
 │   ├── tudasbazis-architektura-dontesi-naplo.md   D1–D49 döntések, követelmények, 20 pontos MVP, nyitott kérdések

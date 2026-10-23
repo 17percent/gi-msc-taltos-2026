@@ -1,0 +1,8 @@
+# Csak fejlesztés: a `docker compose up` automatikusan betölti.
+services:
+  # E-mail-mock (D11, D46): a levelek a webes felületen nézhetők meg (http://localhost:8025).
+  mailpit:
+    image: axllent/mailpit:v1.32
+    ports:
+      - '127.0.0.1:8025:8025'
+    restart: unless-stopped

@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # A CI-ban SHA-ra rögzített GitHub Actionök frissítése.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

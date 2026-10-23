@@ -2,12 +2,12 @@
 
 Forrás: `.claude/fleet/project/profile.md` (a `/configure-fleet` generálta, 2026-10-14; ezt a fájlt szerkeszd, utána futtasd újra: `py -3 .claude/fleet/tools/apply_project_overlay.py`).
 
-Szakdolgozati projekt (SZTE MSc), egyszemélyes fejlesztés, agent-delegált munkacsomagokkal. Webes, markdown-alapú tudásbázis egy kb. 200 fős szervezetnek; a tartalom elsősorban AI-eszközök (promptok, skillek, rendszerutasítások, sablonok, guide-ok, best practice-ek). **Állapot:** tervezési fázis — terv-dokumentumok, design system és egy kattintható vanília JS prototípus; az éles stack kódja még nem létezik (a WP0-val indul).
+Szakdolgozati projekt (SZTE MSc), egyszemélyes fejlesztés, agent-delegált munkacsomagokkal. Webes, markdown-alapú tudásbázis egy kb. 200 fős szervezetnek; a tartalom elsősorban AI-eszközök (promptok, skillek, rendszerutasítások, sablonok, guide-ok, best practice-ek). **Állapot:** tervezési fázis — terv-dokumentumok, design system és egy kattintható vanília JS prototípus; az éles stack váza (WP0) a `taltos-app/` mappában (2026-10-23); üzleti funkció még nincs benne.
 
 ## Rögzített tények
 
 - **Nyelv:** TypeScript end-to-end. Más futásidejű nyelv (C#, Python, Java) bevezetése architektúra-döntés.
-- **Monorepo (rögzített, tulajdonosi döntés):** pnpm workspaces — `apps/backend`, `apps/frontend`, `packages/shared` (közös típusok, API-kontraktus típusai).
+- **Monorepo (rögzített, tulajdonosi döntés):** pnpm workspaces a `taltos-app/` mappában (D50) — `apps/backend`, `apps/frontend`, `packages/shared` (közös típusok, API-kontraktus típusai).
 - **Backend:** Node.js + Fastify; JSON Schema validáció → code-first, generált OpenAPI. REST `/api/v1`.
 - **Adatréteg: PostgreSQL az EGYETLEN adatréteg** — tartalom, teljes revíziótörténet (`documents` + `document_revisions`, mentésenként teljes szövegű pillanatkép), generált keresőindex (`tsvector`, magyar konfiguráció, `GENERATED ALWAYS AS … STORED`, GIN, `pg_trgm`), színterek és tagság, review-kérések, címkék, kapcsolatok, értesítések, events, comments, favorites, allowlist, users (teljes lista: `Arch/tudasbazis-db-sema-b4.md`, 10. verzió). **Drizzle** a séma- és query-réteg; a keresési infrastruktúra és az append-only trigger kézi SQL-migrációban él.
 - **Nincs Git-alapú tárolás:** nincs Git source of truth, nincs lokális clone, nincs pg-boss queue, nincs GitService, nincs SSH-kulcs, nincs reindex/konzisztencia-őr. Az `Arch/` dokumentumok (10. verzió) már ezt a felépítést írják le.
@@ -51,15 +51,15 @@ A flotta általános jelei (pl. SQL/migráció, titok, kriptó) változatlanul �
 
 ## Kapuk
 
-- **Jelenleg nincs build/teszt kapu** (nincs `package.json`, nincs CI). Ne találj ki parancsot.
+- **Kapuk (a `taltos-app/`-ban futtatva; a pnpm legyen a PATH-on: `corepack enable`, vagy rendszergazda nélkül `corepack enable --install-directory <PATH-on lévő mappa> pnpm`; a `corepack pnpm …` előtag nem elég, mert a gyökér szkriptjei belül is `pnpm`-et hívnak):** `pnpm lint` (ESLint + typescript-eslint), `pnpm format:check` (Prettier), `pnpm typecheck`, `pnpm test` (Vitest), `pnpm build`; egyben: `pnpm check`. Compose-füstpróba: `pnpm secrets:init`, `docker compose up --build`, `node scripts/smoke.mjs`.
 - **Prototípus-ellenőrzés:** helyi szerver (`py -m http.server 8123 --directory Prototypes/tudasbazis-prototype`, vagy a `.claude/launch.json` „tudasbazis-prototype” konfigja), a böngésző-konzol hibamentes, a DS-checklist teljesül, mindkét témában ellenőrizve.
-- **A WP0 után (tervezett, még nem ellenőrzött):** CI-ben lint (ESLint + Prettier), typecheck, test, build pnpm-mel; a pontos parancsokat a WP0 rögzíti — onnantól azokat használd, és frissítsd ezt a profilt (`/configure-fleet`).
+- **CI:** `.github/workflows/taltos-app-ci.yml` — ugyanezek a kapuk + Compose-build és füstpróba (`docker compose -f compose.yaml up --wait`, `scripts/smoke.mjs`).
 - Windowson a `python` a Microsoft Store álparancsa; Pythonhoz `py -3`.
 
 ## Platform és munkafolyamat
 
 - Repó: GitHub, egyetlen hosszú életű ág: `main`; feature-ágak rövid életűek, fast-forwarddal kerülnek a `main`-re. Push csak kifejezett tulajdonosi jóváhagyással.
-- CI: a WP0 hozza létre (GitHub Actions, PR-en zöld). Compose: `docker compose up` a fejlesztői környezet.
+- CI: GitHub Actions (`.github/workflows/taltos-app-ci.yml`, push és PR esetén). Compose: `docker compose up` a `taltos-app/`-ban a fejlesztői környezet (a `compose.override.yaml` adja a Mailpitet).
 - Munkacsomagok: WP0–WP23, második ütem WP30–WP35 (`Arch/tudasbazis-munkacsomagok-h5.md`, 10. verzió) — sorrend, függőségek, kész-kritériumok; kockázat-előrehozott elemek: a közös szerkesztés spike (WP3, megállási feltétellel) és a láthatósági szűrés (WP4).
 - MVP: 20 pont (napló 5. fejezet); az export (.pdf/.docx, pandoc) hátrasorolt, elsőként esik ki; a dashboard (WP23) nem eshet ki.
 - Éles: céges infrastruktúra, Entra ID; Azure-specifikus munka csak kifejezett kérésre.
@@ -102,7 +102,7 @@ A flotta általános jelei (pl. SQL/migráció, titok, kriptó) változatlanul �
 | Prototípus döntései, visszajelzési körök | `Prototypes/tudasbazis-prototype/NOTES.md` |
 | DB-séma (B4), API-kontraktus (B5) | `Arch/tudasbazis-db-sema-b4.md`, `Arch/tudasbazis-api-kontraktus-b5.md` |
 | Jogosultsági mátrix, review-szabályok részletei | a vault egységjegyzetei: `Projekt dokumentációk/` (pl. `Felhasználók/Szerepkörök.md`, `Dokumentumok/Státusz-workflow.md`); térkép: `Projekt dokumentációk/Táltos – Áttekintés.md` |
-| Build/teszt parancsok | a WP0 után: gyökér `package.json`, `.github/workflows/` |
+| Build/teszt parancsok | `taltos-app/package.json`, `taltos-app/README.md`, `.github/workflows/taltos-app-ci.yml` |
 
 ## Közös szabályok (ebből a stackből következnek)
 

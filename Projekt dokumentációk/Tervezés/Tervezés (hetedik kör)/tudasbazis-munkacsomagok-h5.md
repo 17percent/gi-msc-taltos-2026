@@ -15,7 +15,7 @@
 ## Munkacsomagok
 
 ### WP0 — Skeleton, Compose, CI
-**Tartalom:** monorepo (pnpm workspaces: `apps/backend`, `apps/frontend`, `packages/shared`); Docker Compose (frontend, backend, Postgres, assets-volume — D15; dev-ben Mailpit — D46); GitHub Actions: lint, typecheck, test, build; secret-váz (D13). A reverse proxy WebSocket-upgrade-et enged a `/collab` és a `/ws/notifications` útvonalon (D29, D46).
+**Tartalom:** monorepo (pnpm workspaces: `apps/backend`, `apps/frontend`, `packages/shared`); Docker Compose (frontend, backend, Postgres, assets-volume — D15; dev-ben Mailpit — D46); GitHub Actions: lint, typecheck, test, build; secret-váz (D13). A reverse proxy WebSocket-upgrade-et enged a `/collab` és a `/ws/notifications` útvonalon (D29, D46); a proxy az nginx a frontend-konténerben, a monorepo helye a `taltos-app/` (D50).
 **Kész:** `docker compose up` után a backend és a frontend válaszol, mindkét WebSocket-útvonal fogad; CI zöld.
 **Függőség:** —
 

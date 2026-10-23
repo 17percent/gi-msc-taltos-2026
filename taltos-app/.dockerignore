@@ -1,0 +1,13 @@
+# A minták bármely mélységben illeszkednek (**/): egy apps/<x>/.env sem kerülhet a build-
+# kontextusba — a frontendnél a Vite a VITE_* értékeket a publikus bundle-be írná (D13).
+**/node_modules
+**/dist
+**/coverage
+**/.vite-temp
+**/secrets
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.log
+compose*.yaml

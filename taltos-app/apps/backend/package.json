@@ -1,0 +1,34 @@
+{
+  "name": "@taltos/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx watch --conditions=@taltos/source src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/proxy-addr": "^5.1.2",
+    "@fastify/websocket": "^11.3.4",
+    "@hocuspocus/server": "^4.7.1",
+    "@taltos/shared": "workspace:*",
+    "fastify": "^5.12.7",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.33"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
+    "ws": "^8.22.0"
+  }
+}

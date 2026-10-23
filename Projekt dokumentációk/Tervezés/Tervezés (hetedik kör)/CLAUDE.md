@@ -72,13 +72,13 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 
 ## Stack-rögzítés (nem újratárgyalható a napló nélkül)
 
-TypeScript end-to-end · Node.js + Fastify (JSON Schema → generált OpenAPI) · PostgreSQL + Drizzle · Yjs + Hocuspocus + CodeMirror 6 (`y-codemirror.next`) · Vite + React SPA + React Router · shadcn/ui + Tailwind + Motion · rehype-sanitize · Nodemailer (SMTP; dev: Mailpit) · pandoc (export) · Docker Compose · pnpm workspaces monorepo: `apps/backend`, `apps/frontend`, `packages/shared`. Worker queue nincs; ütemezett feladat cron-nal (D22).
+TypeScript end-to-end · Node.js + Fastify (JSON Schema → generált OpenAPI) · PostgreSQL + Drizzle · Yjs + Hocuspocus + CodeMirror 6 (`y-codemirror.next`) · Vite + React SPA + React Router · shadcn/ui + Tailwind + Motion · rehype-sanitize · Nodemailer (SMTP; dev: Mailpit) · pandoc (export) · Docker Compose + nginx (reverse proxy a frontend-konténerben, D50) · pnpm workspaces monorepo a kódrepó `taltos-app/` mappájában: `apps/backend`, `apps/frontend`, `packages/shared`. Worker queue nincs; ütemezett feladat cron-nal (D22). Kapuk: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build` (a `taltos-app/`-ban; a CI ugyanezt futtatja).
 
 ## Dokumentumtérkép
 
 | Fájl | Szerep |
 |---|---|
-| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D49, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
+| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D50, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
 | `tudasbazis-db-sema-b4.md` | Séma-referencia: Drizzle-kód, kézi SQL-migrációk, S1–S13 mikrodöntések, retenció táblánként |
 | `tudasbazis-api-kontraktus-b5.md` | API-referencia: A1–A12 elvek, végpontlista szerepkörrel, hibakód-katalógus |
 | `tudasbazis-munkacsomagok-h5.md` | WP0–WP23 + WP30–WP35: sorrend, függőségek, kész-kritériumok, kiesési sorrend |

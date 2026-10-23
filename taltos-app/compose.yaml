@@ -1,0 +1,73 @@
+# Táltos alap-Compose (WP0). Fejlesztésben a `docker compose up` a compose.override.yaml-t is
+# betölti (Mailpit); élesre csak ez a fájl: `docker compose -f compose.yaml up`.
+# Indulás előtt: `pnpm secrets:init` (a secrets/ mappa fájljai, lásd secrets/README.md).
+name: taltos
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: taltos
+      POSTGRES_USER: taltos
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    # A DB-szervernek a saját jelszava kell; az alkalmazás-secreteket csak a backend kapja (D13).
+    secrets: [db_password]
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U taltos -d taltos']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      APP_VERSION: ${APP_VERSION:-dev}
+      ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8080}
+      # A közvetlen proxy (a frontend-konténer nginx-e, D50) a Compose privát hálózatáról jön;
+      # a backend csak ezt az egy hopot bízza meg, a kliens saját X-Forwarded-For-ját nem.
+      TRUST_PROXY: uniquelocal
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+    secrets: [db_password, oidc_client_secret, smtp_password]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    ports:
+      - '${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080'
+    volumes:
+      - assets:/srv/static:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8080/healthz > /dev/null || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  assets:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  oidc_client_secret:
+    file: ./secrets/oidc_client_secret.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt

@@ -4,6 +4,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *Verzió: 10. — **Szerepkörök, zárt színterek és review-folyamat (2026-10-23):** a vault nyitott kérdéseinek és naplóütközéseinek átvizsgálása nyomán új D42–D49. Felülírva: D15 csatolmány-tilalma (D42), D30 nyitott olvasása (D44), D31 szerepkörei (D43), D32 jóváhagyása és a D29 V6–V7 szabálya (D45); módosítva: D17 (D47), D35 (D46), D4, D33, D36, D38, D39. NY3, NY4 lezárva, NY5 elvetve, NY8–NY10 új. Az MVP 20 pontos (új: személyes dashboard). A 9. verzió a `Tervezés (hatodik kör)` mappában változatlanul megmarad.*
 
+*10. verzió kiegészítése (2026-10-23, WP0): **D50** — reverse proxy (nginx a frontend-konténerben) és a fejlesztői eszközlánc.*
+
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
 
 *8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
@@ -455,6 +457,18 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **Munkamenet (NY10, D26):** abszolút lejárat 8 óra, tétlenségi kiléptetés 60 perc; a WebSocket-forgalom aktivitásnak számít.
 - **Dashboard (D46):** egy review 3 munkanap után számít elakadtnak (kiemelés, napi összefoglaló); a blokkok időrendben, színtér-szűrővel.
 - **Vészhelyzeti tükör (NY5): elvetve.** A backup elég; az elveszett vészhelyzeti olvashatóság vállalt korlát marad.
+
+### D50 — Reverse proxy és fejlesztői eszközlánc (WP0) *(új, 2026-10-23)*
+
+**Alternatívák:** külön Caddy-konténer automatikus TLS-sel; csak Vite dev-proxy, az éles proxy döntése később.
+**Döntés:**
+- **Reverse proxy: nginx a frontend-konténerben.** Ugyanaz az nginx szolgálja ki a buildelt SPA-t, és proxyzza a backendre a `/api/`, a `/healthz`, a `/collab` és a `/ws/notifications` útvonalat, az utóbbi kettőt WebSocket-upgrade-del és 1 órás idle timeouttal (D29, D46). Fejlesztésben ugyanezt a Vite dev-proxy végzi. Az alkalmazásszintű statikus képek (D15) az `assets` volume-ról a `/static/` útvonalon jelennek meg.
+- **Eszközlánc:** Node.js 24 LTS; pnpm a corepackon át (a verzió a `packageManager` mezőben); TypeScript 6.0 (a natív 7.x fordítót a typescript-eslint még nem támogatja); ESLint (typescript-eslint, típusinformációval) + Prettier; Vitest (backend, shared; frontend: jsdom + Testing Library). A Hocuspocus 4 egy `@fastify/websocket`-útvonalra kötve fut a Fastify-jal közös HTTP-szerveren.
+- **Elhelyezés:** a monorepo a kódrepó `taltos-app/` mappájában él; a CI a gyökér `.github/workflows/` mappájában, `taltos-app` munkakönyvtárral, a Compose-füstpróbával együtt.
+- **Compose:** `compose.yaml` (postgres, backend, frontend, assets-volume) + `compose.override.yaml` csak fejlesztésre (Mailpit). A secretek fájlból jönnek (`*_FILE`, D13); a Postgres csak a saját jelszavát kapja.
+
+**Indoklás:** nincs plusz konténer (a WP0 szolgáltatáslistája marad), és a böngésző egyetlen origint lát: a cookie- és CSRF-kezelés egyszerű marad (D26), a WebSocket-upgrade Origin-ellenőrzése (B5 A1) egy engedélyezett originre szűkül.
+**Vállalt ár:** TLS-terminálás nincs benne (élesben a céges infrastruktúra adja, vagy később kiegészítendő); az nginx-konfiguráció a frontend-image része, változása frontend-rebuildet kíván.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 

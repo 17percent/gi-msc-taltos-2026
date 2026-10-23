@@ -6,6 +6,18 @@
       "runtimeExecutable": "py",
       "runtimeArgs": ["-m", "http.server", "8123", "--directory", "Prototypes/tudasbazis-prototype"],
       "port": 8123
+    },
+    {
+      "name": "taltos-backend",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm", "--dir", "taltos-app", "--filter", "@taltos/backend", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "taltos-frontend",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm", "--dir", "taltos-app", "--filter", "@taltos/frontend", "dev"],
+      "port": 5173
     }
   ]
 }

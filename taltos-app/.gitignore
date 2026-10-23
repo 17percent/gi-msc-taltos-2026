@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite-temp/
+
+# Secretek és helyi környezet (D13), bármely mélységben: csak a README és a minta kerül a repóba.
+**/secrets/*
+!secrets/README.md
+**/.env
+**/.env.*
+!.env.example
+*.pem
+*.key
