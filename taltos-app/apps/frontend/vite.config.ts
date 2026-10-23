@@ -15,6 +15,7 @@ export default defineConfig({
     // Fejlesztésben a Vite proxyzza a backendet; élesben ugyanezt a frontend-konténer nginx-e (D50).
     proxy: {
       '/api': backend,
+      '/auth': backend,
       '/healthz': backend,
       '/collab': { target: backend, ws: true },
       '/ws': { target: backend, ws: true },
