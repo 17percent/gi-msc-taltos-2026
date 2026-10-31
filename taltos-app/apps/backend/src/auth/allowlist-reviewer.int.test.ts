@@ -100,4 +100,72 @@ describe.skipIf(!url)('allowlist-szinkron és a review-er helyek (PostgreSQL, C1
     await syncAllowlist(drizzle(db.app), wanted, NOW);
     expect((await h.events(space)).filter((e) => e.type === 'reviewer_removed')).toHaveLength(1);
   });
+
+  // S8 kiegészítés: a megtartott felhasználó helye a másik két védelmi ok mellett is érintetlen marad.
+  it.each([{ reason: 'last_space_manager' as const }, { reason: 'last_admin' as const }])(
+    'a védelem miatt megtartott felhasználó ($reason) függő helye nem szűnik meg, nincs esemény',
+    async ({ reason }) => {
+      const h = pgHarness(db);
+      const [protectedUser, keeper, other, init] = [
+        await h.user('protected', { admin: reason === 'last_admin' }),
+        await h.user('keeper'),
+        await h.user('other'),
+        await h.user('init'),
+      ];
+      const space = await h.space();
+      for (const u of [protectedUser, other, init]) await h.member(space, u);
+      await h.member(space, keeper, 'space_manager');
+      const doc = await h.document(space, keeper, {
+        pending: { initiatorId: init, reviewers: [protectedUser, other] },
+      });
+      if (reason === 'last_space_manager') {
+        // A védett felhasználó egy másik tér egyetlen gazdája (a review-er helye egy harmadik térben van).
+        await h.member(await h.space(), protectedUser, 'space_manager');
+      }
+
+      const wanted = [await emailOf(keeper), await emailOf(other), await emailOf(init)];
+      const result = await syncAllowlist(drizzle(db.app), wanted, NOW);
+
+      expect(result.removed).toBe(0);
+      expect(result.kept).toEqual([{ userId: protectedUser, reason }]);
+      expect((await h.activeReviewers(doc)).sort()).toEqual([other, protectedUser].sort());
+      expect((await h.events(space)).filter((e) => e.type === 'reviewer_removed')).toEqual([]);
+    },
+  );
+
+  it('a kiesett felhasználó függő helyei minden térben megszűnnek, térenként egy aktor nélküli esemény', async () => {
+    const h = pgHarness(db);
+    const [keeper, removed, other, init] = [
+      await h.user('keeper'),
+      await h.user('removed'),
+      await h.user('other'),
+      await h.user('init'),
+    ];
+    const [s1, s2] = [await h.space(), await h.space()];
+    for (const space of [s1, s2]) {
+      for (const u of [removed, other, init]) await h.member(space, u);
+      await h.member(space, keeper, 'space_manager');
+    }
+    const d1 = await h.document(s1, keeper, {
+      pending: { initiatorId: init, reviewers: [removed, other] },
+    });
+    const d2 = await h.document(s2, keeper, {
+      pending: { initiatorId: init, reviewers: [removed, other] },
+    });
+
+    const wanted = [await emailOf(keeper), await emailOf(other), await emailOf(init)];
+    const result = await syncAllowlist(drizzle(db.app), wanted, NOW);
+
+    expect(result.removed).toBe(1);
+    expect(await h.activeReviewers(d1)).toEqual([other]);
+    expect(await h.activeReviewers(d2)).toEqual([other]);
+    for (const [space, doc] of [
+      [s1, d1],
+      [s2, d2],
+    ] as const) {
+      expect((await h.events(space)).filter((e) => e.type === 'reviewer_removed')).toEqual([
+        expect.objectContaining({ actorId: null, documentId: doc, reason: 'allowlist_removed' }),
+      ]);
+    }
+  });
 });
