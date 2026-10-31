@@ -1,6 +1,6 @@
 import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type RouteOptions } from 'fastify';
 import { HEALTH_PATH, type HealthResponse } from '@taltos/shared';
 import { mutationOriginGate, sessionCookieName, type AuthContext } from './auth/guard.js';
 import type { OidcFlow } from './auth/oidc.js';
@@ -45,6 +45,8 @@ export interface BuildOptions {
   /** A `/collab` mentési debounce-a (alap: 2 mp / 10 mp); a tesztek rövidítik. */
   collabDebounceMs?: number;
   collabMaxDebounceMs?: number;
+  /** Minden regisztrált útvonalat megkap (a tesztek útvonal-leltárához: láthatósági eset minden olvasó végponton). */
+  onRoute?: (route: RouteOptions) => void;
 }
 
 export async function buildApp(
@@ -63,6 +65,8 @@ export async function buildApp(
     trustProxy: config.trustProxy === false ? false : trustImmediateProxy(config.trustProxy),
   });
 
+  // Az onRoute-hooknak az első útvonal előtt kell állnia; a gyerek-hatókörök öröklik.
+  if (options.onRoute) app.addHook('onRoute', options.onRoute);
   registerProblemHandlers(app);
   await app.register(cookie, { secret: auth.cookieSecret });
   await app.register(websocket, { options: { maxPayload: WS_MAX_PAYLOAD_BYTES } });
