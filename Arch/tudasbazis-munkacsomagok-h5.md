@@ -37,14 +37,16 @@
 **Függőség:** WP2
 
 ### WP4 — Szerepkörök, zárt színterek, láthatóság
+*Két szállításban (D56): **WP4a** — backend (policy, láthatóság, API-k, a `/collab` átállítása, tesztek); **WP4b** — felület. A WP5 és a WP6 csak a WP4a-ra épül; a WP4 a kettő együttesével kész.*
+
 **Tartalom:**
-- **Policy:** egyetlen `can(user, action, resource)` függvény a [[Felhasználók/Szerepkörök|jogosultsági mátrix]] szerint (Rendszeradmin, Színtérgazda, Szerző; D43). REST-middleware-ben és (a WP6-tól) a Hocuspocus `onAuthenticate`-ben is ezt hívja.
+- **Policy:** egyetlen `can(user, action, resource)` függvény a [[Felhasználók/Szerepkörök|jogosultsági mátrix]] szerint (Rendszeradmin, Színtérgazda, Szerző; D43). REST-middleware-ben és — már a WP4-ben (D56) — a Hocuspocus `onAuthenticate`-ben is ezt hívja; a WP3 ideiglenes tagság-ellenőrzése megszűnik.
 - **Láthatóság (D44):** „látható dokumentumok” lekérdezés-építő (aktív tagság), amelyet minden olvasó lekérdezés használ; nem tag → 403 `not_space_member` a színtér nevével és a Színtérgazdákkal, cím nélkül.
 - **Színterek:** létrehozás a kezdeti Színtérgazdával (Rendszeradmin), lezárás (csak olvasható; a függő review-kérések ugyanabban a tranzakcióban visszavonódnak, D55), leírás és szín (Színtérgazda); Általános egyetlen példányban.
 - **Tulajdonjog-átadás (D55):** `PUT …/owner` a tulajdonostól vagy a Színtérgazdától, review nélkül, aktív tagra (422 `invalid_new_owner`), `owner_changed` eseménnyel; az `admin_handover` végső esetként.
-- **Tagság:** felvétel, eltávolítás, előléptetés és visszaminősítés (Színtérgazda; Rendszeradmin felülírhat és saját magát is felveheti, `self_assigned`); 409 `last_space_manager`; tulajdonos eltávolítása átadás nélkül 409.
-- **Kérések (API):** projekt-tér kérése és döntése (D43); felvételi kérés és döntése (D44). A felületük a WP23 dashboardja.
-- **Felület:** *Adminisztráció* oldal (színterek, létrehozás, lezárás, Rendszeradminok); *Színtér beállításai* (tagok, szerepek, leírás, szín); színtérváltó a sidebarban.
+- **Tagság:** felvétel, eltávolítás, előléptetés és visszaminősítés (Színtérgazda; Rendszeradmin felülírhat és saját magát is felveheti a kért szerepbe, `self_assigned`); 409 `last_space_manager`; tulajdonos eltávolítása átadás nélkül 409 (csak archivált dokumentum tulajdonosa eltávolítható); függő kérés indítványozójának eltávolításakor a kérés visszavonódik; az Általánosból nem távolítható el tag; lezárt térben csak a Rendszeradmin kezeli a tagságot (D56). Felhasználókeresés: `GET /users?q=` (D56). A Rendszeradmin tagság nélkül is látja a taglistát.
+- **Kérések (API):** projekt-tér kérése és döntése (D43; szín jóváhagyáskor palettából, D56); felvételi kérés és döntése (D44; a Rendszeradmin is dönthet, de nem kérhet, D56). A felületük a WP23 dashboardja.
+- **Felület (WP4b):** *Adminisztráció* oldal (színterek, létrehozás, lezárás, Rendszeradminok); *Színtér beállításai* (tagok, szerepek, leírás, szín); színtérváltó a sidebarban. A tulajdonjog-átadás felülete a dokumentumnézettel jön (WP5/WP11), az egyéni színtér-szín a WP12-vel (D56).
 - **Események:** `space_*`, `member_*`, `role_changed`, `system_admin_*`, `*_requested`, `*_request_decided`, `owner_changed`, a lezáráskor `review_withdrawn` (rendszer, D55).
 **Kész:** táblavezérelt mátrixteszt (minden szerep × minden művelet); **láthatósági teszt minden addigi olvasó végponton** (nem tag nem kap címet, tartalmat, darabszámot); a védőszabályok (utolsó gazda, utolsó admin) teszteltek; a tulajdonjog-átadás (tulajdonos, Színtérgazda, nem tagra 422) és a lezáráskori automatikus visszavonás tesztelt (D55).
 **Függőség:** WP2
@@ -55,7 +57,7 @@
 **Függőség:** WP1, WP4
 
 ### WP6 — Közös szerkesztés élesítése (K1–K7)
-**Tartalom:** `onAuthenticate` (session, allowlist, `Origin`, tagság a WP4 policy-jával); **írás csak Piszkozat és Átdolgozandó állapotban**, Review-ra váró dokumentumon és lezárt térben `readOnly` (D45, D44); perzisztencia (`document_collab_state` + materializált `documents.content`, debounce); checkpoint-logika és „Verzió mentése” (`contributors`, opcionális üzenet); jelenlét-UI (minden néző tag az avatar-sorban, D49), kapcsolati állapot; offline (`y-indexeddb`); **szerkesztési élmény (D40):** teljes élő előnézet, helyi menü, lebegő formázósáv, hosszú nyomás érintőképernyőn, cellánkénti táblázatszerkesztés, billentyűparancsok, Tulajdonság-panel, forrásnézet-kapcsoló; keményítés (rate limit, méretkorlát, kapcsolatbontás tagság-visszavonáskor); a lock-kód és a lock-UI nem kerül át az SPA-ba. *(Megszűnt: „publikált → draft” az első írásra.)*
+**Tartalom:** `onAuthenticate` (session, allowlist, `Origin`, tagság a WP4 policy-jával — a bekötés már a WP4-ben megtörténik, D56; itt a nyitott kapcsolatok újraellenőrzése jön); **írás csak Piszkozat és Átdolgozandó állapotban**, Review-ra váró dokumentumon és lezárt térben `readOnly` (D45, D44); perzisztencia (`document_collab_state` + materializált `documents.content`, debounce); checkpoint-logika és „Verzió mentése” (`contributors`, opcionális üzenet); jelenlét-UI (minden néző tag az avatar-sorban, D49), kapcsolati állapot; offline (`y-indexeddb`); **szerkesztési élmény (D40):** teljes élő előnézet, helyi menü, lebegő formázósáv, hosszú nyomás érintőképernyőn, cellánkénti táblázatszerkesztés, billentyűparancsok, Tulajdonság-panel, forrásnézet-kapcsoló; keményítés (rate limit, méretkorlát, kapcsolatbontás tagság-visszavonáskor); a lock-kód és a lock-UI nem kerül át az SPA-ba. *(Megszűnt: „publikált → draft” az első írásra.)*
 **Kész:** konvergencia-teszt több böngészőkontextussal; read-only kapcsolat update-je elutasítva (Jóváhagyott a „Módosítás indítása” előtt, Review-ra vár, lezárt tér, nem tag; D51c); tagság visszavonásakor a kapcsolat bontódik; 20 egyidejű szerkesztő stabil; a helyi menü minden pontja billentyűzetről is elérhető.
 **Függőség:** WP3, WP4, WP5
 

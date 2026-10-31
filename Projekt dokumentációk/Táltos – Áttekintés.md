@@ -38,7 +38,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 | [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ · 📘 első Rendszeradmin: D52 · 📘 konfig-szinkron: D53 |
 | [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF, Postgres `sessions` tábla (D51a) | — | ⚙️ · 📘 D51a |
 | [[Felhasználók/Jogosultságok\|Jogosultságok]] | alapelvek; az érvényes mátrix a Szerepkörökben | 2 | 📘 D43, D44 |
-| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix | 2 | 📘 D43, D55 |
+| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix | 2 | 📘 D43, D55, D56 |
 
 ## Kollaboráció
 
@@ -101,6 +101,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 - ✅ **D52 (2026-10-23):** rendszerindítás — a friss telepítésen elsőként belépő felhasználó (a tulajdonos) az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája. Az NY18 első fele ezzel lezárva.
 - ✅ **D53 (2026-10-23):** a WP2 döntései — allowlist-szinkron a konfigból a 409-es védelmekkel (az NY18 ezzel teljesen lezárva), `openid-client` + `@fastify/cookie`, saját CSRF, minimális belépő felület.
 - ✅ **D54 (2026-10-23, a WP2 review-ja):** az első Rendszeradmin csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (addig mások `setup_pending`); az archivált dokumentum tulajdonosa kivehető az allowlistből.
+- ✅ **D56 (2026-10-31, a WP4 tervezése):** a WP4 részletszabályai (felhasználókeresés, taglista adminnak, lezárt tér admin-kivételei, `admin_handover`, Általános tagsága, tag-eltávolítás, kérések, lezárás, név/típus) és a WP4a/WP4b bontás.
 - ✅ **D55 (2026-10-31, WP4 előtt):** tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket.
 - ❓ **Nyitott a naplóban: NY11–NY14, NY16, NY17, NY19** (többek közt: említés-formátum, címkék láthatósága színtereken át, kapcsolat-típus tárolása, cross-space értesítés, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
 - Nyitott a naplóban: **NY8** (pilot összehasonlítási alapja), **NY9** (pilot hozzáférése és moderálása), ~~NY10~~ (lezárva: 8 óra / 60 perc).

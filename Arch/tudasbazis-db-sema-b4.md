@@ -343,7 +343,8 @@ export const events = pgTable('events', {
   index('events_created_brin').using('brin', t.createdAt),     // D51: retenció és időablak; append-only, korrelált → BRIN (az events_type_idx megszűnt)
   check('events_actor_required', sql`${t.actorId} IS NOT NULL OR ${t.type} IN (
     'review_due_soon','review_due','review_reminder','review_stalled',
-    'allowlist_added','allowlist_removed','user_pseudonymized','retention_purge')`),   // D51 d: új rendszer-típus = migráció
+    'allowlist_added','allowlist_removed','user_pseudonymized','retention_purge','system_bootstrapped')
+    OR (${t.type} = 'review_withdrawn' AND ${t.details}->>'reason' = 'space_closed')`),   // D51 d: új rendszer-típus = migráció; D52 (0007), D56 (szűk kivétel)
   check('events_document_has_space', sql`${t.documentId} IS NULL OR ${t.spaceId} IS NOT NULL`),   // D51
 ]);
 
@@ -396,7 +397,7 @@ export const notifications = pgTable('notifications', {
 | Csoport | Típusok |
 |---|---|
 | Dokumentum | `created`, `edited` (checkpoint, `contributors`-szal), `renamed`, `duplicated_from` (mindkét oldalon), `imported_from` (D47, 2. ütem), `archived`, `unarchived` (D51 g), `restored` (régi revízióra visszaállítás, D51 g), `edit_started` (Jóváhagyott → Piszkozat, D51 c), `draft_discarded` (D51), `owner_changed` (ok: `handover` \| `admin_handover`) |
-| Review (D45) | `review_requested`, `review_approved`, `review_rejected` (indoklással, kommentként vetítve), `review_withdrawn` (rendszeresemény is, ok: `space_closed`, D55), `reviewer_replaced`, `reviewer_removed` (D51 b), `review_stalled` (rendszer, D49), `change_approved`, `change_rejected` |
+| Review (D45) | `review_requested`, `review_approved`, `review_rejected` (indoklással, kommentként vetítve), `review_withdrawn` (ok: `space_closed` aktor nélkül, D55; `member_removed` az eltávolító aktorral, D56), `reviewer_replaced`, `reviewer_removed` (D51 b), `review_stalled` (rendszer, D49), `change_approved`, `change_rejected` |
 | Felülvizsgálat (D33) | `review_due_set`, `review_due_soon` (rendszer), `review_due` (rendszer), `review_reminder` (rendszer), `review_confirmed` |
 | Kapcsolat (D39) | `link_added`, `link_removed`, `link_removed_by_target` |
 | Komment (D20) | `comment_created`, `comment_edited` (details: korábbi tartalom), `comment_deleted` |
@@ -404,7 +405,7 @@ export const notifications = pgTable('notifications', {
 | Színtér és szerep (D30, D43, D44) | `space_requested`, `space_request_decided`, `space_created`, `space_updated` (D51: leírás, szín, név, típus), `space_closed`, `space_manager_assigned`, `member_added` (`self_assigned` jelzővel), `member_removed`, `role_changed`, `membership_requested`, `membership_request_decided` |
 | Rendszer (D43, D48, D52) | `system_bootstrapped` (rendszer; D52: az első felhasználó Rendszeradmin és az Általános kezdő Színtérgazdája lesz; a CHECK-listába a WP2 migrációja veszi fel), `system_admin_granted`, `system_admin_revoked`, `allowlist_added` (rendszer, ha konfigból), `allowlist_removed` (rendszer, ha konfigból), `user_pseudonymized` (rendszer), `retention_purge` (rendszer; összesítő, tételek nélkül) |
 
-**Aktor nélküli (rendszer) típusok (D51 d):** `review_due_soon`, `review_due`, `review_reminder`, `review_stalled`, `allowlist_added`, `allowlist_removed`, `user_pseudonymized`, `retention_purge` - csak ezeknél lehet az `events.actor_id` NULL (CHECK `events_actor_required`); a felület „Rendszer”-ként mutatja. Az `allowlist_*` típusnál az aktor akkor is kitöltendő, ha a Rendszeradmin végzi (2. ütem). Az idle-checkpoint `edited` eseményének aktora az utolsó szerkesztő.
+**Aktor nélküli (rendszer) típusok (D51 d):** `review_due_soon`, `review_due`, `review_reminder`, `review_stalled`, `allowlist_added`, `allowlist_removed`, `user_pseudonymized`, `retention_purge`, `system_bootstrapped` (D52), valamint szűk kivételként a `review_withdrawn`, de csak `details.reason = 'space_closed'` esetén (D55, D56) - csak ezeknél lehet az `events.actor_id` NULL (CHECK `events_actor_required`); a felület „Rendszer”-ként mutatja. Az `allowlist_*` típusnál az aktor akkor is kitöltendő, ha a Rendszeradmin végzi (2. ütem). Az idle-checkpoint `edited` eseményének aktora az utolsó szerkesztő.
 
 **Nem naplózott műveletek (kimondva, D51):** kedvenc, követés, egyéni színtér-szín, értesítés olvasottra jelölése, és minden olvasás (D18). Minden más mutáló művelet eseményt ír.
 

@@ -40,7 +40,7 @@ A színtér egyszerre lehet **csapat-munkatér** és **projekt-tér**. Ugyanaz a
 - **Felületen:** színtérváltó a sidebarban; az Atlasz és a lista alapból az aktuális színteret mutatja, „Összes színtér” nézettel; a színtér facetként is szűrhető.
 - **Adatmodell:** `spaces (id, name, type, description, color, closed_at, deleted_at)` (a `color` az Atlasz alapszíne, V28), `user_space_colors (user_id, space_id, color)` (egyéni felülírás), `space_members (space_id, user_id, role)`.
 - **Események:** `space_created`, `space_closed`, `space_updated` (leírás, szín), `member_added`, `member_removed`, `role_changed`, `space_manager_assigned`, `space_requested`, `membership_requested` stb.
-- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható (D44). A lezáráskor függő review-kérések automatikusan visszavonódnak (D55). A lezárt tér archiválása: ❓ nyitott.
+- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható (D44). A lezáráskor függő review-kérések automatikusan visszavonódnak (D55). Csak projekt-tér zárható le (más típus 403, ismételt lezárás idempotens); lezárt térben csak a Rendszeradmin tagkezelése és adminisztratív átadása engedett; a projekt-tér kérésekor a színt a Rendszeradmin jóváhagyáskor választja egy rögzített palettából; a színtér neve adminnak módosítható, a típusa nem (D56). A lezárt tér archiválása: ❓ nyitott.
 
 ## Kapcsolódó döntések
 

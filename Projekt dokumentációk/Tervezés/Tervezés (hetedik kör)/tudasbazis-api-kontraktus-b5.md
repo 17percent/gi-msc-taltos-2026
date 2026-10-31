@@ -1,6 +1,6 @@
 # Tudásbázis — API-kontraktus (B5, 10. verzió)
 
-*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51 és a D55 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
+*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51, a D55 és a D56 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
 
 *Változás a korábbi B5-höz képest ([[Tervezés/Tervezés (negyedik kör)/tudasbazis-api-kontraktus-b5|B5, napló v6 szerint]]): a Git-szemantika (commit hash, push, reindex), a lock (D7) és a kategóriák (D19) megszűntek. Új: közös szerkesztés WebSocketen (D29), színterek és szerepek (D43, D44), review-folyamat (D45), dashboard és értesítési csatorna (D46), címkék és fajta (D34), kapcsolatok (D39), felülvizsgálat (D33).*
 
@@ -40,17 +40,18 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 | `GET /api/v1/spaces` | belépett | A saját színterek; Rendszeradminnak az összes (csak metaadat, tartalom nélkül) |
 | `GET /api/v1/spaces/:id` | tag, Rendszeradmin | Név, típus, leírás, szín, lezárt-e, Színtérgazdák, taglétszám |
 | `POST /api/v1/spaces` | Rendszeradmin | Létrehozás: `{ name, type, description, color, initialManagerId }` → `space_created`, `space_manager_assigned` |
-| `PATCH /api/v1/spaces/:id` | Színtérgazda, Rendszeradmin | Leírás, szín (D37); a név és a típus csak Rendszeradminnak |
-| `POST /api/v1/spaces/:id/close` | Rendszeradmin | Projekt-tér lezárása: minden csak olvasható (D44). Ugyanabban a tranzakcióban a tér függő review-kérései visszavonódnak (D55): `review_withdrawn` rendszeresemény NULL aktorral, ok: `space_closed`; a dokumentum újra Piszkozat (csak olvasható); értesítés az indítványozónak és a review-ereknek |
-| `GET /api/v1/spaces/:id/members` | tag | Tagok szereppel |
-| `POST /api/v1/spaces/:id/members` | Színtérgazda, Rendszeradmin | Felvétel: `{ userId, role }`. Rendszeradmin saját magát is felveheti (`self_assigned`, értesítés nélkül) |
+| `PATCH /api/v1/spaces/:id` | Színtérgazda, Rendszeradmin | Leírás, szín (D37); a nevet csak a Rendszeradmin módosíthatja; a típus nem változtatható (D56). Lezárt térben **403 `space_closed`** |
+| `POST /api/v1/spaces/:id/close` | Rendszeradmin | Projekt-tér lezárása: minden csak olvasható (D44), kivéve a Rendszeradmin tagkezelését és `admin_handover`-ét (D56). Ugyanabban a tranzakcióban a tér függő review-kérései visszavonódnak (D55): `review_withdrawn` rendszeresemény NULL aktorral, ok: `space_closed`; a dokumentum újra Piszkozat (csak olvasható); az értesítést a WP10 köti rá (D56). Nem projekt-tér: **403 `forbidden`**; már lezárt tér: idempotens 200 (D56) |
+| `GET /api/v1/spaces/:id/members` | tag, Rendszeradmin | Tagok szereppel; a Rendszeradmin tagság nélkül is látja (tartalmat nem, D56) |
+| `POST /api/v1/spaces/:id/members` | Színtérgazda, Rendszeradmin | Felvétel: `{ userId, role }` (a jelölt a `GET /api/v1/users` keresőből). Rendszeradmin saját magát is felveheti a kért szerepbe (`self_assigned`, értesítés nélkül, D56). Lezárt térben csak a Rendszeradmin (D56) |
 | `PATCH /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Szerepváltás (előléptetés, visszaminősítés) → `role_changed`; utolsó gazdánál **409 `last_space_manager`**; tulajdonos visszaminősítése nem érinti a tulajdonjogot |
-| `DELETE /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Eltávolítás; utolsó gazdánál **409 `last_space_manager`**; ha a tag tulajdonos, **409 `owner_handover_required`**; ha függő review-er, a helye megszűnik (D51b): a döntése elvész, a másik review-eré megmarad, a kérés a pótlásig nem dönthető el → `reviewer_removed`, az indítványozó dashboardján pótlandóként |
-| `POST /api/v1/spaces/:id/membership-requests` | nem tag | Felvétel kérése: `{ viaDocumentId?, message? }`; függő kérésnél **409 `request_pending`** |
-| `POST /api/v1/membership-requests/:id/decision` | Színtérgazda | `{ approve: boolean, role? }` |
-| `POST /api/v1/space-requests` | belépett | Projekt-tér kérése: `{ name, purpose, proposedManagerId }` |
-| `POST /api/v1/space-requests/:id/decision` | Rendszeradmin | `{ approve: boolean, color? }` → jóváhagyáskor a színtér létrejön |
-| `PUT /api/v1/spaces/:id/color` | tag | Egyéni Atlasz-szín (D37), privát, nem naplózott |
+| `DELETE /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Eltávolítás; utolsó gazdánál **409 `last_space_manager`**; ha a tag archiválatlan dokumentum tulajdonosa, **409 `owner_handover_required`** (csak archivált dokumentumok tulajdonosa eltávolítható, D56); ha függő review-er, a helye megszűnik (D51b): a döntése elvész, a másik review-eré megmarad, a kérés a pótlásig nem dönthető el → `reviewer_removed`, az indítványozó dashboardján pótlandóként; ha függő kérés indítványozója, a kérés visszavonódik (`review_withdrawn`, ok: `member_removed`, D56). Az Általánosból nem távolítható el tag: **403 `forbidden`** (D56). Lezárt térben csak a Rendszeradmin |
+| `POST /api/v1/spaces/:id/membership-requests` | nem tag (Rendszeradmin nem: önfelvétel) | Felvétel kérése: `{ viaDocumentId?, message? }`; függő kérésnél **409 `request_pending`**; Rendszeradminnak **403 `forbidden`** (D56) |
+| `POST /api/v1/membership-requests/:id/decision` | Színtérgazda, Rendszeradmin | `{ approve: boolean, role? }` (a Rendszeradmin is dönthet, D56) |
+| `POST /api/v1/space-requests` | belépett | Projekt-tér kérése: `{ name, purpose, proposedManagerId }` (a javasolt gazda a `GET /api/v1/users` keresőből) |
+| `POST /api/v1/space-requests/:id/decision` | Rendszeradmin | `{ approve: boolean, color? }`; jóváhagyáskor a `color` kötelező, egy rögzített hex-palettából; a színtér `project` típussal, a `purpose` leírásként jön létre; elutasítási indoklás nincs (D56) |
+| `GET /api/v1/users?q=` | belépett | **Felhasználókeresés (D56):** név szerint, legalább 2 karakter, legfeljebb 10 találat; csak `id`, `displayName`, `avatarUrl` (e-mail nem); az allowlistről levett felhasználó nem jelenik meg |
+| `PUT /api/v1/spaces/:id/color` | tag | Egyéni Atlasz-szín (D37), privát, nem naplózott. *A WP12 része (D56).* |
 
 ### Dokumentumok (D44 láthatósággal)
 | Metódus + út | Ki | Leírás |
@@ -118,7 +119,7 @@ A kapcsolatok és a címkék a piszkozat metaadatának részei: a tartalommal eg
 | `GET /api/v1/events?format=json\|csv` | Rendszeradmin | Rendszerszintű audit (szűrők: `spaceId`, `documentId`, `type`, `actorId`, időablak). A véglegesen törölt dokumentumra mutató esemény „törölt dokumentum”-ként jelenik meg (D51h). *Hogy a Rendszeradmin mely mezőket láthatja (cím, komment-szöveg): NY17.* |
 | `GET /api/v1/admin/users` | Rendszeradmin | Felhasználók, `systemRole`, utolsó belépés |
 | `PUT /api/v1/admin/users/:id/system-role` | Rendszeradmin | `{ systemRole }`; utolsó adminnál **409 `last_admin`** |
-| `POST /api/v1/admin/users/:id/handover` | Rendszeradmin | Adminisztratív tulajdonos-átadás (`admin_handover`), ha a színtérnek nincs elérhető Színtérgazdája. A rendes átadás: `PUT /api/v1/documents/:id/owner` (D55). |
+| `POST /api/v1/admin/users/:id/handover` | Rendszeradmin | Adminisztratív tulajdonos-átadás (`admin_handover`, D56): `{ spaceId, newOwnerId }`; a felhasználó adott színtérbeli összes (archivált is) dokumentuma az új, aktív tagra kerül; bármikor hívható, lezárt térben is; dokumentumonként `owner_changed` (ok: `admin_handover`). Nem aktív tagra **422 `invalid_new_owner`**. A rendes átadás: `PUT /api/v1/documents/:id/owner` (D55). |
 | `GET /api/v1/admin/retention/preview` | Rendszeradmin | *Második ütem (WP33).* A következő végleges törlés tételei (D48, D51i) |
 | `PUT /api/v1/admin/retention/holds/:documentId` · `DELETE …` | Rendszeradmin | *Második ütem (WP33).* Legal hold (D48); a hatóköre nyitott: NY19 |
 | `GET /healthz` | bárki | Liveness |

@@ -16,6 +16,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, a WP2 review-ja): **D54** — a rendszerindítás csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (a D52 módosítása; addig mások `setup_pending`), az archivált dokumentum tulajdonosa kivehető az allowlistből (a D53 pontosítása).*
 
+*10. verzió kiegészítése (2026-10-31, a WP4 tervezése): **D56** — a WP4 részletszabályai (aktor nélküli visszavonás szűk kivétele, `GET /users`, taglista adminnak, lezárt tér admin-kivételei, `admin_handover` törzse, Általános tagsága, tag-eltávolítás, kérések, lezárás, név és típus) és a WP4a/WP4b bontás.*
+
 *10. verzió kiegészítése (2026-10-31, WP4 előtt): **D55** — tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (az NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket (az NY19 WP4-es pontja lezárva).*
 
 *10. verzió kiegészítése (2026-10-31, WP3 előtt): **NY19 ütemezése** — a Yjs-generáció kérdése a WP3 helyett a WP6 előtt dől el (a tulajdonos döntése; a spike nem használ `y-indexeddb`-t, így nincs helyi gyorsítótár). Új D-pont nincs.*
@@ -555,6 +557,29 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Indoklás:** a tulajdonos és a gazda a természetes felelős; admin csak végső eset legyen. A tulajdonjog szervezési adat, nem tartalom, ezért a négy szem elve nem vonatkozik rá (mint a tagság- és szerepkezelésre). A lezárás a „minden csak olvasható” szabályt (D44) kivétel nélkül tartja, és nem hagy dönthetetlen kérést.
 **Vállalt ár:** a tulajdonjog review nélkül változhat (az esemény és az értesítés teszi követhetővé); lezáráskor a folyamatban lévő review-munka elvész (a kérés visszavonva, a javasolt revízió a revíziótörténetben megmarad).
+
+### D56 — A WP4 részletszabályai: tagság, lezárt tér, kérések, felhasználókeresés *(új, 2026-10-31 — a WP4 dispatch-tervének 17 nyitott kérdésére; kiegészíti a D43, D44, D51, D55 pontot)*
+
+**Előzmény:** a WP4 tervezése 17 pontot talált, amelyet a napló, a B4, a B5 és a vault nem, vagy egymásnak ellentmondva rendezett (pl. a D55 aktor nélküli eseménye és az `events_actor_required` CHECK, a mátrix és a B5 eltérései).
+**Döntés (tulajdonos, pontonként, az ajánlott opciókkal):**
+- **Aktor nélküli visszavonás:** a `review_withdrawn` csak `reason = space_closed` esetén lehet NULL aktorú; az `events_actor_required` CHECK erre a szűk kivételre bővül (új migráció). Minden más visszavonásnak van aktora.
+- **Értesítés:** a WP4 csak eseményt ír (közös `recordEvent`); a D55 értesítéseit a WP10 köti rá, a hiányzó értesítési kategóriát ott, naplóponttal veszi fel.
+- **`/collab` a policy-n:** a WP3 ideiglenes tagság-ellenőrzését már a WP4 cseréli a `can()`-re (nem a WP6), így egyetlen policy-pont él.
+- **Felhasználókeresés:** új `GET /api/v1/users?q=` (belépett felhasználónak; csak azonosító, név, avatar; legalább 2 karakter, legfeljebb 10 találat) a tagfelvételhez és a projekt-tér kérésének javasolt gazdájához.
+- **Taglista:** a nem tag Rendszeradmin is látja a színtér tagjait és szerepeit (tartalmat továbbra sem).
+- **Lezárt projekt-tér:** minden módosítás tiltott (403 `space_closed`), kivéve a Rendszeradmin tagkezelését és `admin_handover`-ét, hogy a távozó kolléga levehető legyen az allowlistről.
+- **`admin_handover`:** törzs `{ spaceId, newOwnerId }`; a felhasználó adott színtérbeli összes (archivált is) dokumentuma az új, aktív tagra kerül; a Rendszeradmin bármikor hívhatja, lezárt térben is; `owner_changed` (ok: `admin_handover`).
+- **Általános színtér:** tagot eltávolítani tilos (403 `forbidden`); szerepváltás engedett. Kilépés csak az allowlistről.
+- **Tag eltávolítása:** aki a színtérben csak archivált dokumentumok tulajdonosa, eltávolítható (a D54 analógiája). Ha a tag egy függő review-kérés indítványozója, a kérés ugyanabban a tranzakcióban visszavonódik (`review_withdrawn`, ok: `member_removed`, aktor: az eltávolító), a dokumentum újra Piszkozat.
+- **Felvételi kérés:** a Rendszeradmin is dönthet róla. Nem tag Rendszeradmin felvételt nem kérhet (403; helyette önfelvétel), projekt-teret igen.
+- **Önfelvétel:** a Rendszeradmin a kért szerepbe (Szerző vagy Színtérgazda) veheti fel magát (`self_assigned`).
+- **Lezárás:** csak projekt-tér zárható le; más típus 403 `forbidden`; a már lezárt tér újbóli lezárása idempotens (200).
+- **Projekt-tér kérése:** a létrejövő tér `project` típusú, leírása a kérés célja; a színét a Rendszeradmin jóváhagyáskor választja egy rögzített hex-palettából; elutasítási indoklás nincs.
+- **Színtér neve és típusa:** a nevet a Rendszeradmin módosíthatja; a típus létrehozás után nem változik.
+- **Hatókör:** a tulajdonjog-átadás felülete a dokumentumnézettel jön (WP5/WP11), a WP4-ben csak API; az egyéni színtér-szín (`PUT /spaces/:id/color`, D37) a WP12-é. A WP4 két szállításra bomlik: **WP4a** (backend: policy, láthatóság, API-k, `/collab`, tesztek) és **WP4b** (felület); a WP4 a kettő együttesével kész.
+
+**Indoklás:** egyetlen policy-pont és szivárgásmentes láthatóság (D44) a lehető legkorábban; a védőszabályok (utolsó gazda, utolsó admin, tulajdonos) ne ragasszanak be felhasználót vagy dokumentumot; a mátrix és a B5 egy forrásra igazodjon.
+**Vállalt ár:** egy új végpont (`GET /users`) és egy migráció (CHECK-bővítés); a Rendszeradmin tagkezelése lezárt térben kivétel a „minden csak olvasható” alól; a WP4-ben a D55 értesítései még nem mennek ki.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 

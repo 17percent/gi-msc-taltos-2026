@@ -62,18 +62,24 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 | Review-erként jóváhagyás, elutasítás indoklással | – | (✓) ² | (✓) ² | – |
 | Saját indítvány visszavonása | – | ✓ | ✓ | – |
 | „Még aktuális” megerősítés (D33) | – | ✓ | ✓ | – |
-| Tagok felvétele, eltávolítása | – | – | ✓ | ✓ |
+| Tagok felvétele, eltávolítása ³ | – | – | ✓ | ✓ |
 | Előléptetés Színtérgazdává, visszaminősítés Szerzővé | – | – | ✓ | ✓ |
+| Tulajdonjog-átadás (D55, D56) | – | (✓) ⁴ | ✓ | ✓ ⁵ |
 | Színtér leírása, színe (D37) | – | – | ✓ | ✓ |
+| Színtér neve (a típus nem változik, D56) | – | – | – | ✓ |
 | Színtér-szintű auditnézet, CSV-export | – | – | ✓ | – |
-| Felvétel kérése egy színtérbe | ✓ | – | – | – |
-| Projekt-tér kérése | ✓ | ✓ | ✓ | – |
-| Színtér létrehozása a kezdeti Színtérgazdával, lezárása | – | – | – | ✓ |
+| Felvétel kérése egy színtérbe | ✓ | – | – | – (önfelvétel, D56) |
+| Felvételi kérés döntése (D56) | – | – | ✓ | ✓ |
+| Projekt-tér kérése | ✓ | ✓ | ✓ | ✓ (D56) |
+| Színtér létrehozása a kezdeti Színtérgazdával, lezárása (csak projekt-tér) | – | – | – | ✓ |
 | Allowlist, Rendszeradminisztrátorok, fajta-lista | – | – | – | ✓ |
 | Rendszerszintű auditnapló, CSV-export | – | – | – | ✓ |
 
 ¹ Csak a színtér adatai látszanak (név, tagok, Színtérgazdák), a tartalom nem. Ezek kellenek az adminisztrációhoz.
 ² Csak ha az adott változáshoz review-erként megjelölték. Saját indítványát senki nem hagyhatja jóvá.
+³ Az Általánosból tag nem távolítható el (szerepe változtatható). Lezárt projekt-térben minden módosítás tiltott, kivéve a Rendszeradminisztrátor tagkezelését és adminisztratív átadását (D56).
+⁴ Csak a saját dokumentumát, a színtér egy aktív tagjának, review nélkül.
+⁵ Adminisztratív átadás (`admin_handover`): egy felhasználó adott színtérbeli összes dokumentuma egy aktív tagra, bármikor, lezárt térben is.
 
 ## Szabályok és védelmek
 
@@ -87,7 +93,8 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 - **Projekt-tér kérése:** bármely felhasználó kérheti (név, cél, javasolt Színtérgazda); a Rendszeradminisztrátor hagyja jóvá és hozza létre. A kérés a [[Nyomonkövetés/Feladat-dashboard|dashboardján]] jelenik meg.
 - **Felvétel kérése:** idegen színtérbe mutató link csonkjáról a felhasználó felvételt kérhet; a kérés a Színtérgazdák dashboardján jelenik meg.
 - **Általános színtér:** minden allowlistre felvett felhasználó automatikusan Szerző benne; Színtérgazdáját a Rendszeradminisztrátor jelöli ki.
-- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható; a lezáráskor függő review-kérések automatikusan visszavonódnak (D55).
+- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható; a lezáráskor függő review-kérések automatikusan visszavonódnak (D55). Kivétel: a Rendszeradminisztrátor tagkezelése és adminisztratív átadása, hogy a távozó kolléga levehető legyen az allowlistről (D56).
+- **Tag eltávolítása (D56):** aki csak archivált dokumentumok tulajdonosa, eltávolítható; ha függő review-kérés indítványozója, a kérés visszavonódik. Jelöltet a felhasználókeresőből (`GET /users`) lehet választani.
 - **Minden szerepváltás naplózott:** `member_added`, `member_removed`, `role_changed` (előléptetés, visszaminősítés), `space_manager_assigned`, `system_admin_granted`, `system_admin_revoked`.
 
 ## Megvalósítás
@@ -124,7 +131,8 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 - ~~Projekt-tér létrehozása?~~ **Döntve (D43):** kérés + Rendszeradminisztrátori jóváhagyás.
 - ~~Lezárt projekt-tér szerepei?~~ **Döntve (D44):** megmaradnak, minden csak olvasható.
 - ~~Tulajdonos-átadás?~~ **Döntve (D55):** a tulajdonos vagy a Színtérgazda adja át, review nélkül (`PUT …/owner`).
-- ❓ **Nyitott (NY11–NY19 a naplóban):** a Rendszeradminisztrátor felülírási joga a felvételi kérések döntésében; a rendszerszintű audit láthatósága.
+- ~~A Rendszeradminisztrátor felülírási joga a felvételi kérésekben?~~ **Döntve (D56):** dönthet róluk; nem tagként felvételt nem kér, hanem önfelvétellel lép be a kért szerepbe.
+- ❓ **Nyitott (NY17 a naplóban):** a rendszerszintű audit láthatósága.
 
 ## Kapcsolódó döntések
 
