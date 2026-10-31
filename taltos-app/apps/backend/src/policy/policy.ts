@@ -103,7 +103,8 @@ const RULES = {
     closed: 'admin_ok',
   },
   'document.comment': { scope: 'document', need: 'member', closed: 'blocked' },
-  'document.favorite': { scope: 'document', need: 'member', closed: 'blocked' },
+  // a kedvenc privát jelző, lezárt térben is megy (D56)
+  'document.favorite': { scope: 'document', need: 'member', closed: 'allowed' },
   'document.submit': { scope: 'document', need: 'member', closed: 'blocked' },
   'document.review.decide': { scope: 'document', need: 'member', closed: 'blocked' },
   'document.request.withdraw': { scope: 'document', need: 'member', closed: 'blocked' },

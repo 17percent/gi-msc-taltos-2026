@@ -342,7 +342,6 @@ function closedRows(): ExtraRow[] {
   for (const action of [
     'document.edit',
     'document.comment',
-    'document.favorite',
     'document.submit',
     'document.confirm_current',
   ] as Action[]) {
@@ -356,6 +355,22 @@ function closedRows(): ExtraRow[] {
     });
   }
   rows.push(
+    {
+      name: 'document.favorite lezárt térben: tag → ok (privát jelző, D56)',
+      line: 'D56: a kedvenc és a követés lezárt térben is engedett',
+      action: 'document.favorite',
+      role: 'author',
+      space: CLOSED,
+      expect: 'ok',
+    },
+    {
+      name: 'document.favorite lezárt térben: nem tag → not_space_member',
+      line: 'Kommentelés, @említés, kedvencek — nem tag –',
+      action: 'document.favorite',
+      role: 'nonMember',
+      space: CLOSED,
+      expect: 'not_space_member',
+    },
     {
       name: 'document.owner.transfer lezárt térben: tulajdonos-tag → space_closed',
       line: 'B5 PUT …/owner: lezárt projekt-térben 403 space_closed',
