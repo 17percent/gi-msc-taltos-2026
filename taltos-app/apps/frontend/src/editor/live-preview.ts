@@ -82,7 +82,10 @@ export function computePreviewItems(state: EditorState): PreviewItem[] {
           const open = marks[0];
           const close = marks[1];
           if (!open || !close) return;
-          items.push({ kind: 'mark', from: open.to, to: close.from, className: 'cm-lp-link' });
+          // Üres szövegű linknél (`[](url)`) nincs mit megjelölni.
+          if (close.from > open.to) {
+            items.push({ kind: 'mark', from: open.to, to: close.from, className: 'cm-lp-link' });
+          }
           hide(open.from, open.to);
           hide(close.from, node.to);
           return;
@@ -130,7 +133,11 @@ const hideDecoration = Decoration.replace({});
 const bulletDecoration = Decoration.replace({ widget: new BulletWidget() });
 
 function buildDecorations(state: EditorState): DecorationSet {
-  const ranges: Range<Decoration>[] = computePreviewItems(state).map((item) => {
+  // Üres mark-tartomány RangeError-t dobna, és minden tranzakciót megbénítana: védőháló.
+  const items = computePreviewItems(state).filter(
+    (item) => item.kind !== 'mark' || item.from < item.to,
+  );
+  const ranges: Range<Decoration>[] = items.map((item) => {
     switch (item.kind) {
       case 'hide':
         return hideDecoration.range(item.from, item.to);

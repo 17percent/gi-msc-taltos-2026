@@ -1,7 +1,7 @@
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { computePreviewItems, hiddenRanges } from './live-preview';
+import { computePreviewItems, hiddenRanges, livePreview } from './live-preview';
 
 function stateOf(doc: string, anchor = 0, head = anchor): EditorState {
   return EditorState.create({
@@ -99,6 +99,21 @@ describe('élő előnézet: link', () => {
 
   it('az aktív soron a teljes forrás látható', () => {
     expect(hiddenTexts(stateOf(doc, doc.indexOf('szöveg') + 1))).toEqual([]);
+  });
+
+  it('az üres szövegű link nem dob, a jelölői rejtettek', () => {
+    const empty = 'elöl\n\n[](https://example.test/x)\n';
+    const state = EditorState.create({
+      doc: empty,
+      selection: { anchor: 0 },
+      extensions: [markdown(), livePreview],
+    });
+    expect(() => state.field(livePreview)).not.toThrow();
+    expect(
+      () => state.update({ changes: { from: empty.length, insert: 'x' } }).state,
+    ).not.toThrow();
+    expect(computePreviewItems(state).some((i) => i.kind === 'mark')).toBe(false);
+    expect(hiddenTexts(state)).toEqual(['[', '](https://example.test/x)']);
   });
 
   it('a hivatkozás-definíciós link forrásként marad', () => {

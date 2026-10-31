@@ -28,3 +28,7 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-23 22:47 | feature | code-reviewer | 3242575 | 69 | 404 s | effort=high model=claude-sonnet-5-5 status=PARTIAL fresh=198311 cached=3044264 task=20261023-221602-wp2-auth-session-allowlist phase=4-REVIEW tier=L |
 | 2026-10-23 22:59 | feature | backend | 3837175 | 77 | 471 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=192721 cached=3644454 task=20261023-221602-wp2-auth-session-allowlist phase=4-REVIEW tier=L |
 | 2026-10-23 23:01 | feature | appsec | 1263121 | 39 | 1245 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=227174 cached=1035947 task=20261023-221602-wp2-auth-session-allowlist phase=4-REVIEW tier=L |
+| 2026-10-31 15:31 | auto | frontend-web | 3184751 | 103 | 504 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=161661 cached=3023090 |
+| 2026-10-31 15:31 | auto | backend | 4811591 | 117 | 562 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=182017 cached=4629574 |
+| 2026-10-31 15:38 | auto | code-reviewer | 1620845 | 71 | 292 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=118079 cached=1502766 |
+| 2026-10-31 15:39 | auto | appsec | 1784444 | 61 | 357 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=132843 cached=1651601 |

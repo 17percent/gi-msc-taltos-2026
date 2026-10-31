@@ -15,6 +15,18 @@ const STORE_MAX_DEBOUNCE_MS = 10_000;
 /** Minden elutasítás ugyanez: a kliens nem tudhatja, hogy a dokumentum nem létezik vagy csak nem tagja (nincs szivárgás). */
 const DENIED = 'permission-denied';
 
+/**
+ * A seedelés rögzített Yjs-kliensazonosítója. Véletlen azonosítóval minden újratöltés (a memóriából kiürült, még
+ * nem mentett dokumentum) új elemeket adna ugyanarra a szövegre, és a kliens régi állapotával összeolvadva a szöveg
+ * megkettőződne. Így a seed elemei minden betöltésnél azonosak. Feltétele, hogy a `documents.content` állapot nélkül
+ * ne változzon: a WP6 visszaállítása és jóváhagyás-alkalmazása a `document_collab_state`-et is írja.
+ */
+const SEED_CLIENT_ID = 1;
+
+/** A Postgres `text` nem tárol NUL-t (a Y.Text igen): a materializált szövegből kimarad, a Yjs-állapot változatlan. */
+const materializeText = (doc: Y.Doc): string =>
+  doc.getText(COLLAB_TEXT_FIELD).toJSON().replaceAll('\u0000', '');
+
 /** A kapcsolat környezete: az upgrade-nél hitelesített felhasználó (a sütit nem elemezzük újra). */
 interface CollabContext {
   userId: string;
@@ -68,6 +80,7 @@ export function registerCollab(
       if (content.state !== null) return content.state;
       // Még nincs Yjs-állapot: a Y.Text a dokumentum szövegéből indul.
       const seeded = new Y.Doc();
+      seeded.clientID = SEED_CLIENT_ID;
       if (content.seed) seeded.getText(COLLAB_TEXT_FIELD).insert(0, content.seed);
       return Y.encodeStateAsUpdate(seeded);
     },
@@ -78,7 +91,7 @@ export function registerCollab(
           const saved = await store.saveContent(
             documentName,
             Y.encodeStateAsUpdate(document),
-            document.getText(COLLAB_TEXT_FIELD).toJSON(),
+            materializeText(document),
             deps.clock(),
           );
           if (!saved) {

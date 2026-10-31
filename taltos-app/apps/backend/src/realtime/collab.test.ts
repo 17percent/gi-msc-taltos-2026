@@ -114,14 +114,19 @@ async function authenticate(client: Client, name: string): Promise<Buffer> {
   return client.next((body) => isDenied(body) || isAuthenticated(body));
 }
 
-/** A kliens oldalán újraépített Y.Text tartalma a szerver SyncStep2 válaszából. */
-async function readText(client: Client, name: string): Promise<string> {
+/** A szerver SyncStep2 válaszában küldött teljes állapot (update). */
+async function readState(client: Client, name: string): Promise<Uint8Array> {
   client.socket.send(step1Message(name));
   const reply = await client.next((body) => body[0] === SYNC && body[1] === STEP2);
   const body = withoutName(reply);
   // body: [Sync, Step2, hossz (varUint), update…]; a teszt-dokumentumok kicsik (hossz < 128)
+  return new Uint8Array(body.subarray(3, 3 + (body[2] ?? 0)));
+}
+
+/** A kliens oldalán újraépített Y.Text tartalma a szerver SyncStep2 válaszából. */
+async function readText(client: Client, name: string): Promise<string> {
   const doc = new Y.Doc();
-  Y.applyUpdate(doc, new Uint8Array(body.subarray(3, 3 + (body[2] ?? 0))));
+  Y.applyUpdate(doc, await readState(client, name));
   return doc.getText(COLLAB_TEXT_FIELD).toJSON();
 }
 
@@ -222,6 +227,35 @@ describe('/collab perzisztencia', () => {
     const client = await connect(base, cookie);
     await authenticate(client, documentId);
     expect(await readText(client, documentId)).toBe('régi szöveg');
+  });
+
+  it('az újraseedelés nem kettőzi meg a szöveget, ha a kliens a régi seeddel csatlakozik vissza', async () => {
+    const { base, userId, cookie } = await listen();
+    const { collab, documentId } = fixture(userId, { content: 'régi szöveg' });
+    // A kliens megkapja a seedet, majd a kapcsolat megszakad mentés nélkül: a szerver kiüríti a dokumentumot.
+    const first = await connect(base, cookie);
+    await authenticate(first, documentId);
+    const kept = await readState(first, documentId);
+    first.socket.close();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(collab.saves).toHaveLength(0);
+
+    // Újracsatlakozáskor a szerver újra seedel, a kliens elküldi a megtartott állapotát.
+    const again = await connect(base, cookie);
+    await authenticate(again, documentId);
+    again.socket.send(updateMessage(documentId, kept));
+    await again.next(isSyncStatus);
+    expect(await readText(again, documentId)).toBe('régi szöveg');
+  });
+
+  it('a NUL karakter kimarad a materializált szövegből', async () => {
+    const { base, userId, cookie } = await listen();
+    const { collab, documentId } = fixture(userId);
+    const writer = await connect(base, cookie);
+    await authenticate(writer, documentId);
+    writer.socket.send(updateMessage(documentId, editFor('a\u0000b')));
+    await vi.waitFor(() => expect(collab.saves).toHaveLength(1), { timeout: 2_000 });
+    expect(collab.document(documentId)?.content).toBe('ab');
   });
 
   it('a mentett Yjs-állapotot tölti be (a content nem számít)', async () => {
