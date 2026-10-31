@@ -17,6 +17,8 @@ export interface StoreHarness {
     ownerId: string,
     options?: {
       archived?: boolean;
+      /** Eldobott piszkozat (`deleted_at` be van állítva, jóváhagyott változat nélkül): nem létezik, D54. */
+      discarded?: boolean;
       pending?: { initiatorId: string; reviewers: string[]; decided?: string[] };
     },
   ): Promise<string>;
@@ -118,7 +120,7 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
       });
     });
 
-    it('removeMember: az indítványozó kérése visszavonódik (member_removed, aktor az eltávolító), a review-er helye megszűnik, a döntött megmarad', async () => {
+    it('removeMember: az indítványozó kérése visszavonódik (member_removed, aktor az eltávolító), a review-er helye megszűnik (a döntötté is)', async () => {
       const h = await setup();
       const [m, init, r1, r2] = [
         await h.user('m'),
@@ -160,6 +162,10 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
           reason: 'member_removed',
         }),
       );
+      // a döntött review-er (r2) helye is megszűnik, a döntése elvész; az esemény is megíródik
+      expect((await h.store.removeMember(user(m), space, r2, NOW)).ok).toBe(true);
+      expect(await h.activeReviewers(d2)).toEqual([]);
+      expect((await h.events(space)).filter((e) => e.type === 'reviewer_removed')).toHaveLength(2);
       // r1 a d1-en is megjelölt volt, de a kérés már vissza volt vonva: ott nem keletkezik új esemény
       expect(log.filter((e) => e.type === 'reviewer_removed')).toHaveLength(1);
     });
@@ -266,6 +272,7 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
       const d1 = await h.document(space, a);
       const d2 = await h.document(space, a, { archived: true });
       const d3 = await h.document(other, a);
+      const d4 = await h.document(space, a, { discarded: true });
       expect(
         await h.store.adminHandover(
           admin(root),
@@ -282,6 +289,7 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
       expect(await h.owner(d1)).toBe(b);
       expect(await h.owner(d2)).toBe(b);
       expect(await h.owner(d3)).toBe(a);
+      expect(await h.owner(d4)).toBe(a); // az eldobott piszkozat nem létezik (D54): nem mozog, nem számít
       const changed = (await h.events(space)).filter((e) => e.type === 'owner_changed');
       expect(changed.map((e) => e.documentId).sort()).toEqual([d1, d2].sort());
       for (const e of changed) expect(e).toMatchObject({ actorId: root, reason: 'admin_handover' });
@@ -301,38 +309,39 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
       await h.member(space, b);
       const doc = await h.document(space, a);
       const archived = await h.document(space, a, { archived: true });
-      const input = (documentId: string, newOwnerId: string, actorIsManager: boolean) => ({
-        documentId,
-        newOwnerId,
-        actorIsManager,
-      });
-      expect(await h.store.transferOwnership(user(b), input(doc, b, false), NOW)).toMatchObject({
+      const input = (documentId: string, newOwnerId: string) => ({ documentId, newOwnerId });
+      expect(await h.store.transferOwnership(user(b), input(doc, b), NOW)).toMatchObject({
         code: 'forbidden',
       });
-      expect(await h.store.transferOwnership(user(a), input(doc, c, false), NOW)).toMatchObject({
+      expect(await h.store.transferOwnership(user(a), input(doc, c), NOW)).toMatchObject({
         code: 'invalid_new_owner',
       });
-      expect(await h.store.transferOwnership(user(a), input(doc, a, false), NOW)).toMatchObject({
+      expect(await h.store.transferOwnership(user(a), input(doc, a), NOW)).toMatchObject({
         code: 'invalid_new_owner',
       });
-      expect((await h.store.transferOwnership(user(a), input(doc, b, false), NOW)).ok).toBe(true);
+      expect((await h.store.transferOwnership(user(a), input(doc, b), NOW)).ok).toBe(true);
       expect(await h.owner(doc)).toBe(b);
-      expect((await h.store.transferOwnership(user(m), input(archived, b, true), NOW)).ok).toBe(
-        true,
-      );
+      expect((await h.store.transferOwnership(user(m), input(archived, b), NOW)).ok).toBe(true);
       const closed = await h.space({ closed: true });
       await h.member(closed, a);
       await h.member(closed, b);
       const closedDoc = await h.document(closed, a);
-      expect(
-        await h.store.transferOwnership(user(a), input(closedDoc, b, false), NOW),
-      ).toMatchObject({
+      expect(await h.store.transferOwnership(user(a), input(closedDoc, b), NOW)).toMatchObject({
         code: 'space_closed',
+      });
+      // elavult jogosultság: aki közben kikerült a térből (volt gazda / volt tulajdonos), már nem adhat át
+      const gone = await h.user('gone');
+      const orphan = await h.document(space, gone, { archived: true });
+      expect(await h.store.transferOwnership(user(gone), input(orphan, b), NOW)).toMatchObject({
+        code: 'forbidden',
+      });
+      expect(await h.store.transferOwnership(user(c), input(doc, c), NOW)).toMatchObject({
+        code: 'forbidden',
       });
       expect(
         await h.store.transferOwnership(
           user(a),
-          input('00000000-0000-4000-8000-000000000000', b, false),
+          input('00000000-0000-4000-8000-000000000000', b),
           NOW,
         ),
       ).toMatchObject({ code: 'not_found' });

@@ -63,7 +63,7 @@ export function pgHarness(db: TestDb): StoreHarness {
         await c.query(
           `INSERT INTO documents (id, space_id, slug, title, kind, owner_id, created_by, review_state,
                                   approved_revision_id, deleted_at)
-           VALUES ($1, $2, $3, 'Cím', 'prompt', $4, $4, $5, $6, ${options.archived ? 'now()' : 'NULL'})`,
+           VALUES ($1, $2, $3, 'Cím', 'prompt', $4, $4, $5, $6, ${options.archived || options.discarded ? 'now()' : 'NULL'})`,
           [
             id,
             spaceId,

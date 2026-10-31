@@ -22,30 +22,39 @@ interface WithdrawnRow extends Record<string, unknown> {
 /**
  * A függő kérések visszavonása egy halmazra: kérés → `withdrawn` (`decided_at`), az aktív review-er sorok
  * `ended_at`/`end_reason = 'closed'`, a dokumentum `pending` → `draft` (csak olvasható marad, ha a tér lezárt).
- * Egyetlen utasítás (adat-módosító CTE-k), a visszavont kérések sorait adja vissza.
+ * Külön utasításokban fut (lásd a törzset), a visszavont kérések sorait adja vissza.
  */
 async function withdraw(
   tx: ReviewTx,
   where: ReturnType<typeof sql>,
   now: Date,
 ): Promise<WithdrawnRow[]> {
-  const result = await tx.execute<WithdrawnRow>(sql`
-    WITH w AS (
-      UPDATE change_requests c
-         SET state = 'withdrawn', decided_at = ${now}::timestamptz
-        FROM documents d
-       WHERE d.id = c.document_id AND c.state = 'pending' AND ${where}
-      RETURNING c.id, c.document_id, d.space_id
-    ), rv AS (
-      UPDATE change_request_reviewers r
-         SET ended_at = ${now}::timestamptz, end_reason = 'closed'
-       WHERE r.change_request_id IN (SELECT id FROM w) AND r.ended_at IS NULL
-    ), d2 AS (
-      UPDATE documents SET review_state = 'draft'
-       WHERE id IN (SELECT document_id FROM w) AND review_state = 'pending'
-    )
-    SELECT id, document_id, space_id FROM w`);
-  return result.rows;
+  // Külön utasítások (nem egy adat-módosító CTE): egy CTE minden ága az utasítás kezdeti pillanatképét látja, így egy
+  // közben commitolt cserélő review-er sor láthatatlan maradna a seprő UPDATE-nek. Az első UPDATE zárolja a kéréseket,
+  // a következők már READ COMMITTED alatt, friss pillanatképpel futnak.
+  const withdrawn = await tx.execute<WithdrawnRow>(sql`
+    UPDATE change_requests c
+       SET state = 'withdrawn', decided_at = ${now}::timestamptz
+      FROM documents d
+     WHERE d.id = c.document_id AND c.state = 'pending' AND ${where}
+    RETURNING c.id, c.document_id, d.space_id`);
+  if (withdrawn.rows.length === 0) return [];
+  const ids = sql.join(
+    withdrawn.rows.map((row) => sql`${row.id}::uuid`),
+    sql`, `,
+  );
+  const documentIds = sql.join(
+    withdrawn.rows.map((row) => sql`${row.document_id}::uuid`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    UPDATE change_request_reviewers
+       SET ended_at = ${now}::timestamptz, end_reason = 'closed'
+     WHERE change_request_id IN (${ids}) AND ended_at IS NULL`);
+  await tx.execute(sql`
+    UPDATE documents SET review_state = 'draft'
+     WHERE id IN (${documentIds}) AND review_state = 'pending'`);
+  return withdrawn.rows;
 }
 
 /**
@@ -115,10 +124,10 @@ interface VacatedRow extends Record<string, unknown> {
 }
 
 /**
- * A kiesett felhasználó függő review-er helyei megszűnnek (D51 b): a még el nem döntött, aktív sor `ended_at` +
- * `end_reason = 'removed'`, `reviewer_removed` esemény. `spaceId`-val csak az adott tér, nélküle minden tér (az
- * allowlist-szinkron). A már meghozott döntés nem változik (a döntött sor érintetlen). Visszaadja az érintett
- * kérések számát; a kérés a pótlásig nem dönthető el (`change_requests_guard`).
+ * A kiesett felhasználó függő review-er helyei megszűnnek (D51 b): az aktív sor `ended_at` +
+ * `end_reason = 'removed'` a döntéstől függetlenül (a távozó döntése elvész, így nem számít bele a két jóváhagyásba;
+ * a másik review-er döntése érintetlen), `reviewer_removed` esemény. `spaceId`-val csak az adott tér, nélküle minden
+ * tér (az allowlist-szinkron). Visszaadja az érintett kérések számát; a kérés a pótlásig nem dönthető el (`change_requests_guard`).
  */
 export async function vacateReviewer(tx: ReviewTx, input: VacateInput, now: Date): Promise<number> {
   const spaceFilter = input.spaceId === undefined ? sql`TRUE` : sql`d.space_id = ${input.spaceId}`;
@@ -128,7 +137,7 @@ export async function vacateReviewer(tx: ReviewTx, input: VacateInput, now: Date
       FROM change_requests c
       JOIN documents d ON d.id = c.document_id
      WHERE c.id = r.change_request_id AND c.state = 'pending'
-       AND r.reviewer_id = ${input.userId} AND r.ended_at IS NULL AND r.decision IS NULL
+       AND r.reviewer_id = ${input.userId} AND r.ended_at IS NULL
        AND ${spaceFilter}
     RETURNING c.id AS change_request_id, c.document_id, d.space_id`);
   const events: AppEvent[] = result.rows.map((row) =>

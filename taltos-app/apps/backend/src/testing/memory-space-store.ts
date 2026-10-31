@@ -274,13 +274,15 @@ export class MemorySpaceStore implements SpaceStore {
     return count;
   }
 
-  /** A `vacateReviewer` párja: az el nem döntött aktív hely megszűnik, a döntött marad. */
+  /** A `vacateReviewer` párja: az aktív hely döntéstől függetlenül megszűnik. */
   private vacate(spaceId: string, userId: string, actorId: string): void {
     for (const [documentId, doc] of this.world.documents) {
       const pending = doc.pending;
       if (doc.spaceId !== spaceId || !pending) continue;
-      if (!pending.reviewers.includes(userId) || pending.decided?.includes(userId)) continue;
+      if (!pending.reviewers.includes(userId)) continue;
+      // a hely a döntéstől függetlenül megszűnik, a döntés elvész (D51b); a másik review-eré marad
       pending.reviewers = pending.reviewers.filter((r) => r !== userId);
+      pending.decided = pending.decided?.filter((r) => r !== userId);
       this.emit({
         type: 'reviewer_removed',
         spaceId,
@@ -378,7 +380,7 @@ export class MemorySpaceStore implements SpaceStore {
 
   transferOwnership(
     actor: Actor,
-    input: { documentId: string; newOwnerId: string; actorIsManager: boolean },
+    input: { documentId: string; newOwnerId: string },
   ): Promise<StoreResult<null>> {
     const doc = this.world.documents.get(input.documentId);
     // az eldobott piszkozat nem létezik, az archivált átadható
@@ -386,8 +388,11 @@ export class MemorySpaceStore implements SpaceStore {
     const space = this.world.spaces.get(doc.spaceId);
     if (!space || space.deleted) return Promise.resolve(fail('not_found'));
     if (space.closed) return Promise.resolve(fail('space_closed'));
-    if (doc.ownerId !== actor.userId && !input.actorIsManager)
-      return Promise.resolve(fail('forbidden'));
+    // a jogosultság a (zár alatti) aktuális tagságból: a tulajdonos csak aktív tagként, különben aktív gazda
+    const actorRole = this.role(doc.spaceId, actor.userId);
+    const allowed =
+      actorRole === 'space_manager' || (doc.ownerId === actor.userId && actorRole !== undefined);
+    if (!allowed) return Promise.resolve(fail('forbidden'));
     if (input.newOwnerId === doc.ownerId) {
       return Promise.resolve(
         fail('invalid_new_owner', 'Az új tulajdonos már most is a tulajdonos.'),
@@ -428,6 +433,8 @@ export class MemorySpaceStore implements SpaceStore {
     let moved = 0;
     for (const [documentId, doc] of this.world.documents) {
       if (doc.spaceId !== input.spaceId || doc.ownerId !== input.userId) continue;
+      // az eldobott piszkozat nem létezik (D54)
+      if (doc.deleted && !doc.everApproved) continue;
       doc.ownerId = input.newOwnerId;
       moved += 1;
       this.emit({

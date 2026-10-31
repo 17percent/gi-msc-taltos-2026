@@ -114,7 +114,7 @@ export interface SpaceStore {
   /** `PUT /documents/:id/owner` (D55): tulajdonos (aki tag) vagy Színtérgazda, review nélkül. */
   transferOwnership(
     actor: Actor,
-    input: { documentId: string; newOwnerId: string; actorIsManager: boolean },
+    input: { documentId: string; newOwnerId: string },
     now: Date,
   ): Promise<StoreResult<null>>;
   /** `POST /admin/users/:id/handover` (D56): a felhasználó adott színtérbeli összes (archivált is) dokumentuma az új, aktív tagra. */

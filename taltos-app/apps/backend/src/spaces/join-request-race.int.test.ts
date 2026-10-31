@@ -135,14 +135,21 @@ describe.skipIf(!url)('egyidejű felvételi kérések (PostgreSQL, WP4a S8)', ()
     expect(await countRows(space, applicant, 'rejected')).toBe(1);
   });
 
-  // S5 UTÁN: az S5 (felvételi kérések) kódja nincs ebben az ágban, a tár-metódus neve itt nem ismert, ezért nem
-  // találjuk ki. A helyőrző az S5 `SpaceStore`-metódusát hívja majd, amely a `POST /api/v1/spaces/:id/membership-requests`
-  // (B5) mögött áll. Teendő az S5 beolvasztása után: a metódus nevét és aláírását beírni, majd a törzset kitölteni.
-  it.skip('TODO(S5): két egyidejű felvételi kérés (az S5 membership-request tár-metódusa) → egy függő sor, a másik `request_pending` (409), nem 500', async () => {
-    // 1. fixture: nem tag felhasználó + nyitott tér (pgHarness), mint fent.
-    // 2. runGated (testing/pg-race.ts): a kapu a tér sorának FOR UPDATE zára, ha az S5 a `spaces` sort zárolja; ha az S5
-    //    csak az egyedi indexre támaszkodik, a fenti `twoSessions` minta (az első commitjára vár a második) a kapu.
-    // 3. elvárás: pontosan egy `ok`, a másik `request_pending` StoreFailure (nem kivétel); `countRows(space, user, 'pending') === 1`.
-    // 4. negatív: Rendszeradminnak `forbidden`, lezárt térbe `space_closed`, tagnak validációs hiba — az S5 szerződése szerint.
+  // Alkalmazás-szint: a `createMembershipRequest` a tér sorát zárolja, így a második hívás a commit után látja a függő
+  // kérést (egyedi index 23505 → `request_pending`); egyik sem 500 / kivétel.
+  it('két egyidejű createMembershipRequest → egy függő sor, a másik request_pending (nem kivétel)', async () => {
+    const h = pgHarness(db);
+    const applicant = await h.user('applicant');
+    const space = await h.space();
+    const actor = { userId: applicant, systemRole: 'user' as const };
+    const results = await Promise.all([
+      h.store.createMembershipRequest(actor, space, {}, new Date()),
+      h.store.createMembershipRequest(actor, space, {}, new Date()),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toEqual([
+      expect.objectContaining({ ok: false, code: 'request_pending' }),
+    ]);
+    expect(await countRows(space, applicant, 'pending')).toBe(1);
   });
 });
