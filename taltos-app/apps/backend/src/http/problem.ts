@@ -12,6 +12,8 @@ const TITLES: Partial<Record<ErrorCode, string>> = {
   not_on_allowlist: 'A címed nincs az engedélyezett felhasználók között',
   csrf_failed: 'A kérés eredete vagy CSRF-tokenje érvénytelen',
   forbidden: 'Ehhez nincs jogosultságod',
+  not_space_member: 'Nem vagy tagja ennek a színtérnek',
+  space_closed: 'A színtér le van zárva, csak olvasható',
   not_found: 'Nem található',
   internal_error: 'Váratlan hiba történt',
 };
