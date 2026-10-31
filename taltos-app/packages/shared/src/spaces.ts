@@ -18,11 +18,11 @@ export const SPACE_COLOR_PALETTE = [
   '#3B6FB6',
   '#2E8B6F',
   '#B5651D',
-  '#8A4F9E',
-  '#B23A48',
+  '#A15BB9',
+  '#C65366',
   '#2A7F8E',
-  '#C2872B',
-  '#5B5FA8',
+  '#988216',
+  '#6970BF',
 ] as const;
 
 export type SpaceColor = (typeof SPACE_COLOR_PALETTE)[number];

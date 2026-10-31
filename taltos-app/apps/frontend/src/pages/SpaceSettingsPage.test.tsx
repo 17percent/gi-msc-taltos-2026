@@ -445,7 +445,7 @@ describe('alapadatok mentése', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Lila' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mentés' }));
     await waitFor(() => expect(api.callsTo(`PATCH /api/v1/spaces/${TEAM}`)).toHaveLength(1));
-    expect(api.callsTo(`PATCH /api/v1/spaces/${TEAM}`)[0]?.body).toEqual({ color: '#8A4F9E' });
+    expect(api.callsTo(`PATCH /api/v1/spaces/${TEAM}`)[0]?.body).toEqual({ color: '#A15BB9' });
   });
 
   it('Rendszeradmin: a név is megy, és sikernél a „✓ Mentve.” megjelenik', async () => {

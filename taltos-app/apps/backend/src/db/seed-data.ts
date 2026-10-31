@@ -299,7 +299,7 @@ const COMMENT_TEXTS = [
   'Ugyanez a szabály az ügyfélszolgálati asszisztensre is vonatkozik?',
   'Lezárom a kérdést: a jelenlegi leírás elég.',
 ];
-const COLORS = ['#3B6FB6', '#2E8B6F', '#B5651D', '#8A4F9E', '#B23A48'];
+const COLORS = ['#3B6FB6', '#2E8B6F', '#B5651D', '#A15BB9', '#C65366'];
 
 function foldAccents(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '');
