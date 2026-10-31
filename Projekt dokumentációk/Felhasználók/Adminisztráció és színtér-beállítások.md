@@ -2,7 +2,7 @@
 tags:
   - taltos/egyseg
   - taltos/ux-spec
-allapot: tervezet – a D57 döntéseivel, tulajdonosi jóváhagyásra vár
+allapot: jóváhagyva (2026-10-31, a D57 döntéseivel)
 mvp: 2
 munkacsomag: WP4b
 szerzo: ux-ui-designer
