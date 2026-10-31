@@ -622,6 +622,68 @@ describe.skipIf(!url)('adatbázis-séma, migrációk, seed és invariánsok (WP1
       );
     });
 
+    it('events_actor_required: aktor nélkül csak a rendszer-típusok és a két szűk (típus, ok) kivétel írható (D56, 0008)', async () => {
+      // Az események append-only-k, ezért az elfogadott eseteket visszagörgetett tranzakcióban írjuk: nem maradnak a
+      // táblában (a seed-invariáns ellenőrzések nem látják őket); az elutasítottak eleve nem kerülnek be.
+      const accepted = async (
+        type: string,
+        details: object | null,
+        actorId: string | null = null,
+      ): Promise<void> => {
+        const client = await db.app.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('INSERT INTO events (type, actor_id, details) VALUES ($1, $2, $3)', [
+            type,
+            actorId,
+            details === null ? null : JSON.stringify(details),
+          ]);
+        } finally {
+          await client.query('ROLLBACK').catch(() => undefined);
+          client.release();
+        }
+      };
+      const rejected = (type: string, details: object | null): Promise<void> =>
+        rejectsWith(
+          db.app.query('INSERT INTO events (type, actor_id, details) VALUES ($1, NULL, $2)', [
+            type,
+            details === null ? null : JSON.stringify(details),
+          ]),
+          { code: '23514' },
+        );
+
+      // 1. review_withdrawn: csak reason = space_closed esetén aktor nélküli.
+      await accepted('review_withdrawn', { reason: 'space_closed' });
+      await rejected('review_withdrawn', { reason: 'member_removed' }); // ennek aktora az eltávolító
+      await rejected('review_withdrawn', { other: 'x' }); // details van, de reason nincs (NULL-biztonság)
+      await rejected('review_withdrawn', {}); // üres details
+      await rejected('review_withdrawn', null); // details nélkül
+
+      // 2. reviewer_removed: csak reason = allowlist_removed esetén aktor nélküli.
+      await accepted('reviewer_removed', { reason: 'allowlist_removed' });
+      await rejected('reviewer_removed', { reason: 'space_closed' });
+      await rejected('reviewer_removed', { reason: 'member_removed' });
+      await rejected('reviewer_removed', {});
+      await rejected('reviewer_removed', null);
+
+      // A kivétel a (típus, ok) párra szól: a másik típus okával nem megy át.
+      await rejected('review_withdrawn', { reason: 'allowlist_removed' });
+      await rejected('reviewer_removed', { reason: 'space_closed' });
+
+      // Nem érintett típusok: emberi típus aktor nélkül akkor sem, ha a details-ben ott a kivétel oka.
+      await rejected('member_added', null);
+      await rejected('member_added', { reason: 'space_closed' });
+
+      // A meglévő rendszer-típusok lista nem változott.
+      await accepted('system_bootstrapped', null);
+      await accepted('allowlist_removed', null);
+
+      // Aktorral minden típus írható, ok nélkül is (a kivétel csak a NULL aktorra szűkít).
+      const actorId = fx.users[0] as string;
+      await accepted('review_withdrawn', { reason: 'member_removed' }, actorId);
+      await accepted('reviewer_removed', { reason: 'manual' }, actorId);
+    });
+
     it('CHECK-ek a kérésen és a review-er soron (fajta-szabályok, indoklás, esedékesség)', async () => {
       const { docId, revId } = await newDoc();
       const { initiator, r1, r2 } = ids();
