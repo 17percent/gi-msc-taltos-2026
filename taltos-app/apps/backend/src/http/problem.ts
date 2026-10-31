@@ -12,7 +12,13 @@ const TITLES: Partial<Record<ErrorCode, string>> = {
   not_on_allowlist: 'A címed nincs az engedélyezett felhasználók között',
   csrf_failed: 'A kérés eredete vagy CSRF-tokenje érvénytelen',
   forbidden: 'Ehhez nincs jogosultságod',
+  not_space_member: 'Nem vagy tagja ennek a színtérnek',
+  space_closed: 'A színtér le van zárva, csak olvasható',
   not_found: 'Nem található',
+  last_space_manager: 'Az utolsó Színtérgazda nem távolítható el és nem minősíthető vissza',
+  last_admin: 'Az utolsó Rendszeradminisztrátor nem fokozható le',
+  owner_handover_required: 'A tag még dokumentumok tulajdonosa: előbb át kell adni',
+  invalid_new_owner: 'Az új tulajdonos nem a színtér aktív tagja, vagy már a tulajdonos',
   internal_error: 'Váratlan hiba történt',
 };
 

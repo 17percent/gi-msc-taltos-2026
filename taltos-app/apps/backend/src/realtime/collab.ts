@@ -2,9 +2,16 @@ import { Hocuspocus } from '@hocuspocus/server';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { RawData } from 'ws';
 import * as Y from 'yjs';
-import { COLLAB_DOCUMENT_NAME_PATTERN, COLLAB_PATH, COLLAB_TEXT_FIELD } from '@taltos/shared';
+import {
+  COLLAB_DOCUMENT_NAME_PATTERN,
+  COLLAB_PATH,
+  COLLAB_TEXT_FIELD,
+  type SystemRole,
+} from '@taltos/shared';
 import { sessionUpgradeGuard } from '../auth/guard.js';
-import { isWritable, type CollabStore } from './collab-store.js';
+import type { AccessStore } from '../policy/access-store.js';
+import { can } from '../policy/policy.js';
+import type { CollabStore } from './collab-store.js';
 import { originGuard } from './origin.js';
 import { trackSessionActivity, type RealtimeDependencies } from './session-activity.js';
 
@@ -30,10 +37,13 @@ const materializeText = (doc: Y.Doc): string =>
 /** A kapcsolat környezete: az upgrade-nél hitelesített felhasználó (a sütit nem elemezzük újra). */
 interface CollabContext {
   userId: string;
+  systemRole: SystemRole;
 }
 
 export interface CollabOptions {
   store: CollabStore;
+  /** A hozzáférés-döntés adatai: a `can()` bemenete (egyetlen policy-pont, D56). */
+  access: AccessStore;
   /** A mentés debounce-a (alap: 2 mp / 10 mp); a tesztek rövidítik. */
   debounceMs?: number;
   maxDebounceMs?: number;
@@ -44,8 +54,9 @@ export interface CollabOptions {
  *
  * Az upgrade kapuja (WP2, appsec C1): `Origin`, majd érvényes munkamenet és allowlist; a hiányuk 403/401
  * válasz az upgrade előtt. Az `onAuthenticate` ezen felül aktív színtér-tagságot kér.
- * IDEIGLENES (WP3 spike): a tagság- és állapot-ellenőrzés közvetlen lekérdezés; a WP4 `can(user, action, resource)`
- * policy-ja váltja le, és a „látható dokumentumok” lekérdezés-építőre kerül át.
+ * A tagság- és állapot-döntés az `AccessStore.documentTarget` + `can('document.read' / 'document.edit')` (egyetlen
+ * policy-pont, D56): olvasható, de nem szerkeszthető dokumentumnál a kapcsolat csak olvasó. A tagság visszavonásakor a
+ * megnyitott kapcsolat bontása a WP6 dolga.
  * Perzisztencia: betöltés a `document_collab_state`-ből (nincs sor: a `documents.content`-ből seedelünk), mentés
  * debounce-szal egy tranzakcióban; revízió, checkpoint és esemény a WP6-é.
  */
@@ -54,7 +65,7 @@ export function registerCollab(
   deps: RealtimeDependencies,
   options: CollabOptions,
 ): Hocuspocus<CollabContext> {
-  const { store } = options;
+  const { store, access } = options;
   /** A futó mentések: leálláskor megvárjuk őket, mielőtt az adatbázis-kapcsolat bezárul. */
   const inflight = new Set<Promise<void>>();
 
@@ -66,12 +77,17 @@ export function registerCollab(
     async onAuthenticate({ documentName, context, connectionConfig }) {
       // A név alakját a lekérdezés előtt ellenőrizzük (UUID): idegen név az adatbázist sem éri el.
       if (!COLLAB_DOCUMENT_NAME_PATTERN.test(documentName)) throw new Error(DENIED);
-      const userId = (context as Partial<CollabContext>).userId;
-      if (userId === undefined) throw new Error(DENIED);
-      const access = await store.findAccess(userId, documentName);
-      if (access === undefined) throw new Error(DENIED);
-      // Nem írható (review-ra vár, jóváhagyott, lezárt színtér): a kapcsolat csak olvasó, a Hocuspocus eldobja a módosításait.
-      connectionConfig.readOnly = !isWritable(access);
+      const { userId, systemRole } = context as Partial<CollabContext>;
+      if (!userId || !systemRole) throw new Error(DENIED);
+      // Egyetlen policy-pont: betöltés + can(). Nem létező, törölt, nem tag (a Rendszeradmin is) és minden más
+      // elutasítás ugyanaz a hiba: a kliens nem különböztetheti meg őket (nincs létezés- vagy cím-szivárgás).
+      const target = await access.documentTarget(userId, documentName);
+      if (target === undefined) throw new Error(DENIED);
+      const actor = { userId, systemRole };
+      if (!can(actor, 'document.read', target).ok) throw new Error(DENIED);
+      // Olvasható, de nem szerkeszthető (review-ra vár, jóváhagyott, archivált, lezárt színtér): a kapcsolat csak
+      // olvasó, a Hocuspocus eldobja a módosításait.
+      connectionConfig.readOnly = !can(actor, 'document.edit', target).ok;
     },
 
     async onLoadDocument({ documentName }) {
@@ -131,6 +147,7 @@ export function registerCollab(
       trackSessionActivity(socket, auth, deps, request.log);
       const connection = hocuspocus.handleConnection(socket, toWebRequest(request), {
         userId: auth.userId,
+        systemRole: auth.systemRole,
       });
       socket.on('message', (data: RawData) => connection.handleMessage(toUint8Array(data)));
       socket.on('pong', () => connection.touch());

@@ -25,6 +25,7 @@ export const ERROR_CODES = {
   tag_exists: 409,
   stale_base_revision: 412,
   invalid_reviewers: 422,
+  invalid_new_owner: 422,
   reason_required: 422,
   export_failed: 502,
   internal_error: 500,

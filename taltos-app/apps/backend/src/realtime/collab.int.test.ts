@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-import { COLLAB_TEXT_FIELD } from '@taltos/shared';
+import { COLLAB_TEXT_FIELD, type SystemRole } from '@taltos/shared';
+import { createPgAccessStore } from '../policy/pg-access-store.js';
+import { can } from '../policy/policy.js';
 import { createTestDb, type TestDb } from '../db/test-db.js';
 import { runSeed } from '../db/seed-run.js';
 import { createPgCollabStore } from './pg-collab-store.js';
@@ -111,37 +113,57 @@ describe.skipIf(!url)('/collab: tagság- és állapot-lekérdezés, perzisztenci
     return doc.getText(COLLAB_TEXT_FIELD).toJSON();
   };
 
-  describe('findAccess', () => {
-    it('aktív tagnak visszaadja az állapotot és a színtér lezártságát', async () => {
-      const f = await fixture({ reviewState: 'changes_requested' });
-      expect(await store().findAccess(f.userId, f.documentId)).toEqual({
-        reviewState: 'changes_requested',
-        spaceClosed: false,
-      });
+  // A /collab hozzáférés-döntése: AccessStore.documentTarget + can() (a korábbi findAccess helyett, S6).
+  describe('hozzáférés-döntés (AccessStore + can)', () => {
+    const decide = async (userId: string, documentId: string, systemRole: SystemRole = 'user') => {
+      const target = await createPgAccessStore(drizzle(db.app)).documentTarget(userId, documentId);
+      if (target === undefined) return undefined;
+      const actor = { userId, systemRole };
+      return {
+        read: can(actor, 'document.read', target).ok,
+        edit: can(actor, 'document.edit', target).ok,
+      };
+    };
+
+    it('aktív tag piszkozaton és átdolgozandón olvas és szerkeszt', async () => {
+      const draft = await fixture();
+      expect(await decide(draft.userId, draft.documentId)).toEqual({ read: true, edit: true });
+      const changes = await fixture({ reviewState: 'changes_requested' });
+      expect(await decide(changes.userId, changes.documentId)).toEqual({ read: true, edit: true });
     });
 
-    it('lezárt projekt-térnél spaceClosed=true', async () => {
-      const f = await fixture({ closed: true });
-      expect(await store().findAccess(f.userId, f.documentId)).toEqual({
-        reviewState: 'draft',
-        spaceClosed: true,
-      });
+    it.each([
+      ['Review-ra vár', { reviewState: 'pending' as const }],
+      ['Jóváhagyott', { reviewState: 'approved' as const }],
+      ['lezárt projekt-tér', { closed: true }],
+    ])('%s: csak olvasható', async (_label, options) => {
+      const f = await fixture(options);
+      expect(await decide(f.userId, f.documentId)).toEqual({ read: true, edit: false });
+    });
+
+    it.each([
+      ['törölt dokumentum (eldobott piszkozat)', { docDeleted: true }],
+      ['törölt színtér', { spaceDeleted: true }],
+    ])('%s: nincs célpont', async (_label, options) => {
+      const f = await fixture(options);
+      expect(await decide(f.userId, f.documentId)).toBeUndefined();
     });
 
     it.each([
       ['nem tag', { member: 'none' as const }],
       ['megszűnt tagság', { member: 'removed' as const }],
-      ['törölt dokumentum', { docDeleted: true }],
-      ['törölt színtér', { spaceDeleted: true }],
-    ])('%s: nincs hozzáférés', async (_label, options) => {
+    ])('%s: sem olvasás, sem szerkesztés (a Rendszeradmin sem)', async (_label, options) => {
       const f = await fixture(options);
-      expect(await store().findAccess(f.userId, f.documentId)).toBeUndefined();
+      expect(await decide(f.userId, f.documentId)).toEqual({ read: false, edit: false });
+      expect(await decide(f.userId, f.documentId, 'system_admin')).toEqual({
+        read: false,
+        edit: false,
+      });
     });
 
-    it('nem létező dokumentum és idegen felhasználó: nincs hozzáférés', async () => {
+    it('nem létező dokumentum: nincs célpont', async () => {
       const f = await fixture();
-      expect(await store().findAccess(f.userId, randomUUID())).toBeUndefined();
-      expect(await store().findAccess(randomUUID(), f.documentId)).toBeUndefined();
+      expect(await decide(f.userId, randomUUID())).toBeUndefined();
     });
   });
 

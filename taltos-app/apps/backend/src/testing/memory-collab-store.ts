@@ -1,10 +1,7 @@
-import type {
-  CollabAccess,
-  CollabContent,
-  CollabStore,
-  ReviewState,
-} from '../realtime/collab-store.js';
+import type { SpaceRole } from '@taltos/shared';
+import type { CollabContent, CollabStore, ReviewState } from '../realtime/collab-store.js';
 import { WRITABLE_REVIEW_STATES } from '../realtime/collab-store.js';
+import { MemoryAccessStore } from './memory-access-store.js';
 
 interface MemoryDocument {
   spaceId: string;
@@ -20,23 +17,30 @@ interface MemorySpace {
 }
 
 /**
- * Memóriabeli `CollabStore` az adatbázis nélküli tesztekhez: a hozzáférés-döntés bemenetei (tagság, állapot, lezárt
- * és törölt színtér) és a mentés írhatósági újraellenőrzése. A tényleges SQL-t az integrációs teszt bizonyítja.
+ * Memóriabeli `CollabStore` az adatbázis nélküli tesztekhez: a tartalom, a mentés és a mentés tranzakción belüli
+ * írhatósági újraellenőrzése. A hozzáférés-döntés adatai (tagság, állapot, lezárt és törölt színtér) az `access`
+ * (`MemoryAccessStore`) varraton élnek: a mutátorok oda is továbbítanak, így egyetlen policy-pont marad.
+ * A tényleges SQL-t az integrációs teszt bizonyítja.
  */
 export class MemoryCollabStore implements CollabStore {
+  readonly access = new MemoryAccessStore();
   private readonly spaces = new Map<string, MemorySpace>();
   private readonly documents = new Map<string, MemoryDocument>();
-  /** `spaceId:userId` → a tagság megszűnt-e. */
-  private readonly members = new Map<string, { removed: boolean }>();
   /** A ténylegesen elvégzett mentések (a dokumentum, a szöveg és az állapot). */
   readonly saves: { documentId: string; text: string; state: Uint8Array }[] = [];
 
   addSpace(id: string, options: Partial<MemorySpace> = {}): void {
     this.spaces.set(id, { closed: false, deleted: false, ...options });
+    // csak a projekt-tér zárható le (D44)
+    this.access.addSpace(id, id, {
+      type: options.closed ? 'project' : 'team',
+      closed: options.closed ?? false,
+      deleted: options.deleted ?? false,
+    });
   }
 
-  addMember(spaceId: string, userId: string, removed = false): void {
-    this.members.set(`${spaceId}:${userId}`, { removed });
+  addMember(spaceId: string, userId: string, removed = false, role: SpaceRole = 'author'): void {
+    this.access.addMember(spaceId, userId, role, removed);
   }
 
   addDocument(
@@ -52,6 +56,10 @@ export class MemoryCollabStore implements CollabStore {
       deleted: false,
       ...options,
     });
+    this.access.addDocument(id, spaceId, 'owner', {
+      reviewState: options.reviewState ?? 'draft',
+      deleted: options.deleted ?? false,
+    });
   }
 
   document(id: string): MemoryDocument | undefined {
@@ -61,21 +69,13 @@ export class MemoryCollabStore implements CollabStore {
   setSpace(id: string, patch: Partial<MemorySpace>): void {
     const space = this.spaces.get(id);
     if (space) Object.assign(space, patch);
+    this.access.updateSpace(id, patch);
   }
 
   setReviewState(id: string, reviewState: ReviewState): void {
     const doc = this.documents.get(id);
     if (doc) doc.reviewState = reviewState;
-  }
-
-  findAccess(userId: string, documentId: string): Promise<CollabAccess | undefined> {
-    const doc = this.documents.get(documentId);
-    const space = doc && this.spaces.get(doc.spaceId);
-    const member = doc && this.members.get(`${doc.spaceId}:${userId}`);
-    if (!doc || doc.deleted || !space || space.deleted || !member || member.removed) {
-      return Promise.resolve(undefined);
-    }
-    return Promise.resolve({ reviewState: doc.reviewState, spaceClosed: space.closed });
+    this.access.setReviewState(id, reviewState);
   }
 
   loadContent(documentId: string): Promise<CollabContent | undefined> {

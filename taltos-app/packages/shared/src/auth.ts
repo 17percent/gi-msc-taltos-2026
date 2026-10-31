@@ -1,16 +1,18 @@
+import type { SpaceRole, SpaceType, SystemRole } from './spaces.js';
+
 /** A `GET /api/v1/me` válasza (B5; a frontend erre kódol). */
 export interface MeResponse {
   id: string;
   displayName: string;
   email: string;
   avatarUrl: string | null;
-  systemRole: 'user' | 'system_admin';
+  systemRole: SystemRole;
   /** A felhasználó aktív színterei a szerepével. */
   spaces: Array<{
     id: string;
     name: string;
-    type: 'general' | 'team' | 'project';
-    role: 'author' | 'space_manager';
+    type: SpaceType;
+    role: SpaceRole;
   }>;
   /** Double-submit CSRF-token: minden mutáló kérésben az `X-CSRF-Token` fejlécben kell visszaküldeni. */
   csrfToken: string;

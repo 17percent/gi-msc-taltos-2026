@@ -1,6 +1,6 @@
 import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type RouteOptions } from 'fastify';
 import { HEALTH_PATH, type HealthResponse } from '@taltos/shared';
 import { mutationOriginGate, sessionCookieName, type AuthContext } from './auth/guard.js';
 import type { OidcFlow } from './auth/oidc.js';
@@ -13,6 +13,8 @@ import { registerProblemHandlers } from './http/problem.js';
 import { serializeError, serializeRequest } from './http/redact.js';
 import { trustImmediateProxy } from './http/trust-proxy.js';
 import { registerCollab } from './realtime/collab.js';
+import type { AccessStore } from './policy/access-store.js';
+import type { SpaceStore } from './spaces/store.js';
 import type { CollabStore } from './realtime/collab-store.js';
 import { startHeartbeat } from './realtime/heartbeat.js';
 import { registerNotifications } from './realtime/notifications.js';
@@ -33,6 +35,10 @@ export interface AuthDependencies {
   oidc: OidcFlow;
   /** A `/collab` adatelérése (hozzáférés-döntés és Yjs-perzisztencia). */
   collabStore: CollabStore;
+  /** A jogosultság-döntés adatelérése (`/collab`, és a későbbi végpontok `authorize*` segédei). */
+  accessStore: AccessStore;
+  /** A színterek, a tagság és a rendszerszerepek adatelérése (WP4a). */
+  spaceStore: SpaceStore;
   /** A bejelentkezési kísérlet-süti HMAC-kulcsa (a kliens-secretből származtatva; lásd main.ts). */
   cookieSecret: string;
   clock?: Clock;
@@ -45,6 +51,8 @@ export interface BuildOptions {
   /** A `/collab` mentési debounce-a (alap: 2 mp / 10 mp); a tesztek rövidítik. */
   collabDebounceMs?: number;
   collabMaxDebounceMs?: number;
+  /** Minden regisztrált útvonalat megkap (a tesztek útvonal-leltárához: láthatósági eset minden olvasó végponton). */
+  onRoute?: (route: RouteOptions) => void;
 }
 
 export async function buildApp(
@@ -63,6 +71,8 @@ export async function buildApp(
     trustProxy: config.trustProxy === false ? false : trustImmediateProxy(config.trustProxy),
   });
 
+  // Az onRoute-hooknak az első útvonal előtt kell állnia; a gyerek-hatókörök öröklik.
+  if (options.onRoute) app.addHook('onRoute', options.onRoute);
   registerProblemHandlers(app);
   await app.register(cookie, { secret: auth.cookieSecret });
   await app.register(websocket, { options: { maxPayload: WS_MAX_PAYLOAD_BYTES } });
@@ -118,11 +128,16 @@ export async function buildApp(
     clock,
     publicOrigin: config.publicOrigin,
   });
-  registerApi(app, { context, store: auth.store });
+  registerApi(app, {
+    context,
+    store: auth.store,
+    spaceRoutes: { access: auth.accessStore, spaces: auth.spaceStore, clock },
+  });
 
   const realtime = { allowedOrigins: config.allowedOrigins, context, clock, registry };
   const hocuspocus = registerCollab(app, realtime, {
     store: auth.collabStore,
+    access: auth.accessStore,
     debounceMs: options.collabDebounceMs,
     maxDebounceMs: options.collabMaxDebounceMs,
   });

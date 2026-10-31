@@ -199,6 +199,25 @@ describe('/collab hozzáférés-döntés (onAuthenticate)', () => {
     expect(new Set(bodies).size).toBe(1);
   });
 
+  it('a nem tag Rendszeradmin is ugyanazt az elutasítást kapja (tartalmi jog csak tagként, D43)', async () => {
+    const { base, userId } = await listen();
+    const admin = await (ctx as TestContext).signIn('admin@example.test', 'system_admin');
+    const { documentId } = fixture(userId); // az admin nem tagja
+    const adminReply = await authenticate(await connect(base, admin.cookie), documentId);
+    expect(isDenied(withoutName(adminReply))).toBe(true);
+    // bájtra azonos a nem létező dokumentum elutasításával
+    const missing = await authenticate(await connect(base, admin.cookie), randomUUID());
+    expect(withoutName(adminReply).toString('hex')).toBe(withoutName(missing).toString('hex'));
+  });
+
+  it('a tag Rendszeradmin szerkeszthet (a tagság adja a jogot, nem a rendszerszerep)', async () => {
+    const { base } = await listen();
+    const admin = await (ctx as TestContext).signIn('admin@example.test', 'system_admin');
+    const { documentId } = fixture(admin.userId);
+    const reply = await authenticate(await connect(base, admin.cookie), documentId);
+    expect(textOf(withoutName(reply))).toContain('read-write');
+  });
+
   const states: ReviewState[] = ['draft', 'pending', 'changes_requested', 'approved'];
   const rows = states.flatMap((state) =>
     [false, true].map((closed) => ({

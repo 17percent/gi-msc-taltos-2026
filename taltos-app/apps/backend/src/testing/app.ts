@@ -7,6 +7,7 @@ import { SessionService, TOUCH_INTERVAL_MS } from '../auth/session-service.js';
 import type { Clock, OidcIdentity } from '../auth/types.js';
 import type { AppConfig } from '../config.js';
 import { MemoryCollabStore } from './memory-collab-store.js';
+import { MemorySpaceStore } from './memory-space-store.js';
 import { MemoryAuthStore } from './memory-store.js';
 
 export const TEST_ORIGIN = 'http://localhost:5173';
@@ -70,6 +71,8 @@ export interface TestContext {
   app: FastifyInstance;
   store: MemoryAuthStore;
   collab: MemoryCollabStore;
+  /** A színterek, a tagság és a rendszerszerepek memóriabeli tára (a `collab.access` világán). */
+  spaces: MemorySpaceStore;
   clock: TestClock;
   oidc: FakeOidc;
   config: AppConfig;
@@ -93,11 +96,20 @@ export async function createTestApp(
   const config = { ...TEST_CONFIG, ...overrides };
   const store = new MemoryAuthStore(config.bootstrapAdminEmail);
   const collab = new MemoryCollabStore();
+  const spaces = new MemorySpaceStore(collab.access, store);
   const clock = new TestClock();
   const oidc = new FakeOidc();
   const app = await buildApp(
     config,
-    { store, oidc, collabStore: collab, cookieSecret: 'teszt-kulcs', clock: clock.now },
+    {
+      store,
+      oidc,
+      collabStore: collab,
+      accessStore: collab.access,
+      spaceStore: spaces,
+      cookieSecret: 'teszt-kulcs',
+      clock: clock.now,
+    },
     options,
   );
   const sessions = new SessionService(
@@ -114,6 +126,7 @@ export async function createTestApp(
     app,
     store,
     collab,
+    spaces,
     clock,
     oidc,
     config,
