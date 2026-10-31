@@ -86,7 +86,7 @@ Első fókuszolható elem minden oldalon: „Ugrás a tartalomra” link (látha
 
 ### 2.3 Navigációs elemek
 
-Nav-elem recept (javaslat, NK1): magasság `--space-10`, padding `0 var(--space-3)`, `--radius-md`, szöveg `--text-muted`, `--text-sm`, `--weight-medium`; hover `--surface-sunken`; aktív: `--primary-soft` háttér, `--primary-soft-text` szín, `--weight-semibold`, `aria-current="page"` (az aktív állapot **nem csak színnel** jelzett: súly és attribútum is). Minden elem ikon + felirat; az ikon dekoratív (`aria-hidden`).
+Nav-elem recept (DS 6.1, D57): magasság `--space-10`, padding `0 var(--space-3)`, `--radius-md`, szöveg `--text-muted`, `--text-sm`, `--weight-medium`; hover `--surface-sunken`; aktív: `--primary-soft` háttér, `--primary-soft-text` szín, `--weight-semibold`, `aria-current="page"` (az aktív állapot **nem csak színnel** jelzett: súly és attribútum is). Minden elem ikon + felirat; az ikon dekoratív (`aria-hidden`).
 
 | Elem | Felirat | Mikor látszik |
 |---|---|---|
@@ -100,9 +100,9 @@ Nav-elem recept (javaslat, NK1): magasság `--space-10`, padding `0 var(--space-
 - Tartalom: címke-sor (név, alatta `--text-xs --text-muted`: „Rendszeradminisztrátor” ha az; **e-mail nem jelenik meg**), elválasztó, „Kijelentkezés”.
 - Hiba: sikertelen kijelentkezésnél az oldal tetején `Alert` (danger, `role="alert"`): „A kijelentkezés nem sikerült. Próbáld újra.” (a meglévő viselkedés megtartva).
 
-### 2.5 Közös visszajelzési minták (nincs toast)
+### 2.5 Közös visszajelzési minták (toast: sonner, D57)
 
-- **Siker/tájékoztatás:** az oldal tetején egy `Alert` sáv (`role="status"`, `aria-live="polite"`), ikon + szöveg + „Bezár” gomb; **nem tűnik el magától** (WCAG 2.2.1), a következő művelet vagy a bezárás törli. Űrlapmentésnél a „Mentés” gomb mellett is megjelenik: „✓ Mentve.”
+- **Siker/tájékoztatás („státuszsáv” a szövegben):** **sonner** toast (DS „Toast (sonner)” recept, 6.1), ikon + szöveg + látható „Bezár” gomb, `aria-live="polite"`; hover/fókusz alatt nem záródik. A toast csak megerősítés: az eredménynek a felületen is látszania kell (frissült sor, új tag, „Lezárt” jelölés), és **hibát soha nem csak toast jelez**. Űrlapmentésnél a „Mentés” gomb mellett tartósan is megjelenik: „✓ Mentve.”
 - **Hiba:** műveletenként a megnyitott dialógusban (a dialóg nyitva marad, a megadott adatok megmaradnak) vagy az oldal tetején (`role="alert"`); a fókusz nem ugrik el, a hibaüzenet a gomb mellett/felett marad.
 - **Folyamatban:** a gomb letiltott, felirata „Mentés…”/„Hozzáadás…”, `aria-busy`; kettős küldés tilos.
 - A szerveroldali eredményre várunk (nincs optimista frissítés): minden műveletnél a szerver a forrás.
@@ -210,7 +210,7 @@ Egy elem = egy kártya (Card recept, `--space-4` padding): első sor név + műv
 
 ### 3.5 Felhasználókereső (komponens: `UserPicker`)
 
-Saját, könnyű ARIA combobox (nincs `cmdk`; NK3), a **listát a mező alatt, a dialóg folyamában** jeleníti meg (nem lebegő popover, így nincs portál- és fókuszcsapda-gond).
+A shadcn **Command** komponensre (`cmdk`, D57) épül, `shouldFilter={false}` beállítással (a szűrést a `GET /users?q=` végzi). A **listát a mező alatt, a dialóg folyamában** jeleníti meg (nem lebegő popover, így nincs portál- és fókuszcsapda-gond, és nincs plusz Popover-csomag). Recept: DS 6.1 „Kereső-lista (Combobox/cmdk)”, „Chip”.
 
 | Állapot | Megjelenés |
 |---|---|
@@ -221,7 +221,7 @@ Saját, könnyű ARIA combobox (nincs `cmdk`; NK3), a **listát a mező alatt, a
 | Hiba | „A keresés nem sikerült.” + „Újrapróbálás” gomb; a már beírt szöveg megmarad |
 | Kiválasztva | a mező helyén „chip”: avatar + név + „Törlés” (× ikon, név: „{név} törlése”); a kereső újra elérhető a törléssel |
 
-Billentyűzet: `role="combobox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`; Fel/Le a sorok között, Enter választ, Esc először a listát zárja (és megállítja az Esc továbbterjedését, hogy a dialóg ne záruljon be), második Esc a dialógot. Érintésnél a sor magassága `--space-12`.
+Billentyűzet: a `cmdk` adja a `combobox`/`listbox` szerepet és az `aria-activedescendant`-et (a megvalósításnál ellenőrizendő); Fel/Le a sorok között, Enter választ, Esc először a listát zárja (és megállítja az Esc továbbterjedését, hogy a dialóg ne záruljon be), második Esc a dialógot. Érintésnél a sor magassága `--space-12`.
 Korlát (kontraktus): a találat csak `id`, név és avatar; **azonos nevű felhasználók nem különböztethetők meg** (NK9).
 
 ---
@@ -359,33 +359,37 @@ A kontraktus egyéb kódjai (`request_pending`, `request_closed`, `not_enough_re
 
 ## 7. Komponensek (shadcn/ui + Radix, D14) és DS-leképezés
 
-Bemásolt, saját tulajdonú komponensek; **csak a ténylegesen használtak** kerülnek be. A Radix-csomagok D14 szerint (2026-10-31 pontosítás) a komponensekhez tartoznak.
+Bemásolt, saját tulajdonú komponensek; **csak a ténylegesen használtak** kerülnek be. A Radix-csomagok D14 szerint (2026-10-31 pontosítás), a szokásos shadcn-kísérők a D57 (NK3) szerint a komponensekhez tartoznak: `lucide-react` (ikonok), `class-variance-authority` + `clsx` + `tailwind-merge` (`cn()`, gomb- és badge-változatok), `cmdk` (kereső-lista), `sonner` (toast).
 
 | Komponens | Radix-csomag | Használat | DS recept / token |
 |---|---|---|---|
 | Button | `react-slot` (asChild link-gombhoz) | minden gomb; variánsok: elsődleges, körvonal, szellem, veszély; méret sm/alap | **Gomb** recept; disabled `opacity .45`; fókusz `--focus-ring` |
 | Input, Textarea, Label | – (natív) | űrlapmezők | **Input** recept; hiba `--danger` + ikon + szöveg |
 | Radio (natív) | – | típus, szerepkör | **Checkbox/Radio** recept |
-| Select | `react-select` | színtérváltó | Input recept + menü (NK1) |
-| DropdownMenu | `react-dropdown-menu` | felhasználói menü, sor-műveletek | menü recept (NK1) |
+| Select | `react-select` | színtérváltó | Input recept + Menü (DS 6.1) |
+| DropdownMenu | `react-dropdown-menu` | felhasználói menü, sor-műveletek | Menü (DS 6.1) |
 | Dialog | `react-dialog` | űrlap-dialógok (létrehozás, átnevezés, önfelvétel, tagfelvétel) | **Modal** recept (`--radius-xl`, `--shadow-xl`, lábléc `--surface-sunken`) |
 | AlertDialog | `react-alert-dialog` | lezárás, eltávolítás, jogvisszavonás, önvisszaminősítés | Modal recept; fókusz a „Mégse”-n |
 | Sheet (mobil oldalsáv) | `react-dialog` (nincs új csomag) | oldalsáv < lg | Modal recept balról, `--shadow-xl` |
-| Badge, Alert, Card, Table, Skeleton, EmptyState, Avatar, NavItem | – | állapotok, szerkezet | Badge/Alert/Card/Table/Avatar recept; Skeleton, NavItem, EmptyState: NK1 |
-| `UserPicker`, `SpaceColorPicker` | – (saját) | 3.5, 3.4 | Input, Radio, Menü recept alapján |
+| Badge, Alert, Card, Table, Avatar | – | állapotok, szerkezet | a DS meglévő receptjei |
+| Skeleton, Üres állapot, Oldalsáv/NavItem, Fejléc, Breadcrumb, Chip, Ugrás-link | – | szerkezet, állapotok | DS 6.1 új receptek |
+| Command (`cmdk`) | `cmdk` | `UserPicker` (3.5) | Kereső-lista + Chip (DS 6.1) |
+| Sonner (`Toaster`) | `sonner` | siker/tájékoztató toast (2.5) | Toast (sonner) (DS 6.1) |
+| `SpaceColorPicker` | – (natív rádiók) | 3.4 | Szín-választó + Színpont (DS 6.1) |
+| Ikonok | `lucide-react` | minden ikon | Lucide, `stroke-width` 1.6–2 (DS 8.) |
 
-**Nem kerül be** (indoklással): toast (`sonner`), combobox (`cmdk`), tooltip, tabs, avatar-Radix, ikon-könyvtár, `motion` — lásd NK3. A mozgás CSS-átmenet (`--duration-fast/base`, `--ease-standard`, `--ease-enter/exit`): dialóg és menü áttetszőség + enyhe elmozdulás; **`prefers-reduced-motion`**: az elmozdulás kikapcsol, csak azonnali (vagy `--duration-fast` áttetszőség) váltás marad.
+**Nem kerül be:** tooltip, Radix tabs (az Adminisztráció fülei útvonalak), Radix avatar, Popover (a kereső-lista a folyamban él). A `motion` a D14 része, de a WP4b-ben nem szükséges: a mozgás CSS-átmenet (`--duration-fast/base`, `--ease-standard`, `--ease-enter/exit`): dialóg és menü áttetszőség + enyhe elmozdulás; **`prefers-reduced-motion`**: az elmozdulás kikapcsol, csak áttetszőség marad.
 
-### 7.1 Javasolt új DS-receptek (NK1, jóváhagyásra)
+### 7.1 Új DS-receptek (NK1, elfogadva D57 — bekerültek a `taltos-design-system.md` 6.1 szakaszába)
 
-A DS nem tartalmaz receptet ezekre; tokenekből állítottam össze, bevezetésük a DS-fájl bővítése (nem felülírása).
+A DS-fájl 6.1 szakasza a mérvadó; az alábbi táblázat a vázlat. **Javítás a vázlathoz képest:** a Scrim nem `color-mix(--surface-inverse …)`, mert sötét témában az inverz felület világos (világos takarófólia lenne); helyette új szemantikus token, `--scrim` (világos `rgba(28,26,22,.5)`, sötét `rgba(0,0,0,.6)`), a DS `:root` és sötét remap blokkjába felvéve. A `src/styles/tokens.css`-t és a `taltos-design-tokens.json`-t a megvalósításnál tükrözni kell.
 
 | Recept | Meghatározás |
 |---|---|
 | Menü (dropdown/select-lista) | `bg:--surface-raised; border:1px --border; radius:--radius-md; shadow:--shadow-lg; padding:--space-1; z:--z-overlay`; elem `min-height:--space-10; padding:0 --space-3; font:--text-sm`; kiemelt/fókuszált `bg:--surface-sunken`; kiválasztott: pipa ikon + `--weight-semibold`; veszély elem `color:--danger`; disabled `opacity .45` |
 | NavItem / oldalsáv | oldalsáv `width:--sidebar-w; bg:--surface; border-right:1px --border; padding:--space-4`; elem lásd 2.3 |
 | Skeleton | `bg:--surface-sunken; radius:--radius-sm`; lüktetés `--duration-slower` áttetszőséggel; reduced-motion: statikus |
-| Scrim (dialóg/sheet mögött) | `color-mix(in srgb, var(--surface-inverse) 55%, transparent)`; z `--z-overlay`; dialóg `--z-modal` |
+| Scrim (dialóg/sheet mögött) | `bg:--scrim`; z `--z-overlay`; dialóg `--z-modal` |
 | EmptyState | középre igazítva; ikon `--primary-soft` körben (`--radius-full`), cím H3-szerep, törzs `--text-muted`, egy elsődleges gomb; térköz `--space-4`–`--space-8` |
 | Színpont | `--space-3` kör, `--radius-full`, `1px --border-strong` gyűrű (a szín az adatból); nagy változat `--space-8` a választóban |
 | Combobox-lista | `border:1px --border; radius:--radius-md; bg:--surface; max-height:calc(var(--space-12) * 5); overflow:auto`; sor `min-height:--space-12` |
@@ -404,7 +408,7 @@ A DS nem tartalmaz receptet ezekre; tokenekből állítottam össze, bevezetés�
 
 ## 9. Átadás a `frontend-web`nek
 
-1. A tokenek már a `src/styles/tokens.css`-ben vannak; a recepteket az 7. szakasz szerint, csak szemantikus tokennel.
+1. A tokenek a `src/styles/tokens.css`-ben vannak; ide fel kell venni az új `--scrim` tokent (világos és sötét) is. A recepteket a DS 6.1 szerint, csak szemantikus tokennel. A `sonner` stílusát a `toastOptions.classNames`-szel a DS-tokenekre kell kötni.
 2. Közös `apiFetch` (CSRF-fejléc, Problem Details → `ErrorCode` típus) és a 6. szakasz hibaleképezése egyetlen táblában (kód → üzenet), nem szétszórva.
 3. Tesztek: komponensteszt a 5. szakasz mátrixának minden cellájára (megjelenik/nem jelenik meg), minden hibakódra a 6.1 szerint (üzenet és fókusz), az állapotokra (betöltés, üres, hiba, nincs jog), billentyűs út a dialógokban és a `UserPicker`-ben; kézi ellenőrzés 360 px-en és sötét témában.
 4. A `HomePage` és a `DocumentPage` változatlan marad; csak a keret (`RootLayout`) cserélődik.
@@ -450,7 +454,7 @@ Eltérések, ellentmondások (nem oldottam fel csendben):
 
 Nyitott kérdések (opciók és ajánlás; nem döntöttem):
 
-- **NK1 — DS-hiányok.** A DS-ben nincs recept: menü/lista, oldalsáv-elem, skeleton, scrim, üres állapot, színpont, combobox-lista, sheet. *Opciók:* (a) a 7.1 javaslatai bekerülnek a `taltos-design-system.md`-be jóváhagyás után; (b) csak a komponens-kódban élnek. *Ajánlás:* (a), különben a következő felület más értékeket talál ki.
+- **NK1 — LEZÁRVA (D57, a):** a receptek a DS 6.1-ben. **NK3, NK4 — LEZÁRVA (D57):** lásd a Döntések szakaszt; az alábbi szöveg a döntés előtti állapot. **NK1 — DS-hiányok.** A DS-ben nincs recept: menü/lista, oldalsáv-elem, skeleton, scrim, üres állapot, színpont, combobox-lista, sheet. *Opciók:* (a) a 7.1 javaslatai bekerülnek a `taltos-design-system.md`-be jóváhagyás után; (b) csak a komponens-kódban élnek. *Ajánlás:* (a), különben a következő felület más értékeket talál ki.
 - **NK2 — A színtér-paletta a DS-en kívül él.** A `SPACE_COLOR_PALETTE` nyers hex (D56), nem DS-token; a nevek (Kék, Okker, …) az én javaslataim; a sötét felületi kontraszt nem mért. *Opciók:* (a) a paletta adatként marad, inline `style`, a kontrasztot a jóváhagyás előtt mérjük mindkét témában; (b) DS-tokenekbe (`--space-color-1…8`, téma-függően) emeljük, ami a D56 palettájának módosítása. *Ajánlás:* (a) most, a mérés a frontend-review része; (b) csak ha a mérés bukik.
 - **NK3 — Függőségek, amelyeket a bemásolt shadcn-komponensek vagy a DS vinne.** A D14-pontosítás csak a **Radix**-csomagokat fedi (itt: `react-slot`, `-dialog`, `-alert-dialog`, `-dropdown-menu`, `-select`). Nincs naplóban és nincs a `package.json`-ban: `lucide-react` (a DS „Lucide”-t ajánl), `class-variance-authority`/`clsx`/`tailwind-merge` (a shadcn `cn`/variáns-segédje), `cmdk` (combobox), `sonner` (toast), `motion` (D14 említi). *Opciók:* (a) naplópontot nyitunk ezekre; (b) a szükséges ~15 Lucide-ikon SVG-jét bemásoljuk (ISC licenc) egy `icons.tsx`-be, saját `cn()` és változat-térkép, saját combobox, státuszsáv toast helyett, CSS-átmenet `motion` helyett. *Ajánlás:* (b), nulla új függőség, a meglévő `buttons.tsx` stílusával egyezik.
 - **NK4 — Hol él az „aktuális színtér”?** A naplóban nincs szerver-oldali beállítás. *Opciók:* (a) kliensoldali (böngésző, felhasználónként), plusz az URL ott, ahol színtérhez kötött oldal van; (b) szerveroldali preferencia (új végpont, naplópont). *Ajánlás:* (a).

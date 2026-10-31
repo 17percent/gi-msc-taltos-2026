@@ -92,6 +92,7 @@
   --shadow-md:0 4px 10px rgba(28,26,22,.08),0 2px 4px rgba(28,26,22,.05);
   --shadow-lg:0 12px 28px rgba(28,26,22,.12),0 4px 8px rgba(28,26,22,.06);
   --shadow-xl:0 24px 48px rgba(28,26,22,.16);
+  --scrim:rgba(28,26,22,.5);
 }
 ```
 
@@ -116,6 +117,7 @@
   --shadow-md:0 4px 12px rgba(0,0,0,.5);
   --shadow-lg:0 14px 32px rgba(0,0,0,.55);
   --shadow-xl:0 24px 50px rgba(0,0,0,.6);
+  --scrim:rgba(0,0,0,.6);
 }
 ```
 
@@ -133,6 +135,7 @@
 | Kiemelés, jutalom, „figyelj ide” | `--accent` (szöveg rajta: `--text-on-accent`) |
 | Státusz | `--success` / `--warning` / `--danger` / `--info` (+ `-bg` háttér) |
 | Sötét felület világos szöveggel (tooltip, toast) | `--surface-inverse` + `--text-inverse` |
+| Takarófólia dialóg/sheet mögött | `--scrim` |
 
 ## 5. Tipográfiai skála (szerep → érték)
 
@@ -177,6 +180,48 @@
 **Modal** `bg:--surface; border:1px --border; radius:--radius-xl; --shadow-xl`; lábléc `--surface-sunken; border-top:1px --border`
 **Progress** track `--surface-sunken`; kitöltés `linear-gradient(90deg,var(--green-500),var(--gold-500))`
 **Avatar** kör, `color:#fff`, háttér primitív 600-as (green/blue/gold). Rang-koszorú: `2px --accent` gyűrű.
+
+### 6.1 Alkalmazás-keret és űrlap-minták (bővítés — WP4b, D57; shadcn/Radix/cmdk/sonner/Lucide komponensekhez)
+
+Mind csak szemantikus tokenekkel; a téma ingyen jár. Minden interaktív elemen `:focus-visible` → `--focus-ring` (a listaelemeknél lásd lent: belső gyűrű). Ikon: Lucide, `stroke-width` 1.6–2, méret `1em`–`1.25em`, dekoratív ikon `aria-hidden`.
+
+**Menü** (DropdownMenu, Select-lista) `bg:--surface-raised; border:1px --border; radius:--radius-md; --shadow-lg; padding:--space-1; z:--z-overlay`
+- elem `min-height:--space-10 (érintésen --space-12); padding:0 --space-3; gap:--space-2; font:--text-sm; color:--text; radius:--radius-sm`
+- kiemelt (hover és billentyű) `bg:--surface-sunken` **és** `box-shadow:inset 0 0 0 2px var(--border-focus)` billentyűs kiemelésnél (a háttér önmagában kevés)
+- kiválasztott: pipa ikon + `--weight-semibold` · veszély elem: `color:--danger` + ikon · disabled: `opacity:.45`
+- elválasztó `1px --border; margin:--space-1 0` · csoportcímke `--text-xs 600 uppercase --tracking-wide --text-subtle; padding:--space-2 --space-3`
+- nyitás: `opacity 0→1` + `translateY(calc(-1 * var(--space-1)))→0`, `--duration-fast --ease-enter`; zárás `--ease-exit`; `prefers-reduced-motion`: elmozdulás nincs
+
+**Oldalsáv + NavItem** oldalsáv `width:--sidebar-w; bg:--surface; border-right:1px --border; padding:--space-4; gap:--space-1`
+- NavItem `height:--space-10; padding:0 --space-3; gap:--space-3; radius:--radius-md; font:500 --text-sm; color:--text-muted; ikon+felirat`; hover `bg:--surface-sunken; color:--text`
+- aktív (`aria-current="page"`) `bg:--primary-soft; color:--primary-soft-text; font-weight:--weight-semibold` (nem csak szín: súly + attribútum)
+- szakaszcímke (eyebrow) `--text-xs 600 uppercase --tracking-wide --text-subtle; padding:0 --space-3`
+
+**Fejléc (app bar)** `position:sticky; top:0; z:--z-sticky; bg:--surface; border-bottom:1px --border; height:--space-12(+); padding:0 --space-4/--space-6`; logó display font `--text-xl`; jobb oldalt felhasználói menü. < lg: hamburger ikongomb (érintési cél `--space-12`).
+
+**Sheet** (mobil oldalsáv) a Modal receptje balról: `bg:--surface; border-right:1px --border; --shadow-xl; width:min(var(--sidebar-w),85%); z:--z-modal`; be: `translateX(-100%)→0`, `--duration-base --ease-grow`; reduced-motion: csak `opacity`.
+
+**Scrim** `bg:--scrim; z:--z-overlay` (dialóg/sheet `--z-modal`); be/ki `opacity`, `--duration-fast`.
+
+**Skeleton** `bg:--surface-sunken; radius:--radius-sm`; méret a helyettesített elemé (nincs elmozdulás); lüktetés `opacity 1→.5→1`, `--duration-slower --ease-standard`, végtelen; `prefers-reduced-motion`: statikus. A konténeren `aria-busy="true"`, rejtett állapotszöveg.
+
+**Üres állapot** középre igazítva; `padding:--space-8–12; gap:--space-4`; ikon `--text-3xl` `--primary-soft-text` `--primary-soft` körben (`--radius-full`, kör `--space-16`); cím H3-szerep; törzs `--text-muted`, max `--read-width`; legfeljebb egy elsődleges gomb. A szöveg megmondja, mi hiányzik és mit tegyen a felhasználó.
+
+**Színpont** `width/height:--space-3 (választóban --space-8); radius:--radius-full; border:1px --border-strong`; a szín adat (inline `style`), sosem komponens-CSS. Jelölő, nem információhordozó: mindig név mellett.
+**Szín-választó** (`fieldset` + natív rádiók) elem = nagy színpont; kiválasztott: külső gyűrű `2px --text` `--surface` réssel **és** sarok-korong `--surface` háttérrel, pipa ikon `--text` színnel (nincs szín-a-színen); fókusz `--focus-ring`; hover gyűrű `--border-strong`; hozzáférhető név minden elemen.
+
+**Kereső-lista (Combobox/cmdk)** a lista a mező alatt, a folyamban: `border:1px --border; radius:--radius-md; bg:--surface; max-height:calc(var(--space-12) * 5); overflow:auto; padding:--space-1`
+- sor `min-height:--space-12; padding:0 --space-3; gap:--space-3; font:--text-sm`; aktív sor `bg:--surface-sunken` + `inset 0 0 0 2px --border-focus`; tiltott sor (pl. „Már tag”) `opacity:.45` + felirat
+- állapotsorok (keresés / nincs találat / hiba) `--text-sm --text-muted`, ikonnal; hiba: `--danger` + ikon + „Újrapróbálás” szellem-gomb
+- a találatszámot `role="status"` régió mondja
+
+**Chip** (kiválasztott érték, törölhető) `height:--space-8; padding:0 --space-2 0 --space-3; gap:--space-2; radius:--radius-full; bg:--surface-sunken; border:1px --border; font:--text-sm`; törlés ikongomb (× , `--text-muted`, hover `--text`, fókusz `--focus-ring`, hozzáférhető név).
+
+**Breadcrumb** `nav aria-label`; `ol` `--text-sm --text-muted`; elválasztó chevron ikon; az utolsó elem `--text` + `aria-current="page"`; link `--secondary`, hover aláhúzás.
+
+**Ugrás a tartalomra link** alapból képernyőn kívül; fókuszban `position:fixed; top:--space-2; left:--space-2; z:--z-toast; bg:--surface; color:--text; padding:--space-2 --space-4; radius:--radius-md; --shadow-md; --focus-ring`.
+
+**Toast (sonner)** a Tooltip/Toast recept leképezve: `bg:--surface-inverse; color:--text-inverse; radius:--radius-md; --shadow-lg; padding:--space-3 --space-4; z:--z-toast`; státuszikon (siker/hiba/info) + szöveg (nem csak szín); látható „Bezár” gomb; hover/fókusz alatt nem záródik; az eredménynek a felületen is láthatónak kell lennie; hibát soha nem csak toast jelez (inline `Alert`). Be/ki: `opacity` + `translateY`, `--duration-base --ease-enter/exit`; reduced-motion: csak `opacity`.
 
 ## 7. Elrendezés
 
