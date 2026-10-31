@@ -12,6 +12,8 @@ describe('hibakód-katalógus', () => {
   it('a kódhoz a B5 szerinti HTTP-státuszt adja', () => {
     expect(statusOf('stale_base_revision')).toBe(412);
     expect(statusOf('internal_error')).toBe(500);
+    expect(statusOf('invalid_new_owner')).toBe(422);
+    expect(isErrorCode('invalid_new_owner')).toBe(true);
   });
 
   it('minden státusz érvényes 4xx vagy 5xx', () => {
