@@ -32,3 +32,12 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-31 15:31 | auto | backend | 4811591 | 117 | 562 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=182017 cached=4629574 |
 | 2026-10-31 15:38 | auto | code-reviewer | 1620845 | 71 | 292 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=118079 cached=1502766 |
 | 2026-10-31 15:39 | auto | appsec | 1784444 | 61 | 357 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=132843 cached=1651601 |
+| 2026-10-31 16:22 | auto | engineering-lead | 3145524 | 53 | 583 s | effort=high model=claude-opus-5-5 status=PARTIAL fresh=414219 cached=2731305 |
+| 2026-10-31 16:37 | auto | engineering-lead | 4229321 | 63 | 1502 s | effort=high model=claude-opus-5-5 status=DONE fresh=668748 cached=3560573 |
+| 2026-10-31 16:41 | auto | backend | 488179 | 35 | 146 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=67835 cached=420344 |
+| 2026-10-31 16:47 | auto | database-data-engineer | 2056467 | 73 | 261 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=102925 cached=1953542 |
+| 2026-10-31 16:58 | auto | backend | 10119035 | 193 | 1180 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=319014 cached=9800021 |
+| 2026-10-31 17:05 | auto | backend | 18017860 | 309 | 1599 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=398236 cached=17619624 |
+| 2026-10-31 17:24 | auto | backend | 40252657 | 513 | 2735 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=664703 cached=39587954 |
+| 2026-10-31 17:33 | auto | backend | 3606983 | 104 | 490 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=172770 cached=3434213 |
+| 2026-10-31 17:37 | auto | qa-automation | 4059472 | 89 | 696 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=242095 cached=3817377 |
