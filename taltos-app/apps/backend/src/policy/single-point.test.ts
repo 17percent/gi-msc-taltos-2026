@@ -24,6 +24,7 @@ export const ALLOWED: Record<string, string> = {
   'auth/types.ts': 'a munkamenet-sor típusa (a szerep adat, nem döntés)',
   'http/api.ts': 'a /me válasz-sémájának enumjai (alak, nem döntés)',
   'spaces/guards.ts': 'az aktív Színtérgazda/admin közös SQL-feltétele (WP2 és WP4a)',
+  'spaces/space-store-contract.ts': 'tár-szerződés teszt (fixture-szerepek, nem döntés)',
   'spaces/pg-space-store.ts': 'a tagkezelés SQL-je (térzár, utolsó gazda/admin védelem)',
   'realtime/pg-collab-store.ts':
     'a /collab tartalom-betöltése és -mentése (nincs döntés; a mentés TOCTOU-újraellenőrzése nem policy)',

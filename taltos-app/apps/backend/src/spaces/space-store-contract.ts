@@ -1,0 +1,369 @@
+import { describe, expect, it } from 'vitest';
+import type { SpaceRole, SpaceType } from '@taltos/shared';
+import type { Actor } from '../policy/targets.js';
+import type { SpaceStore } from './store.js';
+
+/**
+ * Az adapter-specifikus fixture és megfigyelés: a szerződés teszt ezen át tölti fel és olvassa a világot, így ugyanaz a
+ * forgatókönyv fut a memóriabeli és a PostgreSQL-adapteren. A `StoreHarness` minden hívása friss, egyedi azonosítókat ad.
+ */
+export interface StoreHarness {
+  store: SpaceStore;
+  user(name: string, options?: { admin?: boolean; allowlisted?: boolean }): Promise<string>;
+  space(options?: { type?: SpaceType; closed?: boolean }): Promise<string>;
+  member(spaceId: string, userId: string, role?: SpaceRole): Promise<void>;
+  document(
+    spaceId: string,
+    ownerId: string,
+    options?: {
+      archived?: boolean;
+      pending?: { initiatorId: string; reviewers: string[]; decided?: string[] };
+    },
+  ): Promise<string>;
+  /** A térhez írt események sorrendben: típus, aktor, dokumentum, ok. */
+  events(
+    spaceId: string,
+  ): Promise<{ type: string; actorId: string | null; documentId?: string; reason?: string }[]>;
+  owner(documentId: string): Promise<string>;
+  reviewState(documentId: string): Promise<string>;
+  /** Az aktív (nem megszűnt) review-er helyek. */
+  activeReviewers(documentId: string): Promise<string[]>;
+  /** Tag-e (aktív tagság). */
+  isMember(spaceId: string, userId: string): Promise<boolean>;
+}
+
+const NOW = new Date('2026-10-31T08:00:00Z');
+const user = (userId: string): Actor => ({ userId, systemRole: 'user' });
+const admin = (userId: string): Actor => ({ userId, systemRole: 'system_admin' });
+
+/**
+ * A `SpaceStore` közös szerződése (üzleti védelmek, D55/D56 szabályok, események). A HTTP-réteg és a `can()` döntés
+ * nincs benne: azt a `spaces.http.test.ts` és a `policy.test.ts` fedi.
+ */
+export function describeSpaceStoreContract(name: string, setup: () => Promise<StoreHarness>): void {
+  describe(`${name}: SpaceStore-szerződés`, () => {
+    it('removeMember: az utolsó aktív Színtérgazda védett, másik gazdával eltávolítható', async () => {
+      const h = await setup();
+      const [m1, m2, a] = [await h.user('m1'), await h.user('m2'), await h.user('a')];
+      const space = await h.space();
+      await h.member(space, m1, 'space_manager');
+      await h.member(space, a);
+      expect(await h.store.removeMember(user(m1), space, m1, NOW)).toMatchObject({
+        ok: false,
+        code: 'last_space_manager',
+      });
+      await h.member(space, m2, 'space_manager');
+      expect((await h.store.removeMember(user(m1), space, m1, NOW)).ok).toBe(true);
+      expect(await h.isMember(space, m1)).toBe(false);
+    });
+
+    it('removeMember: a kizárt allowlist-címűt nem számoljuk pótló gazdának', async () => {
+      const h = await setup();
+      const m1 = await h.user('m1');
+      const ghost = await h.user('ghost', { allowlisted: false });
+      const space = await h.space();
+      await h.member(space, m1, 'space_manager');
+      await h.member(space, ghost, 'space_manager');
+      expect(await h.store.removeMember(user(m1), space, m1, NOW)).toMatchObject({
+        ok: false,
+        code: 'last_space_manager',
+      });
+    });
+
+    it('removeMember: az archiválatlan dokumentum tulajdonosa 409, az csak archiváltaké eltávolítható', async () => {
+      const h = await setup();
+      const [m, a, b] = [await h.user('m'), await h.user('a'), await h.user('b')];
+      const space = await h.space();
+      await h.member(space, m, 'space_manager');
+      await h.member(space, a);
+      await h.member(space, b);
+      await h.document(space, a);
+      await h.document(space, b, { archived: true });
+      expect(await h.store.removeMember(user(m), space, a, NOW)).toMatchObject({
+        ok: false,
+        code: 'owner_handover_required',
+      });
+      expect((await h.store.removeMember(user(m), space, b, NOW)).ok).toBe(true);
+    });
+
+    it('removeMember: az Általánosból nem lehet, a nem tag 404, a lezárt térben csak a Rendszeradmin', async () => {
+      const h = await setup();
+      const [m, a, root] = [
+        await h.user('m'),
+        await h.user('a'),
+        await h.user('root', { admin: true }),
+      ];
+      const general = await h.space({ type: 'general' });
+      await h.member(general, m, 'space_manager');
+      await h.member(general, a);
+      expect(await h.store.removeMember(admin(root), general, a, NOW)).toMatchObject({
+        ok: false,
+        code: 'forbidden',
+      });
+      const closed = await h.space({ closed: true });
+      await h.member(closed, m, 'space_manager');
+      await h.member(closed, a);
+      expect(await h.store.removeMember(user(m), closed, a, NOW)).toMatchObject({
+        ok: false,
+        code: 'space_closed',
+      });
+      expect((await h.store.removeMember(admin(root), closed, a, NOW)).ok).toBe(true);
+      expect(await h.store.removeMember(admin(root), closed, a, NOW)).toMatchObject({
+        ok: false,
+        code: 'not_found',
+      });
+    });
+
+    it('removeMember: az indítványozó kérése visszavonódik (member_removed, aktor az eltávolító), a review-er helye megszűnik, a döntött megmarad', async () => {
+      const h = await setup();
+      const [m, init, r1, r2] = [
+        await h.user('m'),
+        await h.user('init'),
+        await h.user('r1'),
+        await h.user('r2'),
+      ];
+      const space = await h.space();
+      for (const u of [init, r1, r2]) await h.member(space, u);
+      await h.member(space, m, 'space_manager');
+      // 1. dokumentum: init az indítványozó → a kérés visszavonódik
+      const d1 = await h.document(space, m, {
+        pending: { initiatorId: init, reviewers: [r1, r2] },
+      });
+      // 2. dokumentum: r1 megjelölt (nem döntött), r2 már döntött
+      const d2 = await h.document(space, m, {
+        pending: { initiatorId: m, reviewers: [r1, r2], decided: [r2] },
+      });
+      expect((await h.store.removeMember(user(m), space, init, NOW)).ok).toBe(true);
+      expect(await h.reviewState(d1)).toBe('draft');
+      expect((await h.store.removeMember(user(m), space, r1, NOW)).ok).toBe(true);
+      expect(await h.activeReviewers(d2)).toEqual([r2]);
+      expect(await h.reviewState(d2)).toBe('pending');
+
+      const log = await h.events(space);
+      expect(log).toContainEqual(
+        expect.objectContaining({
+          type: 'review_withdrawn',
+          actorId: m,
+          documentId: d1,
+          reason: 'member_removed',
+        }),
+      );
+      expect(log).toContainEqual(
+        expect.objectContaining({
+          type: 'reviewer_removed',
+          actorId: m,
+          documentId: d2,
+          reason: 'member_removed',
+        }),
+      );
+      // r1 a d1-en is megjelölt volt, de a kérés már vissza volt vonva: ott nem keletkezik új esemény
+      expect(log.filter((e) => e.type === 'reviewer_removed')).toHaveLength(1);
+    });
+
+    it('changeRole: az utolsó gazda nem minősíthető vissza, előléptetés után igen; role_changed esemény', async () => {
+      const h = await setup();
+      const [m, a] = [await h.user('m'), await h.user('a')];
+      const space = await h.space();
+      await h.member(space, m, 'space_manager');
+      await h.member(space, a);
+      expect(await h.store.changeRole(user(m), space, m, 'author', NOW)).toMatchObject({
+        ok: false,
+        code: 'last_space_manager',
+      });
+      expect((await h.store.changeRole(user(m), space, a, 'space_manager', NOW)).ok).toBe(true);
+      expect((await h.store.changeRole(user(m), space, m, 'author', NOW)).ok).toBe(true);
+      expect((await h.events(space)).filter((e) => e.type === 'role_changed')).toHaveLength(2);
+    });
+
+    it('addMember: önfelvétel lezárt térben a Rendszeradminnak, újrapróbálás nem ír, nem allowlistes 400', async () => {
+      const h = await setup();
+      const [m, root, ghost] = [
+        await h.user('m'),
+        await h.user('root', { admin: true }),
+        await h.user('ghost', { allowlisted: false }),
+      ];
+      const space = await h.space({ closed: true });
+      await h.member(space, m, 'space_manager');
+      expect(
+        (await h.store.addMember(admin(root), space, { userId: root, role: 'space_manager' }, NOW))
+          .ok,
+      ).toBe(true);
+      expect(
+        (await h.store.addMember(admin(root), space, { userId: root, role: 'space_manager' }, NOW))
+          .ok,
+      ).toBe(true);
+      expect((await h.events(space)).filter((e) => e.type === 'member_added')).toHaveLength(1);
+      expect(
+        await h.store.addMember(user(m), space, { userId: ghost, role: 'author' }, NOW),
+      ).toMatchObject({
+        ok: false,
+        code: 'space_closed',
+      });
+      const open = await h.space();
+      expect(
+        await h.store.addMember(admin(root), open, { userId: ghost, role: 'author' }, NOW),
+      ).toMatchObject({
+        ok: false,
+        code: 'validation_error',
+      });
+    });
+
+    it('closeSpace: csak projekt-tér, a függő kérések aktor nélkül visszavonódnak, az ismétlés idempotens', async () => {
+      const h = await setup();
+      const [m, init, r1, r2, root] = [
+        await h.user('m'),
+        await h.user('init'),
+        await h.user('r1'),
+        await h.user('r2'),
+        await h.user('root', { admin: true }),
+      ];
+      const team = await h.space();
+      expect(await h.store.closeSpace(admin(root), team, NOW)).toMatchObject({
+        ok: false,
+        code: 'forbidden',
+      });
+      const project = await h.space({ type: 'project' });
+      for (const u of [init, r1, r2]) await h.member(project, u);
+      await h.member(project, m, 'space_manager');
+      const doc = await h.document(project, m, {
+        pending: { initiatorId: init, reviewers: [r1, r2] },
+      });
+      const closed = await h.store.closeSpace(admin(root), project, NOW);
+      expect(closed).toEqual({ ok: true, value: { alreadyClosed: false, withdrawnRequests: 1 } });
+      expect(await h.reviewState(doc)).toBe('draft');
+      expect(await h.activeReviewers(doc)).toEqual([]);
+      expect((await h.events(project)).filter((e) => e.type === 'review_withdrawn')).toEqual([
+        expect.objectContaining({ actorId: null, documentId: doc, reason: 'space_closed' }),
+      ]);
+      expect(await h.store.closeSpace(admin(root), project, NOW)).toEqual({
+        ok: true,
+        value: { alreadyClosed: true, withdrawnRequests: 0 },
+      });
+      expect((await h.events(project)).filter((e) => e.type === 'space_closed')).toHaveLength(1);
+      expect(
+        await h.store.closeSpace(admin(root), await h.space({ type: 'general' }), NOW),
+      ).toMatchObject({
+        code: 'forbidden',
+      });
+    });
+
+    it('adminHandover: a tér összes (archivált is) dokumentuma az új tagra, dokumentumonként egy esemény; 422 nem tagra és azonosra', async () => {
+      const h = await setup();
+      const [a, b, outsider, root] = [
+        await h.user('a'),
+        await h.user('b'),
+        await h.user('o'),
+        await h.user('root', { admin: true }),
+      ];
+      const space = await h.space({ closed: true });
+      const other = await h.space();
+      await h.member(space, a);
+      await h.member(space, b);
+      const d1 = await h.document(space, a);
+      const d2 = await h.document(space, a, { archived: true });
+      const d3 = await h.document(other, a);
+      expect(
+        await h.store.adminHandover(
+          admin(root),
+          { userId: a, spaceId: space, newOwnerId: outsider },
+          NOW,
+        ),
+      ).toMatchObject({ ok: false, code: 'invalid_new_owner' });
+      expect(
+        await h.store.adminHandover(admin(root), { userId: a, spaceId: space, newOwnerId: a }, NOW),
+      ).toMatchObject({ ok: false, code: 'invalid_new_owner' });
+      expect(
+        await h.store.adminHandover(admin(root), { userId: a, spaceId: space, newOwnerId: b }, NOW),
+      ).toEqual({ ok: true, value: { movedDocuments: 2 } });
+      expect(await h.owner(d1)).toBe(b);
+      expect(await h.owner(d2)).toBe(b);
+      expect(await h.owner(d3)).toBe(a);
+      const changed = (await h.events(space)).filter((e) => e.type === 'owner_changed');
+      expect(changed.map((e) => e.documentId).sort()).toEqual([d1, d2].sort());
+      for (const e of changed) expect(e).toMatchObject({ actorId: root, reason: 'admin_handover' });
+    });
+
+    it('transferOwnership: tulajdonos vagy gazda, 422 nem tagra és azonosra, lezárt térben space_closed, archiváltra is', async () => {
+      const h = await setup();
+      const [m, a, b, c] = [
+        await h.user('m'),
+        await h.user('a'),
+        await h.user('b'),
+        await h.user('c'),
+      ];
+      const space = await h.space();
+      await h.member(space, m, 'space_manager');
+      await h.member(space, a);
+      await h.member(space, b);
+      const doc = await h.document(space, a);
+      const archived = await h.document(space, a, { archived: true });
+      const input = (documentId: string, newOwnerId: string, actorIsManager: boolean) => ({
+        documentId,
+        newOwnerId,
+        actorIsManager,
+      });
+      expect(await h.store.transferOwnership(user(b), input(doc, b, false), NOW)).toMatchObject({
+        code: 'forbidden',
+      });
+      expect(await h.store.transferOwnership(user(a), input(doc, c, false), NOW)).toMatchObject({
+        code: 'invalid_new_owner',
+      });
+      expect(await h.store.transferOwnership(user(a), input(doc, a, false), NOW)).toMatchObject({
+        code: 'invalid_new_owner',
+      });
+      expect((await h.store.transferOwnership(user(a), input(doc, b, false), NOW)).ok).toBe(true);
+      expect(await h.owner(doc)).toBe(b);
+      expect((await h.store.transferOwnership(user(m), input(archived, b, true), NOW)).ok).toBe(
+        true,
+      );
+      const closed = await h.space({ closed: true });
+      await h.member(closed, a);
+      await h.member(closed, b);
+      const closedDoc = await h.document(closed, a);
+      expect(
+        await h.store.transferOwnership(user(a), input(closedDoc, b, false), NOW),
+      ).toMatchObject({
+        code: 'space_closed',
+      });
+      expect(
+        await h.store.transferOwnership(
+          user(a),
+          input('00000000-0000-4000-8000-000000000000', b, false),
+          NOW,
+        ),
+      ).toMatchObject({ code: 'not_found' });
+    });
+
+    it('changeSystemRole: az utolsó (aktív allowlistes) admin védett; a kizárt címűt nem számoljuk pótlónak', async () => {
+      const h = await setup();
+      const root = await h.user('root', { admin: true });
+      const second = await h.user('second', { admin: true, allowlisted: false });
+      expect(await h.store.changeSystemRole(admin(root), root, 'user', NOW)).toMatchObject({
+        ok: false,
+        code: 'last_admin',
+      });
+      const third = await h.user('third', { admin: true });
+      expect((await h.store.changeSystemRole(admin(root), second, 'user', NOW)).ok).toBe(true);
+      expect((await h.store.changeSystemRole(admin(root), root, 'user', NOW)).ok).toBe(true);
+      expect(await h.store.changeSystemRole(admin(third), third, 'user', NOW)).toMatchObject({
+        code: 'last_admin',
+      });
+    });
+
+    it('searchUsers: csak az aktív allowlistesek, szó szerinti keresés (%, _), legfeljebb a korlát, csak id/név/avatar', async () => {
+      const h = await setup();
+      for (let i = 0; i < 12; i += 1) await h.user(`kereső${String(i).padStart(2, '0')}`);
+      await h.user('kereső-kizárt', { allowlisted: false });
+      await h.user('szazalek%jel');
+      const found = await h.store.searchUsers('kereső', 10);
+      expect(found).toHaveLength(10);
+      expect(found.map((u) => u.displayName)).not.toContain('kereső-kizárt');
+      expect(Object.keys(found[0] ?? {}).sort()).toEqual(['avatarUrl', 'displayName', 'id']);
+      expect(await h.store.searchUsers('%%', 10)).toEqual([]);
+      expect(await h.store.searchUsers('__', 10)).toEqual([]);
+      expect((await h.store.searchUsers('zalek%j', 10)).map((u) => u.displayName)).toEqual([
+        'szazalek%jel',
+      ]);
+    });
+  });
+}

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as t from '../db/schema.js';
+import { vacateReviewer } from '../review/review-service.js';
 import { otherActiveAdminExists, otherActiveManagerExists } from '../spaces/guards.js';
 import { LOCK_ALLOWLIST_SYNC } from './locks.js';
 
@@ -124,6 +125,9 @@ export async function syncAllowlist(
       if (user !== undefined) {
         await tx.execute(sql`UPDATE sessions SET expires_at = ${now}::timestamptz
                                WHERE user_id = ${user} AND expires_at > ${now}::timestamptz`);
+        // A kiesett felhasználó függő review-er helyei megszűnnek (D51 b, C11): aktor nélküli `reviewer_removed`
+        // (ok: `allowlist_removed`), minden térre; a védelem miatt megtartott felhasználónál ez a szakasz nem fut.
+        await vacateReviewer(tx, { userId: user, actorId: null, reason: 'allowlist_removed' }, now);
       }
       result.removed += 1;
     }
