@@ -139,11 +139,14 @@ export function LoadingRegion({
 export function EmptyState({
   icon: Icon,
   title,
+  titleAs: Title = 'h2',
   children,
   action,
 }: {
   icon: LucideIcon;
   title: string;
+  /** Az oldal fő állapotánál `h1` (az útvonalváltás fókusza ide kerül). */
+  titleAs?: 'h1' | 'h2';
   children?: ReactNode;
   action?: ReactNode;
 }) {
@@ -152,7 +155,9 @@ export function EmptyState({
       <span className="flex size-16 items-center justify-center rounded-full bg-primary-soft text-3xl text-primary-soft-text">
         <Icon aria-hidden="true" className="size-[1em]" />
       </span>
-      <h2 className="text-lg font-semibold text-text">{title}</h2>
+      <Title tabIndex={-1} className="text-lg font-semibold text-text">
+        {title}
+      </Title>
       {children ? <div className="text-muted">{children}</div> : null}
       {action}
     </div>

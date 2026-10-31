@@ -1,10 +1,5 @@
 import { CircleAlert } from 'lucide-react';
-import type {
-  InputHTMLAttributes,
-  LabelHTMLAttributes,
-  ReactNode,
-  TextareaHTMLAttributes,
-} from 'react';
+import type { ComponentProps, LabelHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 const field =
@@ -14,7 +9,7 @@ export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElem
   return <label className={cn('block text-sm font-semibold text-text', className)} {...props} />;
 }
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: ComponentProps<'input'>) {
   return (
     <input
       className={cn(
@@ -28,7 +23,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   );
 }
 
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   return (
     <textarea
       className={cn(field, 'min-h-24 border-border-strong py-2 leading-normal', className)}
