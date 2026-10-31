@@ -1,6 +1,8 @@
 import { expect } from 'vitest';
 import type { MeResponse } from '@taltos/shared';
 import type { TestContext } from '../testing/app.js';
+import { can } from './policy.js';
+import type { DocumentTarget } from './targets.js';
 
 /**
  * Láthatósági esetek: minden `/api/v1` GET végponthoz tartozik egy eset, amely bizonyítja, hogy a nem jogosult nem
@@ -18,6 +20,25 @@ export interface VisibilityCase {
 }
 
 export const VISIBILITY_CASES: Record<string, VisibilityCase> = {
+  // A /collab (WebSocket, GET upgrade) a dokumentum tartalmát adja: az onAuthenticate az AccessStore + can()
+  // döntésére épül, minden elutasítás bájtra azonos. A kapcsolat szintű bizonyíték: realtime/collab.test.ts
+  // („nem tag”, „nem tag Rendszeradmin”, azonos elutasítás); itt a döntés bemenete: a nem tag semmit nem olvashat.
+  'GET /collab': {
+    how: 'can_guard',
+    async run(ctx) {
+      ctx.collab.addSpace('s-collab');
+      ctx.collab.addMember('s-collab', 'member');
+      ctx.collab.addDocument('d-collab', 's-collab');
+      for (const systemRole of ['user', 'system_admin'] as const) {
+        const target = await ctx.collab.access.documentTarget('outsider', 'd-collab');
+        expect(target?.space.membership).toBeNull();
+        const actor = { userId: 'outsider', systemRole };
+        expect(can(actor, 'document.read', target as DocumentTarget).ok).toBe(false);
+        expect(can(actor, 'document.edit', target as DocumentTarget).ok).toBe(false);
+      }
+    },
+  },
+
   // Csak a hívó saját munkamenetéből dolgozik: másnak a színterei, e-mailje nem jelenhet meg.
   'GET /api/v1/me': {
     how: 'self_only',

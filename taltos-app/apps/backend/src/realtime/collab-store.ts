@@ -6,13 +6,6 @@ export const WRITABLE_REVIEW_STATES = [
   'changes_requested',
 ] as const satisfies readonly ReviewState[];
 
-/** A kapcsolat hozzáférési adatai: csak ha a felhasználó aktív tag, és a dokumentum és a színtér él. */
-export interface CollabAccess {
-  reviewState: ReviewState;
-  /** A színtér lezárt (`closed_at` be van állítva): D44, csak olvasható. */
-  spaceClosed: boolean;
-}
-
 /** A Yjs-dokumentum betöltéséhez szükséges adat: a mentett állapot, vagy ha az nincs, a dokumentum szövege. */
 export interface CollabContent {
   /** A `document_collab_state.state`; `null`, ha a dokumentumnak még nincs Yjs-állapota. */
@@ -21,21 +14,11 @@ export interface CollabContent {
   seed: string | null;
 }
 
-/** Írhat-e a kapcsolat (a Hocuspocus csak ekkor alkalmazza a kliens módosításait). */
-export function isWritable(access: CollabAccess): boolean {
-  return (
-    !access.spaceClosed &&
-    (WRITABLE_REVIEW_STATES as readonly string[]).includes(access.reviewState)
-  );
-}
-
 /**
  * A `/collab` adatelérési varrata (mint az `AuthStore`): a PostgreSQL-megvalósítás az éles, a tesztek memóriabeli párt
- * használnak. A hozzáférés-döntés SQL-je ideiglenes: a WP4 `can(user, action, resource)` policy-ja váltja le.
+ * használnak. A hozzáférés-döntés NEM itt van: azt az `AccessStore` + `can()` adja (egyetlen policy-pont, WP4a S6).
  */
 export interface CollabStore {
-  /** `undefined`: nincs hozzáférés. A „nem létezik / törölt / nem tag” okát szándékosan nem különbözteti meg. */
-  findAccess(userId: string, documentId: string): Promise<CollabAccess | undefined>;
   /** `undefined`: a dokumentum nem létezik (vagy törölt). */
   loadContent(documentId: string): Promise<CollabContent | undefined>;
   /**

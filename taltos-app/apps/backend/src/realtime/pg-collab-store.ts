@@ -3,38 +3,13 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as t from '../db/schema.js';
 import { WRITABLE_REVIEW_STATES, type CollabStore } from './collab-store.js';
 
-/** A `/collab` PostgreSQL-megvalósítása (a `taltos_app` szerepkörrel: SELECT/INSERT/UPDATE elég, a 0005 migráció szerint). */
+/**
+ * A `/collab` PostgreSQL-megvalósítása (a `taltos_app` szerepkörrel: SELECT/INSERT/UPDATE elég, a 0005 migráció szerint).
+ * Jogosultság-döntés nincs benne (az `AccessStore` + `can()` dönt); a betöltés és a mentés a már engedélyezett kapcsolatot
+ * szolgálja, a mentés tranzakción belüli újraellenőrzése pedig versenyhelyzet-védelem (TOCTOU), nem policy.
+ */
 export function createPgCollabStore(db: NodePgDatabase): CollabStore {
   return {
-    // Egyetlen lekérdezés, csupa elsődleges kulcs szerinti illesztés (documents, spaces, space_members PK); nincs N+1.
-    // Nem létező, törölt és nem tag ugyanúgy nulla sor: a hívó nem tud különbséget tenni (nincs cím- vagy létezés-szivárgás).
-    async findAccess(userId, documentId) {
-      const [row] = await db
-        .select({
-          reviewState: t.documents.reviewState,
-          spaceClosed: sql<boolean>`${t.spaces.closedAt} IS NOT NULL`,
-        })
-        .from(t.documents)
-        .innerJoin(t.spaces, eq(t.spaces.id, t.documents.spaceId))
-        .innerJoin(
-          t.spaceMembers,
-          and(
-            eq(t.spaceMembers.spaceId, t.documents.spaceId),
-            eq(t.spaceMembers.userId, userId),
-            isNull(t.spaceMembers.removedAt),
-          ),
-        )
-        .where(
-          and(
-            eq(t.documents.id, documentId),
-            isNull(t.documents.deletedAt),
-            isNull(t.spaces.deletedAt),
-          ),
-        )
-        .limit(1);
-      return row;
-    },
-
     // A szöveget csak akkor olvassuk, ha nincs Yjs-állapot (a seedeléshez); különben az oszlop érintetlen marad.
     async loadContent(documentId) {
       const [row] = await db

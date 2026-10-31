@@ -97,7 +97,14 @@ export async function createTestApp(
   const oidc = new FakeOidc();
   const app = await buildApp(
     config,
-    { store, oidc, collabStore: collab, cookieSecret: 'teszt-kulcs', clock: clock.now },
+    {
+      store,
+      oidc,
+      collabStore: collab,
+      accessStore: collab.access,
+      cookieSecret: 'teszt-kulcs',
+      clock: clock.now,
+    },
     options,
   );
   const sessions = new SessionService(

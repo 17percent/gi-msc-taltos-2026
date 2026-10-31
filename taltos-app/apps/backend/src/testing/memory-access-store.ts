@@ -62,6 +62,16 @@ export class MemoryAccessStore implements AccessStore {
     });
   }
 
+  updateSpace(id: string, patch: Partial<Omit<MemorySpace, 'name'>>): void {
+    const space = this.spaces.get(id);
+    if (space) Object.assign(space, patch);
+  }
+
+  setReviewState(id: string, reviewState: ReviewState): void {
+    const doc = this.documents.get(id);
+    if (doc) doc.reviewState = reviewState;
+  }
+
   addPendingMembershipRequest(spaceId: string, userId: string): void {
     this.pendingRequests.add(`${spaceId}:${userId}`);
   }

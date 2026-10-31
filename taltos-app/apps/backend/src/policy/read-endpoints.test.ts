@@ -1,5 +1,5 @@
 import type { RouteOptions } from 'fastify';
-import { API_PREFIX } from '@taltos/shared';
+import { API_PREFIX, COLLAB_PATH } from '@taltos/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestApp, type TestContext } from '../testing/app.js';
 import { VISIBILITY_CASES } from './visibility-cases.js';
@@ -18,7 +18,8 @@ describe('olvasó végpontok láthatósági esetei', () => {
       {
         onRoute: (route: RouteOptions) => {
           const methods = Array.isArray(route.method) ? route.method : [route.method];
-          if (methods.includes('GET') && route.url.startsWith(`${API_PREFIX}/`)) {
+          const isRead = route.url.startsWith(`${API_PREFIX}/`) || route.url === COLLAB_PATH;
+          if (methods.includes('GET') && isRead) {
             routes.push(`GET ${route.url}`);
           }
         },
@@ -33,6 +34,7 @@ describe('olvasó végpontok láthatósági esetei', () => {
 
   it('az útvonal-gyűjtő működik: a GET /me megtalálható', () => {
     expect(routes).toContain(`GET ${API_PREFIX}/me`);
+    expect(routes).toContain(`GET ${COLLAB_PATH}`);
   });
 
   it('minden /api/v1 GET végponthoz van láthatósági eset (eset nélkül piros)', () => {
@@ -45,14 +47,17 @@ describe('olvasó végpontok láthatósági esetei', () => {
     expect(stale, `Elavult VISIBILITY_CASES bejegyzés: ${stale.join(', ')}`).toEqual([]);
   });
 
-  it('a GET /me esete lefedett és fut', async () => {
-    const entry = VISIBILITY_CASES[`GET ${API_PREFIX}/me`];
-    expect(entry).toBeDefined();
-    await entry?.run(ctx);
+  it('a GET /me és a GET /collab esete lefedett és fut', async () => {
+    for (const key of [`GET ${API_PREFIX}/me`, `GET ${COLLAB_PATH}`]) {
+      const entry = VISIBILITY_CASES[key];
+      expect(entry, key).toBeDefined();
+      await entry?.run(ctx);
+    }
   });
 
   it('minden olvasó végpont bejelentkezés nélkül 401', async () => {
     for (const route of new Set(routes)) {
+      if (!route.includes(API_PREFIX)) continue; // a /collab upgrade-kapuját a ws.test.ts fedi
       const url = route
         .slice('GET '.length)
         .replace(/:\w+/g, '00000000-0000-4000-8000-000000000000');

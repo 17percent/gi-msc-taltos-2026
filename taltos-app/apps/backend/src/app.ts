@@ -13,6 +13,7 @@ import { registerProblemHandlers } from './http/problem.js';
 import { serializeError, serializeRequest } from './http/redact.js';
 import { trustImmediateProxy } from './http/trust-proxy.js';
 import { registerCollab } from './realtime/collab.js';
+import type { AccessStore } from './policy/access-store.js';
 import type { CollabStore } from './realtime/collab-store.js';
 import { startHeartbeat } from './realtime/heartbeat.js';
 import { registerNotifications } from './realtime/notifications.js';
@@ -33,6 +34,8 @@ export interface AuthDependencies {
   oidc: OidcFlow;
   /** A `/collab` adatelérése (hozzáférés-döntés és Yjs-perzisztencia). */
   collabStore: CollabStore;
+  /** A jogosultság-döntés adatelérése (`/collab`, és a későbbi végpontok `authorize*` segédei). */
+  accessStore: AccessStore;
   /** A bejelentkezési kísérlet-süti HMAC-kulcsa (a kliens-secretből származtatva; lásd main.ts). */
   cookieSecret: string;
   clock?: Clock;
@@ -127,6 +130,7 @@ export async function buildApp(
   const realtime = { allowedOrigins: config.allowedOrigins, context, clock, registry };
   const hocuspocus = registerCollab(app, realtime, {
     store: auth.collabStore,
+    access: auth.accessStore,
     debounceMs: options.collabDebounceMs,
     maxDebounceMs: options.collabMaxDebounceMs,
   });

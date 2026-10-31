@@ -23,7 +23,8 @@ export const ALLOWED: Record<string, string> = {
   'auth/pg-store.ts': 'a bejelentkezés tárolója: rendszerindítás, első belépés szerepei',
   'auth/types.ts': 'a munkamenet-sor típusa (a szerep adat, nem döntés)',
   'http/api.ts': 'a /me válasz-sémájának enumjai (alak, nem döntés)',
-  'realtime/pg-collab-store.ts': 'a /collab ideiglenes tára; az S6 a policy-ra cseréli',
+  'realtime/pg-collab-store.ts':
+    'a /collab tartalom-betöltése és -mentése (nincs döntés; a mentés TOCTOU-újraellenőrzése nem policy)',
 };
 
 const ROLE_PATTERNS: readonly RegExp[] = [
