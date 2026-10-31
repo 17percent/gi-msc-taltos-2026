@@ -134,11 +134,7 @@ const isAdmin = (actor: Actor): boolean => actor.systemRole === 'system_admin';
 export function can(actor: Actor, action: SystemAction, target?: SystemTarget): Decision;
 export function can(actor: Actor, action: SpaceAction, target: SpaceTarget): Decision;
 export function can(actor: Actor, action: DocumentAction, target: DocumentTarget): Decision;
-export function can(
-  actor: Actor,
-  action: Action,
-  target?: SpaceTarget | DocumentTarget | SystemTarget,
-): Decision {
+export function can(actor: Actor, action: Action, target?: SpaceTarget | DocumentTarget): Decision {
   const rule: Rule = RULES[action];
 
   if (rule.scope === 'system') {

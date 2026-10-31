@@ -34,7 +34,6 @@ export type Outcome = 'ok' | DenyCode;
 const N: Outcome = 'not_space_member';
 const F: Outcome = 'forbidden';
 const OK: Outcome = 'ok';
-const C: Outcome = 'space_closed';
 
 type Cells = readonly [Outcome, Outcome, Outcome, Outcome, Outcome, Outcome];
 

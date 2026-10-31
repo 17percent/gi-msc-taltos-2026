@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { ProblemDetails } from '@taltos/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerProblemHandlers } from '../http/problem.js';
 import type { AuthSession } from '../auth/session-service.js';
@@ -71,7 +72,7 @@ describe('authorize* útvonal-segédek', () => {
     const res = await get(`/documents/${ids.doc}`, ids.outsider);
     expect(res.statusCode).toBe(403);
     expect(res.headers['content-type']).toContain('application/problem+json');
-    const body = res.json();
+    const body = res.json<ProblemDetails>();
     expect(body).toMatchObject({
       status: 403,
       code: 'not_space_member',
@@ -88,7 +89,10 @@ describe('authorize* útvonal-segédek', () => {
   it('nem tag Rendszeradmin dokumentumra: not_space_member, canRequestMembership false (önfelvétel)', async () => {
     const res = await get(`/documents/${ids.doc}`, ids.admin, true);
     expect(res.statusCode).toBe(403);
-    expect(res.json().details.canRequestMembership).toBe(false);
+    expect(
+      (res.json<ProblemDetails>().details as { canRequestMembership: boolean })
+        .canRequestMembership,
+    ).toBe(false);
   });
 
   it('nem tag Rendszeradmin a színtér adatait látja (kivétel)', async () => {
@@ -100,7 +104,7 @@ describe('authorize* útvonal-segédek', () => {
     for (const id of [ids.missing, ids.deletedSpace]) {
       const res = await get(`/spaces/${id}`, ids.outsider);
       expect(res.statusCode).toBe(404);
-      expect(res.json().code).toBe('not_found');
+      expect(res.json<ProblemDetails>().code).toBe('not_found');
     }
     for (const id of [ids.missing, ids.droppedDraft, ids.docInDeletedSpace]) {
       expect((await get(`/documents/${id}`, ids.outsider)).statusCode).toBe(404);
@@ -111,7 +115,7 @@ describe('authorize* útvonal-segédek', () => {
   it('rendszerszintű művelet: nem admin 403 forbidden, admin 200; nincs betöltés', async () => {
     const denied = await get('/admin/users', ids.author);
     expect(denied.statusCode).toBe(403);
-    expect(denied.json().code).toBe('forbidden');
+    expect(denied.json<ProblemDetails>().code).toBe('forbidden');
     expect((await get('/admin/users', ids.admin, true)).statusCode).toBe(200);
     expect(store.calls).toEqual({ spaceTarget: 0, documentTarget: 0, denialDetails: 0 });
   });
