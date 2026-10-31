@@ -567,7 +567,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **`/collab` a policy-n:** a WP3 ideiglenes tagság-ellenőrzését már a WP4 cseréli a `can()`-re (nem a WP6), így egyetlen policy-pont él.
 - **Felhasználókeresés:** új `GET /api/v1/users?q=` (belépett felhasználónak; csak azonosító, név, avatar; legalább 2 karakter, legfeljebb 10 találat) a tagfelvételhez és a projekt-tér kérésének javasolt gazdájához.
 - **Taglista:** a nem tag Rendszeradmin is látja a színtér tagjait és szerepeit (tartalmat továbbra sem).
-- **Lezárt projekt-tér:** minden módosítás tiltott (403 `space_closed`), kivéve a Rendszeradmin tagkezelését és `admin_handover`-ét, hogy a távozó kolléga levehető legyen az allowlistről.
+- **Lezárt projekt-tér:** minden módosítás tiltott (403 `space_closed`), kivéve a Rendszeradmin tagkezelését és `admin_handover`-ét, hogy a távozó kolléga levehető legyen az allowlistről. *Kiegészítés (2026-10-31):* a privát jelzők — kedvenc és követés — lezárt térben is engedettek, mert nem módosítják a színtér tartalmát.
 - **`admin_handover`:** törzs `{ spaceId, newOwnerId }`; a felhasználó adott színtérbeli összes (archivált is) dokumentuma az új, aktív tagra kerül; a Rendszeradmin bármikor hívhatja, lezárt térben is; `owner_changed` (ok: `admin_handover`).
 - **Általános színtér:** tagot eltávolítani tilos (403 `forbidden`); szerepváltás engedett. Kilépés csak az allowlistről.
 - **Tag eltávolítása:** aki a színtérben csak archivált dokumentumok tulajdonosa, eltávolítható (a D54 analógiája). Ha a tag egy függő review-kérés indítványozója, a kérés ugyanabban a tranzakcióban visszavonódik (`review_withdrawn`, ok: `member_removed`, aktor: az eltávolító), a dokumentum újra Piszkozat.

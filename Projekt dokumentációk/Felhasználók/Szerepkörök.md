@@ -77,7 +77,7 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 
 ¹ Csak a színtér adatai látszanak (név, tagok, Színtérgazdák), a tartalom nem. Ezek kellenek az adminisztrációhoz.
 ² Csak ha az adott változáshoz review-erként megjelölték. Saját indítványát senki nem hagyhatja jóvá.
-³ Az Általánosból tag nem távolítható el (szerepe változtatható). Lezárt projekt-térben minden módosítás tiltott, kivéve a Rendszeradminisztrátor tagkezelését és adminisztratív átadását (D56).
+³ Az Általánosból tag nem távolítható el (szerepe változtatható). Lezárt projekt-térben minden módosítás tiltott, kivéve a Rendszeradminisztrátor tagkezelését és adminisztratív átadását, valamint a privát kedvencet és követést (D56).
 ⁴ Csak a saját dokumentumát, a színtér egy aktív tagjának, review nélkül.
 ⁵ Adminisztratív átadás (`admin_handover`): egy felhasználó adott színtérbeli összes dokumentuma egy aktív tagra, bármikor, lezárt térben is.
 
