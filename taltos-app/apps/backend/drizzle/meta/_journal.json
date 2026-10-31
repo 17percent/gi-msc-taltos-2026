@@ -64,6 +64,13 @@
       "when": 1793461507499,
       "tag": "0008_null_actor_event_exceptions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0009_users_current_space",
+      "breakpoints": true
     }
   ]
 }

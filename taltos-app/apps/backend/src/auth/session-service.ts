@@ -22,6 +22,7 @@ export interface AuthSession {
   email: string | null;
   avatarUrl: string | null;
   onAllowlist: boolean;
+  currentSpaceId: string | null;
   csrfToken: string;
 }
 
@@ -125,5 +126,6 @@ function toSession(id: Buffer, row: SessionRow): Omit<AuthSession, 'csrfToken'> 
     email: row.email,
     avatarUrl: row.avatarUrl,
     onAllowlist: row.onAllowlist,
+    currentSpaceId: row.currentSpaceId,
   };
 }

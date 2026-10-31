@@ -62,6 +62,8 @@ export const users = pgTable(
     lastLoginAt: ts('last_login_at'), // „inaktív tulajdonosok” lista (D49, 2. ütem)
     leftAt: ts('left_at'), // kilépés ideje — a retenciós óra indul (D48, 2. ütem)
     pseudonymizedAt: ts('pseudonymized_at'), // D48, 2. ütem
+    // D57: a színtérváltó utolsó választása; FK nélkül (elavulhat), a GET /me érvényesíti és tartalékot ad
+    currentSpaceId: uuid('current_space_id'),
   },
   (t) => [
     uniqueIndex('users_oidc_sub_uq').on(t.oidcSub),

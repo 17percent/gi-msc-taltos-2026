@@ -11,6 +11,7 @@ const me: MeResponse = {
   avatarUrl: null,
   systemRole: 'user',
   spaces: [],
+  currentSpaceId: null,
   csrfToken: 'csrf-123',
 };
 

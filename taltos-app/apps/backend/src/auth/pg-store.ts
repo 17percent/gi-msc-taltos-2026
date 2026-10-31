@@ -40,6 +40,7 @@ export function createPgAuthStore(db: Db, options: PgAuthStoreOptions): AuthStor
           displayName: t.users.displayName,
           email: t.users.email,
           avatarUrl: t.users.avatarUrl,
+          currentSpaceId: t.users.currentSpaceId,
           onAllowlist: sql<boolean>`EXISTS (
             SELECT 1 FROM ${t.allowlist}
              WHERE ${t.allowlist.email} = lower(${t.users.email}) AND ${t.allowlist.deletedAt} IS NULL)`,
@@ -66,6 +67,10 @@ export function createPgAuthStore(db: Db, options: PgAuthStoreOptions): AuthStor
     },
 
     login: (identity, now) => db.transaction((tx) => login(tx, identity, now, bootstrapEmail)),
+
+    async setCurrentSpace(userId, spaceId) {
+      await db.update(t.users).set({ currentSpaceId: spaceId }).where(eq(t.users.id, userId));
+    },
 
     async spacesOf(userId) {
       return db

@@ -24,6 +24,8 @@ export interface SessionRow {
   avatarUrl: string | null;
   /** A felhasználó e-mailje aktív allowlist-bejegyzés (D5: kérésenkénti ellenőrzés). */
   onAllowlist: boolean;
+  /** A tárolt aktuális színtér (D57); nyers érték, a `/me` érvényesíti (`resolveCurrentSpaceId`). */
+  currentSpaceId: string | null;
 }
 
 export type LoginOutcome =
@@ -49,4 +51,6 @@ export interface AuthStore {
   /** Első belépés: allowlist-kapu, `users` upsert, rendszerindítás (D52, D54: csak a bootstrap e-mail) vagy Szerző az Általánosban (D43). */
   login(identity: OidcIdentity, now: Date): Promise<LoginOutcome>;
   spacesOf(userId: string): Promise<MeResponse['spaces']>;
+  /** D57: a színtérváltó választásának mentése (privát beállítás, nem naplózott); a jogosultságot a hívó döntötte el. */
+  setCurrentSpace(userId: string, spaceId: string): Promise<void>;
 }
