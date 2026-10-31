@@ -74,14 +74,24 @@ describe.skipIf(!url)('/collab: tagság- és állapot-lekérdezés, perzisztenci
       [documentId, spaceId, `d-${documentId}`, userId, content, options.docDeleted ? NOW : null],
     );
     if (reviewState !== 'draft') {
-      // A review_state gyorsítótár (S5); a kényszerek (pl. pending/approved) megkerüléséhez replica-módban írjuk.
+      // A review_state gyorsítótár (S5); a triggereket replica-mód kerüli meg, a CHECK-et nem: a Jóváhagyott
+      // állapothoz (documents_approved_has_revision) előbb revízió kell, és az approved_revision_id arra mutat.
       const client = await db.admin.connect();
       try {
         await client.query('SET session_replication_role = replica');
-        await client.query('UPDATE documents SET review_state = $1 WHERE id = $2', [
-          reviewState,
-          documentId,
-        ]);
+        let approvedRevisionId: string | null = null;
+        if (reviewState === 'approved') {
+          approvedRevisionId = randomUUID();
+          await client.query(
+            `INSERT INTO document_revisions (id, document_id, title, content, metadata, author_id)
+             VALUES ($1, $2, 'Cím', $3, '{}'::jsonb, $4)`,
+            [approvedRevisionId, documentId, content, userId],
+          );
+        }
+        await client.query(
+          'UPDATE documents SET review_state = $1, approved_revision_id = $2 WHERE id = $3',
+          [reviewState, approvedRevisionId, documentId],
+        );
         await client.query('RESET session_replication_role');
       } finally {
         client.release();
