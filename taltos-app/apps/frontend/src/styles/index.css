@@ -43,6 +43,7 @@
   --color-danger-bg: var(--danger-bg);
   --color-info: var(--info);
   --color-info-bg: var(--info-bg);
+  --color-scrim: var(--scrim);
 }
 
 @layer base {
@@ -68,6 +69,120 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
+    }
+  }
+}
+
+/*
+ * Mozgás (DS 6.1): Radix `data-state` alapú belépő/kilépő animációk, csak tokenekkel.
+ * A `--shift` változót a reduced-motion lekérdezés nullázza: az elmozdulás kikapcsol, az áttetszőség marad.
+ */
+@layer components {
+  .motion-shift {
+    --shift: calc(-1 * var(--space-1));
+  }
+  .motion-sheet {
+    --shift-x: -100%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .motion-shift {
+      --shift: 0rem;
+    }
+    .motion-sheet {
+      --shift-x: 0%;
+    }
+  }
+
+  @keyframes taltos-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes taltos-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes taltos-pop-in {
+    from {
+      opacity: 0;
+      translate: 0 var(--shift);
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @keyframes taltos-pop-out {
+    from {
+      opacity: 1;
+      translate: 0 0;
+    }
+    to {
+      opacity: 0;
+      translate: 0 var(--shift);
+    }
+  }
+  @keyframes taltos-sheet-in {
+    from {
+      opacity: 0;
+      translate: var(--shift-x) 0;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @keyframes taltos-sheet-out {
+    from {
+      opacity: 1;
+      translate: 0 0;
+    }
+    to {
+      opacity: 0;
+      translate: var(--shift-x) 0;
+    }
+  }
+  @keyframes taltos-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .anim-fade[data-state='open'] {
+    animation: taltos-fade-in var(--duration-fast) var(--ease-enter);
+  }
+  .anim-fade[data-state='closed'] {
+    animation: taltos-fade-out var(--duration-fast) var(--ease-exit);
+  }
+  .anim-pop[data-state='open'] {
+    animation: taltos-pop-in var(--duration-fast) var(--ease-enter);
+  }
+  .anim-pop[data-state='closed'] {
+    animation: taltos-pop-out var(--duration-fast) var(--ease-exit);
+  }
+  .anim-sheet[data-state='open'] {
+    animation: taltos-sheet-in var(--duration-base) var(--ease-grow);
+  }
+  .anim-sheet[data-state='closed'] {
+    animation: taltos-sheet-out var(--duration-fast) var(--ease-exit);
+  }
+  .anim-pulse {
+    animation: taltos-pulse var(--duration-slower) var(--ease-standard) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .anim-pulse {
+      animation: none;
     }
   }
 }

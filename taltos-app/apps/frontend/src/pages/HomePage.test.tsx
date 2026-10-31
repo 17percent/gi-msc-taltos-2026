@@ -39,6 +39,7 @@ function mockFetch(handler: Handler) {
 function withMe(meResponse: () => Response, extra?: Handler): Handler {
   return (url, init) => {
     if (url === '/api/v1/me') return meResponse();
+    if (url === '/api/v1/spaces') return Response.json([]);
     if (extra) return extra(url, init);
     return Response.json({ status: 'ok', version: '1.2.3' });
   };
@@ -46,6 +47,13 @@ function withMe(meResponse: () => Response, extra?: Handler): Handler {
 
 function renderAt(path: string) {
   render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />);
+}
+
+/** A Kijelentkezés a fiókmenüben van: billentyűvel megnyitjuk (Radix), majd a menüpontot választjuk. */
+async function clickLogout() {
+  const trigger = await screen.findByRole('button', { name: /Fiókmenü/ });
+  fireEvent.keyDown(trigger, { key: 'Enter' });
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Kijelentkezés' }));
 }
 
 afterEach(() => {
@@ -71,7 +79,7 @@ describe('bejelentkezett állapot', () => {
     expect(await screen.findByText(/Szia, Kovács Anna!/)).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Az alkalmazás váza fut');
     expect(screen.getByText('Kovács Anna')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Kijelentkezés' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Fiókmenü: Kovács Anna' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Bejelentkezés' })).toBeNull();
     expect((await screen.findByText(/Elérhető/)).textContent).toContain('Elérhető');
     expect(screen.getByText('verzió: 1.2.3')).toBeTruthy();
@@ -121,7 +129,7 @@ describe('bejelentkezett állapot', () => {
       ),
     );
     renderAt('/');
-    fireEvent.click(await screen.findByRole('button', { name: 'Kijelentkezés' }));
+    await clickLogout();
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Jelentkezz be a Táltosba' }),
     ).toBeTruthy();
@@ -145,7 +153,7 @@ describe('bejelentkezett állapot', () => {
       ),
     );
     renderAt('/');
-    fireEvent.click(await screen.findByRole('button', { name: 'Kijelentkezés' }));
+    await clickLogout();
     expect((await screen.findByRole('alert')).textContent).toContain('nem sikerült');
     expect(screen.getByText(/Szia, Kovács Anna!/)).toBeTruthy();
   });
@@ -161,7 +169,7 @@ describe('bejelentkezett állapot', () => {
       ),
     );
     renderAt('/');
-    fireEvent.click(await screen.findByRole('button', { name: 'Kijelentkezés' }));
+    await clickLogout();
     expect(await screen.findByRole('heading', { name: 'Jelentkezz be a Táltosba' })).toBeTruthy();
     expect(screen.queryByText(/Szia, Kovács Anna!/)).toBeNull();
   });

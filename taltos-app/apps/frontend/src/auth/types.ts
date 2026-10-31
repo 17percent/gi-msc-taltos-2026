@@ -16,4 +16,8 @@ export type AuthContextValue = {
   /** Az X-CSRF-Token értéke; csak bejelentkezve van. */
   csrfToken: string | null;
   logout: () => Promise<void>;
+  /** A `/me` csendes újratöltése (szerep, tagság, CSRF-token frissítése); a felület nem megy betöltés-állapotba. */
+  refreshMe: () => Promise<void>;
+  /** Az API 401 / 403 not_on_allowlist hibájára: a munkamenet véget ért. */
+  endSession: (reason: 'signed-out' | 'not-allowlisted') => void;
 };
