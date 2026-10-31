@@ -26,13 +26,8 @@ function actorlessAllowed(event: AppEvent): boolean {
   );
 }
 
-/**
- * Az egyetlen eseményíró: minden WP4a esemény ezen megy át (a WP10 az értesítéseket ide köti). Az `events` tábla
- * append-only (csak INSERT). A típus szűkít, a futásidejű ellenőrzés pedig védi a JS-hívót is: aktor nélkül csak a
- * felsorolt esetek, a `details`-ben pedig nincs név vagy e-mail jellegű kulcs. Hibát dob (nem nyel el), így a hívó
- * tranzakciója visszagördül.
- */
-export async function recordEvent(tx: EventWriter, event: AppEvent): Promise<void> {
+/** A futásidejű eseményszabályok (a memóriabeli tár is ezt használja). */
+export function validateEvent(event: AppEvent): void {
   if (!actorlessAllowed(event)) {
     throw new Error(`Aktor nélküli esemény nem engedélyezett: ${event.type}`);
   }
@@ -41,12 +36,35 @@ export async function recordEvent(tx: EventWriter, event: AppEvent): Promise<voi
       throw new Error(`Az esemény részletei nem tartalmazhatnak személyes adatot: ${key}`);
     }
   }
-  await tx.insert(t.events).values({
-    type: event.type,
-    spaceId: 'spaceId' in event ? event.spaceId : null,
-    documentId: 'documentId' in event ? event.documentId : null,
-    changeRequestId: 'changeRequestId' in event ? event.changeRequestId : null,
-    actorId: event.actorId,
-    details: event.details,
-  });
+}
+
+/**
+ * Az egyetlen eseményíró: minden WP4a esemény ezen megy át (a WP10 az értesítéseket ide köti). Az `events` tábla
+ * append-only (csak INSERT). A típus szűkít, a futásidejű ellenőrzés pedig védi a JS-hívót is: aktor nélkül csak a
+ * felsorolt esetek, a `details`-ben pedig nincs név vagy e-mail jellegű kulcs. Hibát dob (nem nyel el), így a hívó
+ * tranzakciója visszagördül. Több eseményt egyetlen többsoros INSERT ír (set-alapú műveleteknél nincs soronkénti
+ * oda-vissza); az `at` a rögzítés ideje (alap: az adatbázis `now()`-ja).
+ */
+export async function recordEvents(
+  tx: EventWriter,
+  events: readonly AppEvent[],
+  at?: Date,
+): Promise<void> {
+  if (events.length === 0) return;
+  events.forEach(validateEvent);
+  await tx.insert(t.events).values(
+    events.map((event) => ({
+      type: event.type,
+      spaceId: 'spaceId' in event ? event.spaceId : null,
+      documentId: 'documentId' in event ? event.documentId : null,
+      changeRequestId: 'changeRequestId' in event ? event.changeRequestId : null,
+      actorId: event.actorId,
+      details: event.details,
+      ...(at === undefined ? {} : { createdAt: at }),
+    })),
+  );
+}
+
+export function recordEvent(tx: EventWriter, event: AppEvent, at?: Date): Promise<void> {
+  return recordEvents(tx, [event], at);
 }

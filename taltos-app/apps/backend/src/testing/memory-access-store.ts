@@ -2,21 +2,30 @@ import type { SpaceRole, SpaceType, UserRef } from '@taltos/shared';
 import { canRequestMembership, type AccessStore } from '../policy/access-store.js';
 import type { ReviewState } from '../realtime/collab-store.js';
 
-interface MemorySpace {
+export interface MemorySpace {
   name: string;
   type: SpaceType;
+  description?: string;
+  color?: string;
   closed: boolean;
   deleted: boolean;
 }
 
-interface MemoryDocument {
+export interface MemoryDocument {
   spaceId: string;
   ownerId: string;
   reviewState: ReviewState;
   /** Törölt: archivált (volt jóváhagyott változata) vagy eldobott piszkozat. */
   deleted: boolean;
   everApproved: boolean;
-  pending?: { initiatorId: string; reviewers: string[] };
+  pending?: {
+    id?: string;
+    initiatorId: string;
+    /** Az aktív review-er helyek. */
+    reviewers: string[];
+    /** Közülük akik már döntöttek (a döntésük kiesés után is megmarad). */
+    decided?: string[];
+  };
 }
 
 /**
@@ -25,14 +34,21 @@ interface MemoryDocument {
  * A tényleges SQL-t az integrációs teszt bizonyítja.
  */
 export class MemoryAccessStore implements AccessStore {
-  private readonly users = new Map<string, UserRef>();
-  private readonly spaces = new Map<string, MemorySpace>();
+  readonly users = new Map<string, UserRef>();
+  readonly spaces = new Map<string, MemorySpace>();
   /** `spaceId:userId` → szerep és megszűnt-e. */
-  private readonly members = new Map<string, { role: SpaceRole; removed: boolean }>();
-  private readonly documents = new Map<string, MemoryDocument>();
-  private readonly pendingRequests = new Set<string>();
+  readonly members = new Map<string, { role: SpaceRole; removed: boolean }>();
+  readonly documents = new Map<string, MemoryDocument>();
+  readonly pendingRequests = new Set<string>();
   /** Az `AccessStore` hívásai (a „csak elutasításkor kérdezünk” szabály ellenőrzéséhez). */
   readonly calls = { spaceTarget: 0, documentTarget: 0, denialDetails: 0 };
+
+  /** A felhasználó-feloldás felülírható (a `MemorySpaceStore` az auth-tár felhasználóit adja). */
+  userResolver?: (id: string) => UserRef | undefined;
+
+  userRef(id: string): UserRef | undefined {
+    return this.userResolver?.(id) ?? this.users.get(id);
+  }
 
   addUser(id: string, displayName = id): void {
     this.users.set(id, { id, displayName, avatarUrl: null });
@@ -128,7 +144,7 @@ export class MemoryAccessStore implements AccessStore {
       .filter(
         ([key, m]) => key.startsWith(`${spaceId}:`) && m.role === 'space_manager' && !m.removed,
       )
-      .map(([key]) => this.users.get(key.slice(spaceId.length + 1)))
+      .map(([key]) => this.userRef(key.slice(spaceId.length + 1)))
       .filter((user): user is UserRef => user !== undefined)
       .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id));
     return Promise.resolve({

@@ -132,6 +132,9 @@ const deny = (code: DenyCode): Decision => ({ ok: false, code });
 
 const isAdmin = (actor: Actor): boolean => actor.systemRole === 'system_admin';
 
+/** A Rendszeradmin-státusz egyetlen kérdezési pontja a policy-n kívülről (a szerepet máshol nem hasonlítjuk össze). */
+export const isSystemAdmin = isAdmin;
+
 export function can(actor: Actor, action: SystemAction, target?: SystemTarget): Decision;
 export function can(actor: Actor, action: SpaceAction, target: SpaceTarget): Decision;
 export function can(actor: Actor, action: DocumentAction, target: DocumentTarget): Decision;

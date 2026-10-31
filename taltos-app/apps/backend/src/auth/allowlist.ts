@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as t from '../db/schema.js';
+import { otherActiveAdminExists, otherActiveManagerExists } from '../spaces/guards.js';
 import { LOCK_ALLOWLIST_SYNC } from './locks.js';
 
 type Db = NodePgDatabase;
@@ -156,13 +157,7 @@ async function blockedBy(tx: Tx, userId: string): Promise<KeepReason | undefined
       JOIN spaces s ON s.id = sm.space_id
      WHERE sm.user_id = ${userId} AND sm.role = 'space_manager' AND sm.removed_at IS NULL
        AND s.deleted_at IS NULL
-       AND NOT EXISTS (
-         SELECT 1
-           FROM space_members o
-           JOIN users ou ON ou.id = o.user_id
-           JOIN allowlist oa ON oa.email = lower(ou.email) AND oa.deleted_at IS NULL
-          WHERE o.space_id = sm.space_id AND o.role = 'space_manager' AND o.removed_at IS NULL
-            AND o.user_id <> sm.user_id)
+       AND NOT ${otherActiveManagerExists(sql`sm.space_id`, sql`sm.user_id`)}
      LIMIT 1`);
   if (lastManager.rows.length > 0) return 'last_space_manager';
 
@@ -170,11 +165,7 @@ async function blockedBy(tx: Tx, userId: string): Promise<KeepReason | undefined
     SELECT 1
       FROM users u
      WHERE u.id = ${userId} AND u.system_role = 'system_admin'
-       AND NOT EXISTS (
-         SELECT 1
-           FROM users o
-           JOIN allowlist oa ON oa.email = lower(o.email) AND oa.deleted_at IS NULL
-          WHERE o.system_role = 'system_admin' AND o.id <> u.id)
+       AND NOT ${otherActiveAdminExists(sql`u.id`)}
      LIMIT 1`);
   if (lastAdmin.rows.length > 0) return 'last_admin';
   return undefined;
