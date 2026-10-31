@@ -38,13 +38,13 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 | [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ · 📘 első Rendszeradmin: D52 · 📘 konfig-szinkron: D53 |
 | [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF, Postgres `sessions` tábla (D51a) | — | ⚙️ · 📘 D51a |
 | [[Felhasználók/Jogosultságok\|Jogosultságok]] | alapelvek; az érvényes mátrix a Szerepkörökben | 2 | 📘 D43, D44 |
-| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix | 2 | 📘 D43, D55, D56 |
+| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix (a WP4a mátrixtesztje cellánként követi) | 2 | 📘 D43, D55, D56 |
 
 ## Kollaboráció
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
-| [[Kollaboráció/Színterek\|Színterek]] | csapat- és projekt-terek, Általános; **zárt: csak a tagok látják** | 2 | 📘 D44 |
+| [[Kollaboráció/Színterek\|Színterek]] | csapat- és projekt-terek, Általános; **zárt: csak a tagok látják**; a backend (policy, láthatóság, API) kész: WP4a | 2 | 📘 D44, D55, D56 |
 | [[Kollaboráció/Kommentek\|Kommentek]] | egyesített feed (comment, system, review), auditált szerkesztés, @említés a tagok közül | 9 | ✅ · 📘 D35, D45 · ❓ említés-formátum |
 | [[Kollaboráció/Valós idejű közös szerkesztés\|Valós idejű közös szerkesztés]] | Yjs + Hocuspocus, névcímkés kurzorok; kiváltja a zárolást; a K0 spike kész (WP3) | 4 | 📘 D29 · ❓ Yjs-generáció (NY19) |
 

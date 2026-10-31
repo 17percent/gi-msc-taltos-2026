@@ -1,8 +1,8 @@
 # taltos-app
 
 A Táltos tudásbázis alkalmazása: pnpm monorepo, TypeScript end-to-end. Kész: WP0 (skeleton, Compose,
-CI), WP1 (adatbázis-séma, migrációk, seed), WP2 (bejelentkezés, munkamenet, allowlist) és WP3 (közös
-szerkesztés spike). A terv és a szabályok a repó gyökerében:
+CI), WP1 (adatbázis-séma, migrációk, seed), WP2 (bejelentkezés, munkamenet, allowlist), WP3 (közös
+szerkesztés spike) és WP4a (szerepkörök, zárt színterek, láthatóság — backend; a WP4b felülete hátravan). A terv és a szabályok a repó gyökerében:
 [`Arch/CLAUDE.md`](../Arch/CLAUDE.md), a munkacsomagok: [H5](../Arch/tudasbazis-munkacsomagok-h5.md).
 
 ## Szerkezet
@@ -198,8 +198,8 @@ A `/collab` csatorna Hocuspocus a Fastify-jal közös folyamatban (D29); a szerz
 `Y.Text` (`content`), az Awareness `user` mezője `{ name, color }`. A szerkesztő: `/documents/:documentId` (CodeMirror 6 +
 `y-codemirror.next`, élő előnézet címsorra, kiemelésre, listára és linkre, névcímkés távoli kurzorok).
 
-- **Hozzáférés (ideiglenes, a WP4 `can()` váltja):** az upgrade kapuja (Origin, munkamenet, allowlist) után aktív
-  színtér-tagság. Nem tag és nem létező dokumentum ugyanazt a `permission-denied` választ kapja. Írni csak Piszkozat és
+- **Hozzáférés (a WP4a óta a `can()` policy-n):** az upgrade kapuja (Origin, munkamenet, allowlist) után
+  `can('document.read')` / `can('document.edit')` az `AccessStore`-on át. Nem tag és nem létező dokumentum ugyanazt a `permission-denied` választ kapja. Írni csak Piszkozat és
   Átdolgozandó állapotban lehet nem lezárt színtérben; egyébként a kapcsolat csak olvasható, a módosításait a szerver eldobja.
 - **Perzisztencia (minimális):** betöltés a `document_collab_state`-ből, ennek hiányában a `documents.content`-ből (rögzített
   Yjs-kliensazonosítóval, hogy az újratöltés ne kettőzze meg a szöveget). Mentés 2 mp csend után, legfeljebb 10 mp-enként,
@@ -210,3 +210,33 @@ A `/collab` csatorna Hocuspocus a Fastify-jal közös folyamatban (D29); a szerz
 - **Kipróbálás fejlesztésben:** seedelt adatbázis (`docker compose down -v`, `up --build`, majd a seed), belépés után egy
   Általános színtérbeli Piszkozat dokumentum azonosítójával: `http://localhost:8080/documents/<uuid>`.
 - **DB-integrációs teszt:** `src/realtime/collab.int.test.ts` (a `TEST_DATABASE_URL` mellett fut, lásd Adatbázis-tesztek).
+
+## Szerepkörök, zárt színterek, láthatóság (WP4a)
+
+A jogosultság egyetlen pontja a tiszta `can(actor, action, target)` (`apps/backend/src/policy/policy.ts`); a műveletnevek a
+`@taltos/shared` `ACTIONS` listájában vannak, a [vault jogosultsági mátrixának](../Projekt%20dokumentációk/Felhasználók/Szerepkörök.md)
+minden cellája egy sor a `matrix.fixture.ts`-ben (D43, D44, D55, D56). A route-ok az `authorize*` segéddel töltik be a célt
+(`AccessStore`, kérésenként egy lekérdezés) és döntenek; elutasításkor `not_space_member` (a tér neve és a gazdák, cím
+nélkül), `forbidden` vagy `space_closed`. Két őrteszt tartja a szabályt: a `single-point.test.ts` szerep-összehasonlítást
+csak engedélyezett fájlban enged, a `read-endpoints.test.ts` piros, ha egy `GET`-nek nincs láthatósági esete.
+
+- **Láthatóság (D44):** `visibleDocumentsWhere` / `visibleSpacesWhere` predikátum (aktív tagság, `EXISTS`); minden olvasó
+  lekérdezés ezt használja. A Rendszeradmin tagság nélkül csak színtér-metaadatot és taglistát lát, tartalmat nem.
+- **Végpontok:** színterek (`/spaces`, lezárás), tagság (`/spaces/:id/members`), felhasználókeresés (`GET /users`),
+  admin (`/admin/users`, `system-role`, `handover`), tulajdonjog-átadás (`PUT /documents/:id/owner`), felvételi és
+  projekt-tér kérések. A viselkedés a B5 sorai szerint.
+- **Üzleti védelmek** (utolsó gazda, utolsó admin, tulajdonos) a `SpaceStore`-ban, zár alatt (B4 S8: a `spaces` sor, majd
+  az összes `system_admin` sor `ORDER BY id FOR UPDATE`); az allowlist-szinkron ugyanezeket a zárakat veszi.
+- **`ReviewService`** (`apps/backend/src/review/review-service.ts`): lezáráskor és tag-eltávolításkor a függő kérések
+  visszavonása, a kieső review-er helyének megszüntetése (D51b: a döntött helyé is). Aktor nélküli eseményt csak a
+  `0008` migráció két szűk kivétele enged (`review_withdrawn`/`space_closed`, `reviewer_removed`/`allowlist_removed`).
+- **Tesztek:** a mátrix és a HTTP-viselkedés memória-adapteren fut; a zárakat, versenyhelyzeteket és az atomicitást a
+  `*.int.test.ts` fájlok igazolják valódi Postgresen (`testing/pg-race.ts`: kapuzár + `pg_stat_activity`, `sleep` nélkül).
+
+A következő csomagoknak (a review-k nyomán):
+
+- **WP5:** a dokumentum-létrehozás a tagságot a `spaces` sor zárja alatt ellenőrizze (különben megkerülheti a tulajdonos-védelmet);
+  a beküldés és a review-er-csere a `spaces` zár után zároljon.
+- **WP6:** tag-eltávolításkor és lezáráskor a nyitott `/collab` kapcsolatok bontása (ma csak az új kapcsolat dönt `can()`-nel).
+- **WP8:** a `document.submit` archivált dokumentumra ma tiltott; az `unarchive` kéréshez ezt rendezni kell.
+- **WP23:** a felvételi kérés `viaDocumentId`-je csak `can('document.read')` után oldható fel címre (FK nélkül, ellenőrizetlenül tárolt).

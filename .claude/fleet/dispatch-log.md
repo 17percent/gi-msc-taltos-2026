@@ -41,3 +41,6 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-31 17:24 | auto | backend | 40252657 | 513 | 2735 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=664703 cached=39587954 |
 | 2026-10-31 17:33 | auto | backend | 3606983 | 104 | 490 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=172770 cached=3434213 |
 | 2026-10-31 17:37 | auto | qa-automation | 4059472 | 89 | 696 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=242095 cached=3817377 |
+| 2026-10-31 19:42 | auto | appsec | 1429143 | 69 | 7400 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=190858 cached=1238285 |
+| 2026-10-31 19:44 | auto | code-reviewer | 2699158 | 73 | 7571 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=227037 cached=2472121 |
+| 2026-10-31 21:29 | auto | backend | 7653899 | 167 | 14644 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=381216 cached=7272683 |
