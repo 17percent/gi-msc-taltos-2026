@@ -111,10 +111,13 @@ async function findUser(tx: Tx, identity: OidcIdentity): Promise<UserMatch> {
     .where(eq(sql`lower(${t.users.email})`, identity.email))
     .limit(1);
   if (!byEmail) return { kind: 'none' };
-  // Előre létrehozott (még azonosító nélküli) sort átvehetünk; másik azonosítóhoz kötöttet nem.
-  return byEmail.oidcSub === null
-    ? { kind: 'found', id: byEmail.id, pseudonymized: false }
-    : { kind: 'conflict' };
+  // Előre létrehozott (még azonosító nélküli) sort átvehetünk; másik azonosítóhoz kötöttet nem. Az azonos azonosítójú
+  // sor a miénk: READ COMMITTED alatt a két lekérdezés között egy egyidejű első belépés commitolhat, ilyenkor a `sub`
+  // szerinti keresés még nem, az e-mail szerinti már látja ugyanazt a sort (különben hamis identity_conflict jönne).
+  if (byEmail.oidcSub === null || byEmail.oidcSub === identity.sub) {
+    return { kind: 'found', id: byEmail.id, pseudonymized: false };
+  }
+  return { kind: 'conflict' };
 }
 
 async function refreshUser(

@@ -160,7 +160,10 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
   it('a bootstrap e-mail három egyidejű belépéséből a jog egyszer íródik (versenyhelyzet, D54)', async () => {
     await allow(BOOTSTRAP);
     const results = await Promise.all([1, 2, 3].map(() => store().login(identity(BOOTSTRAP), now)));
-    expect(results.every((r) => r.status === 'ok')).toBe(true);
+    expect(
+      results.map((r) => r.status),
+      'mindhárom egyidejű belépés ok',
+    ).toEqual(['ok', 'ok', 'ok']);
     expect(new Set(results.map((r) => (r.status === 'ok' ? r.userId : ''))).size).toBe(1);
     expect(await q('SELECT 1 FROM users')).toHaveLength(1);
     expect(await q("SELECT 1 FROM users WHERE system_role = 'system_admin'")).toHaveLength(1);
