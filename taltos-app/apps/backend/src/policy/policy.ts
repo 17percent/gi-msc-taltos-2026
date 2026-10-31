@@ -112,6 +112,7 @@ const RULES = {
   'space.audit.view': { scope: 'space', need: 'manager', closed: 'read' },
   'system.audit.view': { scope: 'system', need: 'admin', closed: 'allowed' },
   'system.kinds.manage': { scope: 'system', need: 'admin', closed: 'allowed' },
+  'system.users.handover': { scope: 'system', need: 'admin', closed: 'allowed' },
 } as const satisfies Record<Action, Rule>;
 
 type ActionsOf<S extends Scope> = {
@@ -134,6 +135,9 @@ const isAdmin = (actor: Actor): boolean => actor.systemRole === 'system_admin';
 
 /** A Rendszeradmin-státusz egyetlen kérdezési pontja a policy-n kívülről (a szerepet máshol nem hasonlítjuk össze). */
 export const isSystemAdmin = isAdmin;
+
+/** Színtérgazda-e a hívó az adott térben (a tagsági szerepet máshol nem hasonlítjuk össze). */
+export const isSpaceManager = (space: SpaceTarget): boolean => space.membership === 'space_manager';
 
 export function can(actor: Actor, action: SystemAction, target?: SystemTarget): Decision;
 export function can(actor: Actor, action: SpaceAction, target: SpaceTarget): Decision;

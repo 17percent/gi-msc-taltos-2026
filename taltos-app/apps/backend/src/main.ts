@@ -8,6 +8,7 @@ import { createPgAuthStore } from './auth/pg-store.js';
 import { loadConfig } from './config.js';
 import { createPool, loadDbConnection } from './db/connection.js';
 import { createPgAccessStore } from './policy/pg-access-store.js';
+import { createPgSpaceStore } from './spaces/pg-space-store.js';
 import { createPgCollabStore } from './realtime/pg-collab-store.js';
 import { requireSecret } from './secrets.js';
 
@@ -20,6 +21,7 @@ const app = await buildApp(config, {
   store: createPgAuthStore(db, { bootstrapAdminEmail: config.bootstrapAdminEmail }),
   collabStore: createPgCollabStore(db),
   accessStore: createPgAccessStore(db),
+  spaceStore: createPgSpaceStore(db),
   oidc: createOidcFlow({
     issuer: config.oidcIssuer,
     clientId: config.oidcClientId,

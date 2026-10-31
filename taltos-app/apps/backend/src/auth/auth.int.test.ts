@@ -6,6 +6,7 @@ import { TEST_CONFIG, FakeOidc, TestClock } from '../testing/app.js';
 import { createTestDb, type TestDb } from '../db/test-db.js';
 import { syncAllowlist } from './allowlist.js';
 import { createPgAccessStore } from '../policy/pg-access-store.js';
+import { createPgSpaceStore } from '../spaces/pg-space-store.js';
 import { createPgCollabStore } from '../realtime/pg-collab-store.js';
 import { createPgAuthStore } from './pg-store.js';
 import { SessionService, TOUCH_INTERVAL_MS } from './session-service.js';
@@ -232,6 +233,7 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
           oidc: new FakeOidc(),
           collabStore: createPgCollabStore(drizzle(db.app)),
           accessStore: createPgAccessStore(drizzle(db.app)),
+          spaceStore: createPgSpaceStore(drizzle(db.app)),
           cookieSecret: 'k',
           clock: clock.now,
         },

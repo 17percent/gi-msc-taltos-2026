@@ -56,6 +56,8 @@ export const ACTIONS = [
   'space.audit.view',
   'system.audit.view',
   'system.kinds.manage',
+  /** Adminisztratív tulajdonos-átadás egy színtérre (`POST /admin/users/:id/handover`, D56): Rendszeradmin, lezárt térben is. */
+  'system.users.handover',
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];

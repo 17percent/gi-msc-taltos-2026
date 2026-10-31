@@ -47,11 +47,12 @@ describe('olvasó végpontok láthatósági esetei', () => {
     expect(stale, `Elavult VISIBILITY_CASES bejegyzés: ${stale.join(', ')}`).toEqual([]);
   });
 
-  it('a GET /me és a GET /collab esete lefedett és fut', async () => {
+  it('a GET /me és a GET /collab esete lefedett, és minden láthatósági eset lefut', async () => {
     for (const key of [`GET ${API_PREFIX}/me`, `GET ${COLLAB_PATH}`]) {
-      const entry = VISIBILITY_CASES[key];
-      expect(entry, key).toBeDefined();
-      await entry?.run(ctx);
+      expect(VISIBILITY_CASES[key], key).toBeDefined();
+    }
+    for (const [key, entry] of Object.entries(VISIBILITY_CASES)) {
+      await expect(entry.run(ctx), key).resolves.toBeUndefined();
     }
   });
 
@@ -67,9 +68,9 @@ describe('olvasó végpontok láthatósági esetei', () => {
   });
 
   it('az őr tényleg pirosat ad: eset nélküli végpontot hiányolja', () => {
-    const fake = [...routes, `GET ${API_PREFIX}/spaces/:id/members`];
+    const fake = [...routes, `GET ${API_PREFIX}/documents/:id/comments`];
     expect(fake.filter((route) => !(route in VISIBILITY_CASES))).toEqual([
-      `GET ${API_PREFIX}/spaces/:id/members`,
+      `GET ${API_PREFIX}/documents/:id/comments`,
     ]);
   });
 });

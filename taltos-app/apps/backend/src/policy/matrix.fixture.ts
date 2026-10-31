@@ -174,6 +174,10 @@ export const MATRIX = {
     line: 'Allowlist, Rendszeradminisztrátorok, fajta-lista — csak Rendszeradmin',
     cells: [F, F, F, OK, OK, OK],
   },
+  'system.users.handover': {
+    line: 'D56: adminisztratív átadás (admin_handover) — csak Rendszeradmin, lezárt térben is',
+    cells: [F, F, F, OK, OK, OK],
+  },
 } as const satisfies Record<Action, MatrixRow>;
 
 export const SYSTEM_ACTOR_IDS = { self: 'u-actor', other: OTHER } as const;

@@ -56,6 +56,24 @@ export async function authorizeSpace(
   return undefined;
 }
 
+/**
+ * Egy már betöltött színtér-célpont második döntése (pl. a `PATCH`-ben a név külön `space.rename` jog): nincs újabb
+ * lekérdezés. `true`: engedett; `false`: a hibaválasz már elment.
+ */
+export async function authorizeLoadedSpace(
+  access: AccessStore,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  action: SpaceAction,
+  target: SpaceTarget,
+): Promise<boolean> {
+  const actor = actorOf(request);
+  const decision = can(actor, action, target);
+  if (decision.ok) return true;
+  await sendDenial(access, reply, actor, target.spaceId, decision);
+  return false;
+}
+
 export async function authorizeDocument(
   access: AccessStore,
   request: FastifyRequest,

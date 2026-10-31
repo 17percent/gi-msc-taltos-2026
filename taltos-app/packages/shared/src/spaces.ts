@@ -4,6 +4,9 @@ import type { UserRef } from './users.js';
 export type SystemRole = 'user' | 'system_admin';
 /** Színtérbeli szerep (D43). */
 export type SpaceRole = 'author' | 'space_manager';
+/** A szerepek értékkészlete (kérés-sémákhoz, a szerepnevek így nem szóródnak szét a szolgáltatásokban). */
+export const SYSTEM_ROLES = ['user', 'system_admin'] as const satisfies readonly SystemRole[];
+export const SPACE_ROLES = ['author', 'space_manager'] as const satisfies readonly SpaceRole[];
 /** Színtér típusa: a `general` az Általános (egyetlen, seedelt); létrehozni csak `team` és `project` lehet. */
 export type SpaceType = 'general' | 'team' | 'project';
 

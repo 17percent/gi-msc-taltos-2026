@@ -8,11 +8,14 @@ import {
 } from '../auth/guard.js';
 import type { AuthSession } from '../auth/session-service.js';
 import type { AuthStore } from '../auth/types.js';
+import { registerSpaceRoutes, type SpaceRouteDependencies } from '../spaces/routes.js';
 import { sendProblem } from './problem.js';
 
 export interface ApiDependencies {
   context: AuthContext;
   store: AuthStore;
+  /** A színterek, a tagság és az adminisztráció végpontjainak függőségei (WP4a). */
+  spaceRoutes: SpaceRouteDependencies;
 }
 
 /** A kapu után a kérésnek van munkamenete; hiánya programozási hiba (a kapu nélküli útvonal), nem kliens-hiba. */
@@ -85,6 +88,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDependencies): void {
           csrfToken: session.csrfToken,
         };
       });
+      registerSpaceRoutes(api, deps.spaceRoutes);
       done();
     },
     { prefix: API_PREFIX },

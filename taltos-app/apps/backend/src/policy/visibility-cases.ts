@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { expect } from 'vitest';
-import type { MeResponse } from '@taltos/shared';
-import type { TestContext } from '../testing/app.js';
+import type { MeResponse, ProblemDetails, SpaceSummary, UserRef } from '@taltos/shared';
+import type { TestContext, TestSession } from '../testing/app.js';
 import { can } from './policy.js';
 import type { DocumentTarget } from './targets.js';
 
@@ -17,6 +18,20 @@ export interface VisibilityCase {
   how: 'self_only' | 'can_guard' | 'visible_builder' | 'admin_only';
   /** Futtatható bizonyíték: a nem jogosult hívó nem kap adatot. */
   run(ctx: TestContext): Promise<void>;
+}
+
+const get = (ctx: TestContext, url: string, session: Pick<TestSession, 'cookie'>) =>
+  ctx.app.inject({ method: 'GET', url, headers: { cookie: session.cookie } });
+
+/** Egy tér (alice tag, bob nem tag) és egy Rendszeradmin; az e-mailek a `tag`-gel egyediek (a ctx megosztott). */
+async function spaceFixture(ctx: TestContext, tag: string) {
+  const alice = await ctx.signIn(`alice-${tag}@example.test`);
+  const bob = await ctx.signIn(`bob-${tag}@example.test`);
+  const admin = await ctx.signIn(`admin-${tag}@example.test`, 'system_admin');
+  const spaceId = randomUUID();
+  ctx.collab.addSpace(spaceId);
+  ctx.collab.addMember(spaceId, alice.userId, false, 'space_manager');
+  return { alice, bob, admin, spaceId };
 }
 
 export const VISIBILITY_CASES: Record<string, VisibilityCase> = {
@@ -36,6 +51,70 @@ export const VISIBILITY_CASES: Record<string, VisibilityCase> = {
         expect(can(actor, 'document.read', target as DocumentTarget).ok).toBe(false);
         expect(can(actor, 'document.edit', target as DocumentTarget).ok).toBe(false);
       }
+    },
+  },
+
+  // A saját színterek: a nem tag semmit nem lát, a Rendszeradmin csak metaadatot (tartalom nélkül) kap mindről.
+  'GET /api/v1/spaces': {
+    how: 'visible_builder',
+    async run(ctx) {
+      const { alice, bob, admin, spaceId } = await spaceFixture(ctx, 'spaces');
+      const list = async (session: { cookie: string }) =>
+        (await get(ctx, '/api/v1/spaces', session)).json<SpaceSummary[]>();
+      expect(await list(bob)).toEqual([]);
+      expect((await list(alice)).map((s) => s.id)).toEqual([spaceId]);
+      expect((await list(admin)).map((s) => s.id)).toContain(spaceId);
+    },
+  },
+
+  // Nem tagnak 403 not_space_member (cím, darabszám nélkül); a Rendszeradmin látja a tér adatait (D56).
+  'GET /api/v1/spaces/:id': {
+    how: 'can_guard',
+    async run(ctx) {
+      const { alice, bob, admin, spaceId } = await spaceFixture(ctx, 'detail');
+      const denied = await get(ctx, `/api/v1/spaces/${spaceId}`, bob);
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json<ProblemDetails>().code).toBe('not_space_member');
+      expect(JSON.stringify(denied.json())).not.toMatch(/memberCount|"title"\s*:\s*"Titkos/);
+      expect((await get(ctx, `/api/v1/spaces/${spaceId}`, alice)).statusCode).toBe(200);
+      expect((await get(ctx, `/api/v1/spaces/${spaceId}`, admin)).statusCode).toBe(200);
+    },
+  },
+
+  'GET /api/v1/spaces/:id/members': {
+    how: 'can_guard',
+    async run(ctx) {
+      const { alice, bob, admin, spaceId } = await spaceFixture(ctx, 'members');
+      const url = `/api/v1/spaces/${spaceId}/members`;
+      expect((await get(ctx, url, bob)).json<ProblemDetails>().code).toBe('not_space_member');
+      expect((await get(ctx, url, alice)).statusCode).toBe(200);
+      expect((await get(ctx, url, admin)).statusCode).toBe(200);
+    },
+  },
+
+  // Csak azonosító, név és avatar; e-mail soha, és a nem allowlistes felhasználó nem jelenik meg.
+  'GET /api/v1/users': {
+    how: 'self_only',
+    async run(ctx) {
+      const { alice } = await spaceFixture(ctx, 'users');
+      ctx.store.addUser('ghost.person@example.test'); // nincs az allowlisten
+      const res = await get(ctx, '/api/v1/users?q=alice-users', alice);
+      const body = res.json<UserRef[]>();
+      expect(body.map((u) => u.displayName)).toEqual(['alice-users']);
+      expect(Object.keys(body[0] ?? {}).sort()).toEqual(['avatarUrl', 'displayName', 'id']);
+      expect(JSON.stringify(body)).not.toContain('@');
+      expect((await get(ctx, '/api/v1/users?q=ghost.person', alice)).json<UserRef[]>()).toEqual([]);
+    },
+  },
+
+  'GET /api/v1/admin/users': {
+    how: 'admin_only',
+    async run(ctx) {
+      const { alice, admin } = await spaceFixture(ctx, 'admin');
+      const denied = await get(ctx, '/api/v1/admin/users', alice);
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json<ProblemDetails>().code).toBe('forbidden');
+      expect((await get(ctx, '/api/v1/admin/users', admin)).statusCode).toBe(200);
     },
   },
 

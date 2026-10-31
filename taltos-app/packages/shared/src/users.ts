@@ -28,3 +28,8 @@ export interface AdminHandoverRequest {
   spaceId: string;
   newOwnerId: string;
 }
+
+/** Az adminisztratív átadás válasza: az áthelyezett (archivált is) dokumentumok száma. */
+export interface AdminHandoverResponse {
+  movedDocuments: number;
+}
