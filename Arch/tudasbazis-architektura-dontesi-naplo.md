@@ -16,6 +16,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, a WP2 review-ja): **D54** — a rendszerindítás csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (a D52 módosítása; addig mások `setup_pending`), az archivált dokumentum tulajdonosa kivehető az allowlistből (a D53 pontosítása).*
 
+*10. verzió kiegészítése (2026-10-31, a WP4b előtt): **D14 pontosítva** — a shadcn-komponensek mögötti Radix-primitívek a D14 részei (csak a ténylegesen bemásolt komponensekhez).*
+
 *10. verzió kiegészítése (2026-10-31, a WP4 tervezése): **D56** — a WP4 részletszabályai (aktor nélküli visszavonás szűk kivétele, `GET /users`, taglista adminnak, lezárt tér admin-kivételei, `admin_handover` törzse, Általános tagsága, tag-eltávolítás, kérések, lezárás, név és típus) és a WP4a/WP4b bontás.*
 
 *10. verzió kiegészítése (2026-10-31, WP4 előtt): **D55** — tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (az NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket (az NY19 WP4-es pontja lezárva).*
@@ -168,6 +170,8 @@ Tárgytalan: nincs lokális clone, nincs push, nincs lemaradás-monitoring, ninc
 ### D14 — Frontend stack: shadcn/ui + Tailwind + Motion *(új)*
 
 A shadcn nem futásidejű függőség, hanem **bemásolt, saját tulajdonú komponenskód** — busz-faktor-1 projektnél előny: nincs breaking upgrade-kényszer, a karbantartás saját kézben van. A Tailwind-elköteleződés vállalt és kimondott. A Motion animációk funkcionális UX-visszajelzésre szolgálnak (mentés, lock-állapot, kommentfolyam-frissülés), nem öncélú effektekre.
+
+*Pontosítás (2026-10-31, a WP4b előtt, tulajdonosi döntés):* a bemásolt shadcn-komponensek mögötti **Radix-primitívek** (`@radix-ui/*`, pl. párbeszédablak, legördülő menü, választó) a D14 részének számítanak, mert a shadcn-komponensek ezekre épülnek, és a hozzáférhetőséget (fókuszcsapda, billentyűzet-kezelés) ők adják. Csak az a Radix-csomag kerül be, amelyet egy ténylegesen bemásolt komponens használ; más UI-könyvtárhoz továbbra is naplópont kell.
 
 ### D15 — Tartalom-scope: szöveg a Postgresben; képek alkalmazásszintű statikus assets-ként; export MVP-ben *(módosítva — Postgres-only pivot; **10. verzió: a csatolmány-tilalom felülírva: D42**)*
 
