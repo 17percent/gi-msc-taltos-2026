@@ -58,9 +58,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [csrfToken]);
 
+  const refreshMe = useCallback(async () => {
+    try {
+      const next = await loadMe(new AbortController().signal);
+      // Átmeneti hálózati hibánál a meglévő állapot marad: a felület nem dobja ki a felhasználót.
+      if (next.kind !== 'error') setState(next);
+    } catch {
+      /* a következő hívás újra megpróbálja */
+    }
+  }, []);
+
+  const endSession = useCallback((reason: 'signed-out' | 'not-allowlisted') => {
+    setState({ kind: reason });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ state, logoutFailed, csrfToken, logout }),
-    [state, logoutFailed, csrfToken, logout],
+    () => ({ state, logoutFailed, csrfToken, logout, refreshMe, endSession }),
+    [state, logoutFailed, csrfToken, logout, refreshMe, endSession],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
