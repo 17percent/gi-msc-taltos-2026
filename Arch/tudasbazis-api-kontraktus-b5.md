@@ -1,6 +1,6 @@
 # Tudásbázis — API-kontraktus (B5, 10. verzió)
 
-*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51, a D55 és a D56 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
+*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51, a D55, a D56 és a D57 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
 
 *Változás a korábbi B5-höz képest ([[Tervezés/Tervezés (negyedik kör)/tudasbazis-api-kontraktus-b5|B5, napló v6 szerint]]): a Git-szemantika (commit hash, push, reindex), a lock (D7) és a kategóriák (D19) megszűntek. Új: közös szerkesztés WebSocketen (D29), színterek és szerepek (D43, D44), review-folyamat (D45), dashboard és értesítési csatorna (D46), címkék és fajta (D34), kapcsolatok (D39), felülvizsgálat (D33).*
 
@@ -31,7 +31,8 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 | `GET /auth/login` | bárki | Mindig 302 az OIDC szolgáltatóhoz (fejlesztésben is valódi Google, D49): Authorization Code + PKCE (S256) + state + nonce; ezek egy aláírt, httpOnly, `Path=/auth`, 10 perces sütiben (D53) |
 | `GET /auth/callback` | bárki | A code flow lezárása; csak `email_verified === true`. Siker: új session-süti (a kérés régi munkamenete visszavonva), `users` upsert, `last_login_at`, 302 → `/`. Hibák: 302 → `/?error=not_on_allowlist` (hitelesített, de nem engedélyezett cím), `/?error=setup_pending` (még nincs Rendszeradmin, és nem a `BOOTSTRAP_ADMIN_EMAIL` lépett be, D54), `/?error=login_failed` (minden más) — munkamenet nélkül. A hibakódok a `@taltos/shared` `LoginError` típusában |
 | `POST /auth/logout` | belépett | CSRF-token és engedélyezett `Origin` kell. A munkamenet visszavonása a `sessions` táblában (D51a), a süti törlése, a munkamenet nyitott WebSocketjeinek bontása; 204. Érvényes munkamenet nélkül 401, de a sütit ekkor is törli |
-| `GET /api/v1/me` | belépett | A `@taltos/shared` `MeResponse`: `{ id, displayName, email, avatarUrl, systemRole, spaces: [{ id, name, type, role }], csrfToken }`, `Cache-Control: no-store` |
+| `GET /api/v1/me` | belépett | A `@taltos/shared` `MeResponse`: `{ id, displayName, email, avatarUrl, systemRole, spaces: [{ id, name, type, role }], currentSpaceId, csrfToken }`, `Cache-Control: no-store`. A `currentSpaceId` (D57) a tárolt választás, ha a felhasználó még aktív tagja; különben az Általános (vagy az első saját színtér, vagy `null`) |
+| `PUT /api/v1/me/current-space` | belépett | **Aktuális színtér (D57):** `{ spaceId }` → 204; csak saját (aktív tagságú) színtér, különben **403 `not_space_member`**; nem naplózott (privát beállítás, mint a kedvenc) |
 | `GET /api/v1/me/dashboard` | belépett | A dashboard blokkjai (D46): `reviewRequests`, `ownRequests`, `changesRequested`, `reviewsDue`, `mentions`; Színtérgazdának `membershipRequests`, Rendszeradminnak `spaceRequests`. Query: `spaceId` (szűrő), `limit`. Elakadt review-k (3 munkanap) `stale: true` jelzővel. |
 
 ### Színterek és tagság (D30, D43, D44)

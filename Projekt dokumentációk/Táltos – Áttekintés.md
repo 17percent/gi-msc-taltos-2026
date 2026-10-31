@@ -39,6 +39,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 | [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF, Postgres `sessions` tábla (D51a) | — | ⚙️ · 📘 D51a |
 | [[Felhasználók/Jogosultságok\|Jogosultságok]] | alapelvek; az érvényes mátrix a Szerepkörökben | 2 | 📘 D43, D44 |
 | [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix (a WP4a mátrixtesztje cellánként követi) | 2 | 📘 D43, D55, D56 |
+| [[Felhasználók/Adminisztráció és színtér-beállítások\|Adminisztráció és színtér-beállítások]] | WP4b UX-spec: app shell, színtérváltó, Adminisztráció, Színtér beállításai, hibaüzenetek | 2 | 📘 D43, D44, D56 · tervezet, jóváhagyásra vár |
 
 ## Kollaboráció
 

@@ -16,6 +16,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, a WP2 review-ja): **D54** — a rendszerindítás csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (a D52 módosítása; addig mások `setup_pending`), az archivált dokumentum tulajdonosa kivehető az allowlistből (a D53 pontosítása).*
 
+*10. verzió kiegészítése (2026-10-31, a WP4b UX-specje): **D57** — shadcn-kísérőcsomagok, szerveroldali aktuális színtér (`users.current_space_id`, `PUT /me/current-space`), DS-receptek, paletta, hibaüzenetek, lezárás és a Szerző csak olvasható beállítás-nézete.*
+
 *10. verzió kiegészítése (2026-10-31, a WP4b előtt): **D14 pontosítva** — a shadcn-komponensek mögötti Radix-primitívek a D14 részei (csak a ténylegesen bemásolt komponensekhez).*
 
 *10. verzió kiegészítése (2026-10-31, a WP4 tervezése): **D56** — a WP4 részletszabályai (aktor nélküli visszavonás szűk kivétele, `GET /users`, taglista adminnak, lezárt tér admin-kivételei, `admin_handover` törzse, Általános tagsága, tag-eltávolítás, kérések, lezárás, név és típus) és a WP4a/WP4b bontás.*
@@ -584,6 +586,24 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Indoklás:** egyetlen policy-pont és szivárgásmentes láthatóság (D44) a lehető legkorábban; a védőszabályok (utolsó gazda, utolsó admin, tulajdonos) ne ragasszanak be felhasználót vagy dokumentumot; a mátrix és a B5 egy forrásra igazodjon.
 **Vállalt ár:** egy új végpont (`GET /users`) és egy migráció (CHECK-bővítés); a Rendszeradmin tagkezelése lezárt térben kivétel a „minden csak olvasható” alól; a WP4-ben a D55 értesítései még nem mennek ki.
+
+### D57 — A WP4b felületének döntései: shadcn-kísérőcsomagok, aktuális színtér, felületi szabályok *(új, 2026-10-31 — a WP4b UX-specjének nyitott kérdéseire; kiegészíti a D14, D44, D55, D56 pontot)*
+
+**Előzmény:** a WP4b UX-specje ([[Felhasználók/Adminisztráció és színtér-beállítások]]) tíz nyitott kérdést és négy eltérést talált.
+**Döntés (tulajdonos, pontonként):**
+- **shadcn-kísérőcsomagok (a D14 kiegészítése):** a bemásolt shadcn-komponensek szokásos csomagjai bekerülnek: `lucide-react` (ikonok), `class-variance-authority`, `clsx`, `tailwind-merge` (változatok és osztályösszefűzés), `cmdk` (kombinált kereső), `sonner` (toast). A `motion` a D14 része volt. Más UI-csomaghoz továbbra is naplópont kell.
+- **Aktuális színtér szerveroldalon:** a színtérváltó utolsó választása a `users.current_space_id` oszlopban él (FK nélkül, új migráció), `PUT /api/v1/me/current-space` állítja, a `GET /me` `currentSpaceId`-ként adja vissza; elavult (már nem saját) érték esetén a `/me` tartalékot ad (az Általános). A beállítás privát, nem naplózott.
+- **Design System:** a spec új felületi receptjei (menü, váz-betöltés, háttér-sötétítés, navigációs elem, üres állapot, színpont, kombinált lista) a `taltos-design-system.md`-be kerülnek, csak tokenekből.
+- **Színtér-paletta:** a `SPACE_COLOR_PALETTE` adatként marad (hex, inline a színpontnál); a megvalósításkor kontrasztmérés mindkét témában, bukó szín cserélendő.
+- **Hibaüzenetek:** a „név foglalt”, „már tag”, „nem található” a backendben `validation_error` marad; a felület előellenőriz, ahol tud, és általános tartalék-üzenetet ad.
+- **`owner_handover_required`:** a felület őszintén elmondja, hogy előbb át kell adni a dokumentumokat (a dokumentumnézettel, WP5/WP11), addig a Rendszeradmin segít; admin-átadó felület a WP4b-ben nincs.
+- **Hozzáférés-megtagadás (`not_space_member`):** csak a színtér neve és a Színtérgazdák látszanak; „Felvétel kérése” gomb a WP23-mal jön.
+- **Lezárás:** végleges, a megerősítő szöveg ezt kimondja; értesítést nem ígér (a WP10 köti rá).
+- **Színtér beállításai a Szerzőnek:** csak olvasható nézetben megnyitható (leírás, szín, tagok, vezérlők nélkül).
+- **Szabad sáv, az ajánlás szerint:** útvonalak `/admin/…` és `/spaces/:id/settings`; nincs mentés nélküli kilépés-figyelmeztetés; az Általánosba lehet tagot felvenni és átnevezhető; lezáráskor nincs előzetes darabszám; a színtérváltó a `GET /spaces`-ből kapja a színt és a lezártságot.
+
+**Indoklás:** a szokásos shadcn-készlettel gyorsabb és megbízhatóbb az építés; a szerveroldali aktuális színtér eszközök között is megmarad; a felület a meglévő API-ra épül, és nem ígér olyat, ami még nincs kész.
+**Vállalt ár:** hat új futásidejű függőség; egy kis backend-bővítés (oszlop, végpont, `/me`-mező) a WP4b-ben; a pontatlan `validation_error` üzenetek a pilotig maradnak.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 
