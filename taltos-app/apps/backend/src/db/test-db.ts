@@ -66,6 +66,10 @@ export async function createTestDb(superuserUrl: string): Promise<TestDb> {
     const root = new pg.Client({ connectionString: superuserUrl });
     await root.connect();
     try {
+      // A csoportszerepkörök fürt-szintűek: a párhuzamosan induló tesztfájlok ugyanazt hoznák létre egyszerre
+      // (pg_authid egyedi index). A tranzakciós tanácsadó zár sorosítja a „ha nincs, létrehoz” lépést.
+      await root.query('BEGIN');
+      await root.query("SELECT pg_advisory_xact_lock(hashtext('taltos_test_group_roles'))");
       for (const group of [OWNER_ROLE, 'taltos_app', 'taltos_retention']) {
         await root.query(
           `DO $$ BEGIN
@@ -75,6 +79,7 @@ export async function createTestDb(superuserUrl: string): Promise<TestDb> {
            END $$`,
         );
       }
+      await root.query('COMMIT');
       for (const login of Object.values(logins)) {
         // A név és a jelszó csak [a-z0-9_] / hex: biztonságosan beágyazható.
         await root.query(

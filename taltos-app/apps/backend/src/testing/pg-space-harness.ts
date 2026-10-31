@@ -44,10 +44,13 @@ export function pgHarness(db: TestDb): StoreHarness {
     async space(options = {}) {
       const id = randomUUID();
       const type = options.type ?? (options.closed ? 'project' : 'team');
-      await admin(
-        `INSERT INTO spaces (id, name, type, color, created_by, closed_at)
-         VALUES ($1, $2, $3, '#3B6FB6', $4, ${options.closed ? 'now()' : 'NULL'})`,
-        [id, `tér-${id}`, type, placeholder],
+      // Replica módban: a `created_by` helyőrzőjére nincs `users` sor, az FK-t itt nem ellenőrizzük.
+      await withReplica(db.admin, (c) =>
+        c.query(
+          `INSERT INTO spaces (id, name, type, color, created_by, closed_at)
+           VALUES ($1, $2, $3, '#3B6FB6', $4, ${options.closed ? 'now()' : 'NULL'})`,
+          [id, `tér-${id}`, type, placeholder],
+        ),
       );
       return id;
     },
