@@ -1,6 +1,6 @@
 # Tudásbázis — API-kontraktus (B5, 10. verzió)
 
-*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49 és a D51 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
+*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51 és a D55 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
 
 *Változás a korábbi B5-höz képest ([[Tervezés/Tervezés (negyedik kör)/tudasbazis-api-kontraktus-b5|B5, napló v6 szerint]]): a Git-szemantika (commit hash, push, reindex), a lock (D7) és a kategóriák (D19) megszűntek. Új: közös szerkesztés WebSocketen (D29), színterek és szerepek (D43, D44), review-folyamat (D45), dashboard és értesítési csatorna (D46), címkék és fajta (D34), kapcsolatok (D39), felülvizsgálat (D33).*
 
@@ -41,7 +41,7 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 | `GET /api/v1/spaces/:id` | tag, Rendszeradmin | Név, típus, leírás, szín, lezárt-e, Színtérgazdák, taglétszám |
 | `POST /api/v1/spaces` | Rendszeradmin | Létrehozás: `{ name, type, description, color, initialManagerId }` → `space_created`, `space_manager_assigned` |
 | `PATCH /api/v1/spaces/:id` | Színtérgazda, Rendszeradmin | Leírás, szín (D37); a név és a típus csak Rendszeradminnak |
-| `POST /api/v1/spaces/:id/close` | Rendszeradmin | Projekt-tér lezárása: minden csak olvasható (D44) |
+| `POST /api/v1/spaces/:id/close` | Rendszeradmin | Projekt-tér lezárása: minden csak olvasható (D44). Ugyanabban a tranzakcióban a tér függő review-kérései visszavonódnak (D55): `review_withdrawn` rendszeresemény NULL aktorral, ok: `space_closed`; a dokumentum újra Piszkozat (csak olvasható); értesítés az indítványozónak és a review-ereknek |
 | `GET /api/v1/spaces/:id/members` | tag | Tagok szereppel |
 | `POST /api/v1/spaces/:id/members` | Színtérgazda, Rendszeradmin | Felvétel: `{ userId, role }`. Rendszeradmin saját magát is felveheti (`self_assigned`, értesítés nélkül) |
 | `PATCH /api/v1/spaces/:id/members/:userId` | Színtérgazda, Rendszeradmin | Szerepváltás (előléptetés, visszaminősítés) → `role_changed`; utolsó gazdánál **409 `last_space_manager`**; tulajdonos visszaminősítése nem érinti a tulajdonjogot |
@@ -62,6 +62,7 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 | `DELETE /api/v1/documents/:id/draft` | indítványozó | Soha be nem küldött piszkozat eldobása, review nélkül (D45) → `draft_discarded`; a revízióival együtt 1 év után véglegesen törlődik (D51i). Egyébként **409 `has_approved_revision`** |
 | `GET /api/v1/documents/:id/raw?frontmatter=true\|false` | tag | Nyers .md a legutóbbi Jóváhagyott revízióból (tartalom és a revízió `metadata`-pillanatképe, D51e); alapból frontmatter nélkül (D49) |
 | `GET /api/v1/documents/:id/export?format=pdf\|docx` | tag | Pandoc-konverzió a Jóváhagyott revízióból (A7) |
+| `PUT /api/v1/documents/:id/owner` | tulajdonos, Színtérgazda | **Tulajdonjog-átadás (D55):** `{ userId }`; review nélkül, azonnal → `owner_changed` (ok: `handover`), értesítés az új tulajdonosnak. Archivált dokumentumon is (D54). Az új tulajdonos nem a színtér aktív tagja, vagy azonos a mostanival: **422 `invalid_new_owner`**; lezárt projekt-térben **403 `space_closed`** |
 | `PUT /api/v1/documents/:id/favorite` · `DELETE …` | tag | Kedvenc (D18), idempotens; a `DELETE` fizikai törlés (D51j) |
 | `PUT /api/v1/documents/:id/subscription` · `DELETE …` | tag | Követés (D35), idempotens; a `DELETE` fizikai törlés (D51j) |
 | `POST /api/v1/documents/:id/review-confirmation` | tag | „Még aktuális” (D33): új esedékesség, review nélkül → `review_confirmed` |
@@ -117,7 +118,7 @@ A kapcsolatok és a címkék a piszkozat metaadatának részei: a tartalommal eg
 | `GET /api/v1/events?format=json\|csv` | Rendszeradmin | Rendszerszintű audit (szűrők: `spaceId`, `documentId`, `type`, `actorId`, időablak). A véglegesen törölt dokumentumra mutató esemény „törölt dokumentum”-ként jelenik meg (D51h). *Hogy a Rendszeradmin mely mezőket láthatja (cím, komment-szöveg): NY17.* |
 | `GET /api/v1/admin/users` | Rendszeradmin | Felhasználók, `systemRole`, utolsó belépés |
 | `PUT /api/v1/admin/users/:id/system-role` | Rendszeradmin | `{ systemRole }`; utolsó adminnál **409 `last_admin`** |
-| `POST /api/v1/admin/users/:id/handover` | Rendszeradmin | Adminisztratív tulajdonos-átadás (`admin_handover`), ha a színtérnek nincs elérhető Színtérgazdája. *A rendes (tulajdonos vagy Színtérgazda általi) átadás végpontja nyitott: NY15.* |
+| `POST /api/v1/admin/users/:id/handover` | Rendszeradmin | Adminisztratív tulajdonos-átadás (`admin_handover`), ha a színtérnek nincs elérhető Színtérgazdája. A rendes átadás: `PUT /api/v1/documents/:id/owner` (D55). |
 | `GET /api/v1/admin/retention/preview` | Rendszeradmin | *Második ütem (WP33).* A következő végleges törlés tételei (D48, D51i) |
 | `PUT /api/v1/admin/retention/holds/:documentId` · `DELETE …` | Rendszeradmin | *Második ütem (WP33).* Legal hold (D48); a hatóköre nyitott: NY19 |
 | `GET /healthz` | bárki | Liveness |
@@ -162,6 +163,7 @@ Minden hiba `application/problem+json` (A2):
 | `tag_exists` | 409 | Normalizált ütközés; `details.tag` a meglévő |
 | `stale_base_revision` | 412 | A `baseRevisionId` nem a legutóbbi Jóváhagyott (A4); `details.currentApprovedRevisionId` |
 | `invalid_reviewers` | 422 | Nem két különböző tag, vagy köztük az indítványozó |
+| `invalid_new_owner` | 422 | Tulajdonjog-átadás olyan felhasználóra, aki nem a színtér aktív tagja, vagy már most is a tulajdonos (D55) |
 | `reason_required` | 422 | Elutasítás indoklás nélkül |
 | `export_failed` | 502 | Pandoc-hiba |
 | `internal_error` | 500 | Váratlan hiba; a `detail` nem szivárogtat belső részletet |

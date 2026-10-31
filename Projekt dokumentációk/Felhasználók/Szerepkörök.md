@@ -82,11 +82,12 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 - **Egy színtérnek legalább három tagja kell legyen,** különben nincs két review-er az indítványozón kívül. Kevesebb tag esetén a Review-ra küldés nem érhető el, és a felület ezt jelzi (409 `not_enough_reviewers`).
 - **Review-er eltávolítása (D51b):** ha egy megjelölt review-er kikerül a színtérből vagy az allowlistről, a sora „megszűnt” jelölést kap (`reviewer_removed`), és a slot üres marad. A másik review-er meglévő döntése megmarad; az indítványozó új review-ert jelöl, a kérés addig nem dönthető el, a dashboard jelzi a pótlást.
 - **Allowlist-törlés:** nem törölhető, aki utolsó Színtérgazda, vagy aki dokumentum tulajdonosa (409 `owner_handover_required`, változatlan).
+- **Tulajdonjog-átadás (D55):** a tulajdonos a saját, a Színtérgazda a színterének bármely dokumentumát átadhatja a színtér egy aktív tagjának, review nélkül (`owner_changed`, értesítés az új tulajdonosnak). A Rendszeradminisztrátor adminisztratív átadása (`admin_handover`) csak gazda nélküli színtérre marad.
 - **Rendszeradminisztrátor saját magát veszi fel egy színtérbe:** további feltétel nélkül megteheti; külön esemény jelöli (`member_added`, `self_assigned: true`), értesítés nincs.
 - **Projekt-tér kérése:** bármely felhasználó kérheti (név, cél, javasolt Színtérgazda); a Rendszeradminisztrátor hagyja jóvá és hozza létre. A kérés a [[Nyomonkövetés/Feladat-dashboard|dashboardján]] jelenik meg.
 - **Felvétel kérése:** idegen színtérbe mutató link csonkjáról a felhasználó felvételt kérhet; a kérés a Színtérgazdák dashboardján jelenik meg.
 - **Általános színtér:** minden allowlistre felvett felhasználó automatikusan Szerző benne; Színtérgazdáját a Rendszeradminisztrátor jelöli ki.
-- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható.
+- **Lezárt projekt-tér:** a dokumentumok és a tagság megmarad, minden csak olvasható; a lezáráskor függő review-kérések automatikusan visszavonódnak (D55).
 - **Minden szerepváltás naplózott:** `member_added`, `member_removed`, `role_changed` (előléptetés, visszaminősítés), `space_manager_assigned`, `system_admin_granted`, `system_admin_revoked`.
 
 ## Megvalósítás
@@ -122,7 +123,8 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 - ~~Entra ID csoportok?~~ **Döntve (D43):** jövőbeli munka.
 - ~~Projekt-tér létrehozása?~~ **Döntve (D43):** kérés + Rendszeradminisztrátori jóváhagyás.
 - ~~Lezárt projekt-tér szerepei?~~ **Döntve (D44):** megmaradnak, minden csak olvasható.
-- ❓ **Nyitott (NY11–NY19 a naplóban):** a dokumentum-tulajdonos átadásának végpontja, jogosultja és review-köteles volta (D31); a Rendszeradminisztrátor felülírási joga a felvételi kérések döntésében; a rendszerszintű audit láthatósága.
+- ~~Tulajdonos-átadás?~~ **Döntve (D55):** a tulajdonos vagy a Színtérgazda adja át, review nélkül (`PUT …/owner`).
+- ❓ **Nyitott (NY11–NY19 a naplóban):** a Rendszeradminisztrátor felülírási joga a felvételi kérések döntésében; a rendszerszintű audit láthatósága.
 
 ## Kapcsolódó döntések
 

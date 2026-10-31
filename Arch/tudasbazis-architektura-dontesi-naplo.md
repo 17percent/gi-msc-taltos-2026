@@ -16,6 +16,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, a WP2 review-ja): **D54** — a rendszerindítás csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (a D52 módosítása; addig mások `setup_pending`), az archivált dokumentum tulajdonosa kivehető az allowlistből (a D53 pontosítása).*
 
+*10. verzió kiegészítése (2026-10-31, WP4 előtt): **D55** — tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (az NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket (az NY19 WP4-es pontja lezárva).*
+
 *10. verzió kiegészítése (2026-10-31, WP3 előtt): **NY19 ütemezése** — a Yjs-generáció kérdése a WP3 helyett a WP6 előtt dől el (a tulajdonos döntése; a spike nem használ `y-indexeddb`-t, így nincs helyi gyorsítótár). Új D-pont nincs.*
 
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
@@ -537,10 +539,22 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 **Előzmény:** a WP2 kód- és biztonsági review-ja két tulajdonosi kérdést vetett fel.
 **Döntés (tulajdonos):**
 - **Rendszerindítás csak a megadott címmel (a D52 módosítása):** az első Rendszeradminisztrátor és az Általános színtér kezdő Színtérgazdája **csak a konfigurációban megadott `BOOTSTRAP_ADMIN_EMAIL`** címmel belépő felhasználó lehet (a tulajdonos). Amíg nincs Rendszeradminisztrátor, más (allowlistes) felhasználó nem léphet be: munkamenet nélkül a `/?error=setup_pending` címre kerül („a rendszer még nincs beállítva”), mert az Általános színtérnek még nincs gazdája. A D52 többi része változatlan: egyszeri, sorosított, egyetlen `system_bootstrapped` esemény; a dummy seed fejlesztésben saját Rendszeradmint hoz.
-- **Archivált dokumentumok és az allowlist (a D53 pontosítása):** az `owner_handover_required` védelem csak az archiválatlan dokumentumokra él; aki csak archivált dokumentumok tulajdonosa, kivehető az allowlistből. Egy ilyen dokumentum archívumból visszahozásakor (`unarchive`, D51g) a tulajdonost át kell adni — ennek módja az NY15-tel együtt dől el.
+- **Archivált dokumentumok és az allowlist (a D53 pontosítása):** az `owner_handover_required` védelem csak az archiválatlan dokumentumokra él; aki csak archivált dokumentumok tulajdonosa, kivehető az allowlistből. Egy ilyen dokumentum archívumból visszahozásakor (`unarchive`, D51g) a tulajdonost át kell adni — ennek módja az NY15-tel együtt dől el (eldöntve: D55, a Színtérgazda adja át).
 
 **Indoklás:** a „bárki, aki elsőként belép” kockázat (D52 vállalt ára) egy konfigurációs értékkel megszűnik; az archívum a régi anyagok helye, nem akadályozhatja egy távozó kolléga kivételét.
 **Vállalt ár:** egy új kötelező konfigurációs érték; a rendszer az első Rendszeradmin belépéséig mások számára zárva van; az archívumban lehetnek távozott tulajdonosú dokumentumok.
+
+### D55 — A WP4 előtti döntések: tulajdonjog-átadás és a projekt-tér lezárása *(új, 2026-10-31 — lezárja az NY15-öt és az NY19 WP4-es pontját; kiegészíti a D31, D44, D45 és D54 pontot)*
+
+**Előzmény:** a 409 `owner_handover_required` (D31, D54) átadást kínál fel, de csak az adminisztratív átadás (`admin_handover`) létezett; a projekt-tér lezárásakor (D44) a függő review-kérések sorsa nyitott volt.
+**Alternatívák:** átadás csak a Színtérgazdától vagy csak a tulajdonostól; review-köteles (`metadata`) vagy az új tulajdonos elfogadásához kötött átadás; lezáráskor a lezárás tiltása függő kérésnél, vagy befagyott, de továbbra is dönthető kérések.
+**Döntés (tulajdonos):**
+- **Ki adhat át (NY15):** a dokumentum **tulajdonosa** a saját dokumentumát, a **Színtérgazda** a színterének bármely dokumentumát (archiváltat is) átadhatja. Az új tulajdonos a színtér aktív tagja (D31). A Rendszeradmin `admin_handover`-e megmarad arra az esetre, ha a színtérnek nincs elérhető Színtérgazdája. Az archívumból visszahozott dokumentum távozott tulajdonosát (D54) a Színtérgazda adja át.
+- **Review nélkül (NY15):** az átadás azonnal érvényes, `owner_changed` eseménnyel (ok: `handover`) és értesítéssel az új tulajdonosnak; a review nélküli kivételek közé kerül (D45). A tulajdonos nem része a revízió metaadat-pillanatképének.
+- **Projekt-tér lezárása (NY19, WP4):** a lezárás ugyanabban a tranzakcióban **visszavonja a tér függő review-kéréseit** (`review_withdrawn` rendszeresemény NULL aktorral, D51d, ok: `space_closed`); a dokumentum a visszavonás szabálya szerint újra Piszkozat, de a lezárt térben csak olvasható. Az indítványozó és a review-erek értesítést kapnak.
+
+**Indoklás:** a tulajdonos és a gazda a természetes felelős; admin csak végső eset legyen. A tulajdonjog szervezési adat, nem tartalom, ezért a négy szem elve nem vonatkozik rá (mint a tagság- és szerepkezelésre). A lezárás a „minden csak olvasható” szabályt (D44) kivétel nélkül tartja, és nem hagy dönthetetlen kérést.
+**Vállalt ár:** a tulajdonjog review nélkül változhat (az esemény és az értesítés teszi követhetővé); lezáráskor a folyamatban lévő review-munka elvész (a kérés visszavonva, a javasolt revízió a revíziótörténetben megmarad).
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 
@@ -653,11 +667,11 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **NY12 — A címkék láthatósága a zárt színterek között (D34, D44; WP5 előtt):** a globális címkelista, a darabszámok és a `tag_exists` 409 más színterek létezését árulhatják el. Opciók: a lista, a javaslat és a darabszám a látható dokumentumokra szűrve; vagy a kockázat dokumentált vállalása.
 - **NY13 — Kapcsolatok tárolása (D39; WP16 előtt):** a kapcsolattípus nem szerepel a szövegbeli linkben (`[cím](doc:uuid)`), így előfordulásonként nem párosítható; a „link eltűnik ⇒ kapcsolat megszűnik” szabály a `származik`-ot is törölné. A V50 (a `helyettesíti` cél általi törlése) review nélküli rendszer-revízió: kap-e `approved_revision_id`-t, `iteration`-t, és mi történik függő kérés vagy élő piszkozat mellett?
 - **NY14 — Kapcsolat-értesítés idegen színtérbe (D39 V36/V50, D44; WP16 előtt):** a cél tulajdonosa nem biztos, hogy tagja a forrás színterének. Kapjon csonk-értesítést és törlési jogot, vagy a V36/V50 csak közös tagságnál él?
-- **NY15 — Tulajdonjog-átadás (D31, D48; WP4 előtt):** a 409 `owner_handover_required` felkínálja, de csak adminisztratív átadás-végpont van. Ki adhat át (tulajdonos, Színtérgazda), és review-köteles-e?
+- **NY15 — Tulajdonjog-átadás: LEZÁRVA (D55)** — a tulajdonos és a Színtérgazda adhat át, review nélkül, `owner_changed` eseménnyel; az `admin_handover` végső esetként marad.
 - **NY16 — E-mail-beállítások és leiratkozás (D46; WP18 előtt):** a H5 WP18 említi, de nincs napló-pontja; D21 szerint addig nem épül.
 - **NY17 — A Rendszeradmin audit-láthatósága (D43; WP9 előtt):** a rendszerszintű audit és a retenciós előnézet címet és komment-szöveget adhat, holott a Rendszeradminnak nincs tartalmi joga. Mely mezőket láthatja?
 - **NY18 — Az első Rendszeradmin és a konfigurációból töltött allowlist: LEZÁRVA** — az első Rendszeradmin és az Általános kezdő Színtérgazdája: D52; a konfig-szinkron szemantikája: D53.
-- **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); a függő review sorsa a projekt-tér lezárásakor (WP4); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP6, WP14; a tulajdonos 2026-10-31-én a WP3-ból halasztotta, mert a spike nem használ `y-indexeddb`-t); a legal hold hatóköre (WP33).
+- **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); ~~a függő review sorsa a projekt-tér lezárásakor (WP4)~~ (lezárva: D55, automatikus visszavonás); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP6, WP14; a tulajdonos 2026-10-31-én a WP3-ból halasztotta, mert a spike nem használ `y-indexeddb`-t); a legal hold hatóköre (WP33).
 
 ## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*
 

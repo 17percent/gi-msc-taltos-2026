@@ -40,12 +40,13 @@
 **Tartalom:**
 - **Policy:** egyetlen `can(user, action, resource)` függvény a [[Felhasználók/Szerepkörök|jogosultsági mátrix]] szerint (Rendszeradmin, Színtérgazda, Szerző; D43). REST-middleware-ben és (a WP6-tól) a Hocuspocus `onAuthenticate`-ben is ezt hívja.
 - **Láthatóság (D44):** „látható dokumentumok” lekérdezés-építő (aktív tagság), amelyet minden olvasó lekérdezés használ; nem tag → 403 `not_space_member` a színtér nevével és a Színtérgazdákkal, cím nélkül.
-- **Színterek:** létrehozás a kezdeti Színtérgazdával (Rendszeradmin), lezárás (csak olvasható), leírás és szín (Színtérgazda); Általános egyetlen példányban.
+- **Színterek:** létrehozás a kezdeti Színtérgazdával (Rendszeradmin), lezárás (csak olvasható; a függő review-kérések ugyanabban a tranzakcióban visszavonódnak, D55), leírás és szín (Színtérgazda); Általános egyetlen példányban.
+- **Tulajdonjog-átadás (D55):** `PUT …/owner` a tulajdonostól vagy a Színtérgazdától, review nélkül, aktív tagra (422 `invalid_new_owner`), `owner_changed` eseménnyel; az `admin_handover` végső esetként.
 - **Tagság:** felvétel, eltávolítás, előléptetés és visszaminősítés (Színtérgazda; Rendszeradmin felülírhat és saját magát is felveheti, `self_assigned`); 409 `last_space_manager`; tulajdonos eltávolítása átadás nélkül 409.
 - **Kérések (API):** projekt-tér kérése és döntése (D43); felvételi kérés és döntése (D44). A felületük a WP23 dashboardja.
 - **Felület:** *Adminisztráció* oldal (színterek, létrehozás, lezárás, Rendszeradminok); *Színtér beállításai* (tagok, szerepek, leírás, szín); színtérváltó a sidebarban.
-- **Események:** `space_*`, `member_*`, `role_changed`, `system_admin_*`, `*_requested`, `*_request_decided`.
-**Kész:** táblavezérelt mátrixteszt (minden szerep × minden művelet); **láthatósági teszt minden addigi olvasó végponton** (nem tag nem kap címet, tartalmat, darabszámot); a védőszabályok (utolsó gazda, utolsó admin) teszteltek.
+- **Események:** `space_*`, `member_*`, `role_changed`, `system_admin_*`, `*_requested`, `*_request_decided`, `owner_changed`, a lezáráskor `review_withdrawn` (rendszer, D55).
+**Kész:** táblavezérelt mátrixteszt (minden szerep × minden művelet); **láthatósági teszt minden addigi olvasó végponton** (nem tag nem kap címet, tartalmat, darabszámot); a védőszabályok (utolsó gazda, utolsó admin) teszteltek; a tulajdonjog-átadás (tulajdonos, Színtérgazda, nem tagra 422) és a lezáráskori automatikus visszavonás tesztelt (D55).
 **Függőség:** WP2
 
 ### WP5 — Dokumentum-mag: létrehozás, fajta, címkék

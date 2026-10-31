@@ -15,7 +15,7 @@ A pilot azt vizsgálja, hogy a Táltos a jelenlegi gyakorlathoz (Confluence vagy
 
 - **K1 — Megtalálás:** mennyi idő alatt és milyen sikerrel talál meg a felhasználó egy adott tudásanyagot?
 - **K2 — Rögzítés:** markdown-tudás nélkül is létre tud-e hozni egy dokumentumot sablonból, címkével és kapcsolattal (D40), és ehhez mennyi idő és segítség kell?
-- **K3 — Adminisztráció:** mekkora ráfordítás egy színtér, tagság, szerepkör, review és tulajdonjog-átadás kezelése (D30, D31, D43, D45)? (A tulajdonjog-átadás végpontja ❓ nyitott, NY11–NY19 a naplóban — a T8 ettől függ.)
+- **K3 — Adminisztráció:** mekkora ráfordítás egy színtér, tagság, szerepkör, review és tulajdonjog-átadás kezelése (D30, D31, D43, D45, D55)? (A tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül: D55 — a T8 erre épülhet.)
 - **K4 — Észlelt használhatóság:** milyen SUS-pontszámot ad a két megoldás?
 
 ## Design
