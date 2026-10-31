@@ -5,6 +5,7 @@ import { buildApp } from '../app.js';
 import { TEST_CONFIG, FakeOidc, TestClock } from '../testing/app.js';
 import { createTestDb, type TestDb } from '../db/test-db.js';
 import { syncAllowlist } from './allowlist.js';
+import { createPgCollabStore } from '../realtime/pg-collab-store.js';
 import { createPgAuthStore } from './pg-store.js';
 import { SessionService, TOUCH_INTERVAL_MS } from './session-service.js';
 import type { OidcIdentity } from './types.js';
@@ -225,7 +226,13 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
       const clock = new TestClock(now);
       const app = await buildApp(
         { ...TEST_CONFIG, bootstrapAdminEmail: BOOTSTRAP },
-        { store: store(), oidc: new FakeOidc(), cookieSecret: 'k', clock: clock.now },
+        {
+          store: store(),
+          oidc: new FakeOidc(),
+          collabStore: createPgCollabStore(drizzle(db.app)),
+          cookieSecret: 'k',
+          clock: clock.now,
+        },
       );
       const { token } = await new SessionService(store(), policy, clock.now).issue(login.userId);
       const get = () =>

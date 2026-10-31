@@ -7,6 +7,7 @@ import { createOidcFlow } from './auth/oidc.js';
 import { createPgAuthStore } from './auth/pg-store.js';
 import { loadConfig } from './config.js';
 import { createPool, loadDbConnection } from './db/connection.js';
+import { createPgCollabStore } from './realtime/pg-collab-store.js';
 import { requireSecret } from './secrets.js';
 
 const config = loadConfig();
@@ -16,6 +17,7 @@ const db = drizzle(pool);
 
 const app = await buildApp(config, {
   store: createPgAuthStore(db, { bootstrapAdminEmail: config.bootstrapAdminEmail }),
+  collabStore: createPgCollabStore(db),
   oidc: createOidcFlow({
     issuer: config.oidcIssuer,
     clientId: config.oidcClientId,
