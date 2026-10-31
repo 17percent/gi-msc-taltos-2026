@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { useAction } from '../api/use-action';
@@ -26,7 +27,7 @@ function RenameBody({ space, onClose }: { space: RenameTarget; onClose: () => vo
     );
     setError(found.name ?? null);
     if (found.name) return;
-    await api.patch(`/api/v1/spaces/${space.id}`, { name: name.trim() });
+    await api.patch(apiPath`/api/v1/spaces/${space.id}`, { name: name.trim() });
     toast.success(`Átnevezve: „${name.trim()}”.`);
     await spaces.refreshMembership();
     onClose();

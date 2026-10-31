@@ -1,3 +1,4 @@
+import { usePageTitle } from '../layout/use-page-title';
 import { Link, Navigate, useParams } from 'react-router';
 import { COLLAB_DOCUMENT_NAME_PATTERN } from '@taltos/shared';
 import { useAuth } from '../auth/auth-context';
@@ -7,6 +8,7 @@ import { NO_ACCESS_MESSAGE } from '../editor/collab-status';
 
 /** Dokumentum-szerkesztő oldal (WP3 spike): bejelentkezett felhasználóknak, `/documents/:documentId`. */
 export function DocumentPage() {
+  usePageTitle('Dokumentum');
   const { state } = useAuth();
   const { documentId = '' } = useParams();
 

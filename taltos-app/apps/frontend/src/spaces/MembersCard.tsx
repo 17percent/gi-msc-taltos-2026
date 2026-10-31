@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import type { SpaceDetail, SpaceMember, SpaceRole } from '@taltos/shared';
 import { Crown, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -43,6 +44,7 @@ export function MembersCard({
   caps,
   reload,
   onError,
+  clearError,
   refreshMembership,
 }: {
   detail: SpaceDetail;
@@ -51,6 +53,8 @@ export function MembersCard({
   caps: SpaceCapabilities;
   reload: () => void;
   onError: (error: unknown, context: ErrorContext) => void;
+  /** Új művelet indulásakor a korábbi oldal-szintű hibaüzenet törlése. */
+  clearError: () => void;
   refreshMembership: () => Promise<void>;
 }) {
   const api = useApi();
@@ -68,8 +72,9 @@ export function MembersCard({
 
   async function changeRole(member: SpaceMember, role: SpaceRole) {
     const name = member.user.displayName;
+    clearError();
     try {
-      await api.patch(`/api/v1/spaces/${detail.id}/members/${member.user.id}`, { role });
+      await api.patch(apiPath`/api/v1/spaces/${detail.id}/members/${member.user.id}`, { role });
       toast.success(`${name} mostantól ${ROLE_LABEL[role]}.`);
       reload();
       if (member.user.id === me.id) await refreshMembership();
@@ -80,8 +85,9 @@ export function MembersCard({
 
   async function remove(member: SpaceMember) {
     const name = member.user.displayName;
+    clearError();
     try {
-      await api.del(`/api/v1/spaces/${detail.id}/members/${member.user.id}`);
+      await api.del(apiPath`/api/v1/spaces/${detail.id}/members/${member.user.id}`);
       toast.success(`${name} eltávolítva.`);
       reload();
       if (member.user.id === me.id) await refreshMembership();
@@ -228,6 +234,7 @@ export function MembersCard({
         spaceId={detail.id}
         memberIds={members.map((member) => member.user.id)}
         onAdded={(outcome, user) => {
+          if (outcome === 'added') clearError();
           reload();
           if (outcome === 'added' && user?.id === me.id) void refreshMembership();
         }}

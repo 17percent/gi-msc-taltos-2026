@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import type { SpaceRole } from '@taltos/shared';
 import { useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -33,7 +34,7 @@ function AddMemberBody({
 
   const add = useAction(async () => {
     if (!user) return;
-    await api.post(`/api/v1/spaces/${spaceId}/members`, { userId: user.id, role });
+    await api.post(apiPath`/api/v1/spaces/${spaceId}/members`, { userId: user.id, role });
     toast.success(`${user.displayName} felvéve ${ROLE_AS[role].toLowerCase()}.`);
     onAdded('added', user);
     onClose();

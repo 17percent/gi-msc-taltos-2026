@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import type { SpaceRole } from '@taltos/shared';
 import { useId, useState } from 'react';
 import { useAction } from '../api/use-action';
@@ -30,7 +31,7 @@ function SelfAssignBody({
 
   const assign = useAction(async () => {
     if (state.kind !== 'signed-in') return;
-    await api.post(`/api/v1/spaces/${space.id}/members`, { userId: state.me.id, role });
+    await api.post(apiPath`/api/v1/spaces/${space.id}/members`, { userId: state.me.id, role });
     await spaces.refreshMembership();
     toast.success(
       `Felvetted magad a(z) „${space.name}” színtérbe ${ROLE_AS[role].toLowerCase()}. Mostantól látod a tartalmát.`,

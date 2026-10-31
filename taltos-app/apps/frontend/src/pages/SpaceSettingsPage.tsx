@@ -1,3 +1,5 @@
+import { ApiError } from '../api/client';
+import { apiPath, isUuid } from '../api/paths';
 import type { NotSpaceMemberDetails, SpaceDetail, SpaceMember } from '@taltos/shared';
 import { EyeOff, Lock } from 'lucide-react';
 import { useState } from 'react';
@@ -43,6 +45,8 @@ function SettingsView({ data, reload }: { data: Loaded; reload: () => void }) {
   const myRole = me.spaces.find((space) => space.id === detail.id)?.role ?? null;
   const isAdmin = me.systemRole === 'system_admin';
   const caps = spaceCapabilities({ systemRole: me.systemRole, myRole, space: detail });
+
+  const clearError = () => setPageError(null);
 
   function handleError(error: unknown, context: ErrorContext) {
     setPageError({ error, context });
@@ -134,7 +138,14 @@ function SettingsView({ data, reload }: { data: Loaded; reload: () => void }) {
       {pageError ? <FormError error={pageError.error} context={pageError.context} /> : null}
       {banner}
 
-      <BasicsCard detail={detail} caps={caps} onSaved={reload} />
+      <BasicsCard
+        detail={detail}
+        caps={caps}
+        onSaved={() => {
+          clearError();
+          reload();
+        }}
+      />
       <MembersCard
         detail={detail}
         members={members}
@@ -142,13 +153,17 @@ function SettingsView({ data, reload }: { data: Loaded; reload: () => void }) {
         caps={caps}
         reload={reload}
         onError={handleError}
+        clearError={clearError}
         refreshMembership={spaces.refreshMembership}
       />
 
       <SelfAssignDialog
         space={selfAssignOpen ? { id: detail.id, name: detail.name } : null}
         onClose={() => setSelfAssignOpen(false)}
-        onDone={reload}
+        onDone={() => {
+          clearError();
+          reload();
+        }}
       />
     </div>
   );
@@ -171,9 +186,11 @@ function LoadingState() {
 export function SpaceSettingsPage() {
   const { spaceId = '' } = useParams();
   const resource = useResource<Loaded>(`settings:${spaceId}`, async (api, signal) => {
+    // A nem szabályos azonosító soha nem kerül API-útvonalba (nincs kérés, „nem található” állapot).
+    if (!isUuid(spaceId)) throw new ApiError('not_found', 404);
     const [detail, members] = await Promise.all([
-      api.get<SpaceDetail>(`/api/v1/spaces/${spaceId}`, signal),
-      api.get<SpaceMember[]>(`/api/v1/spaces/${spaceId}/members`, signal),
+      api.get<SpaceDetail>(apiPath`/api/v1/spaces/${spaceId}`, signal),
+      api.get<SpaceMember[]>(apiPath`/api/v1/spaces/${spaceId}/members`, signal),
     ]);
     return { detail, members };
   });

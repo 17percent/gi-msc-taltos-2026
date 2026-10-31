@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import type { SpaceColor, SpaceDetail, UpdateSpaceRequest } from '@taltos/shared';
 import { useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -77,7 +78,7 @@ export function BasicsCard({
       ...(descriptionChanged ? { description: values.description } : {}),
       ...(colorChanged ? { color: values.color as SpaceColor } : {}),
     };
-    await api.patch(`/api/v1/spaces/${detail.id}`, patch);
+    await api.patch(apiPath`/api/v1/spaces/${detail.id}`, patch);
     setSaved(true);
     toast.success('A beállítások mentve.');
     spaces.reload();

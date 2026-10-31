@@ -1,5 +1,5 @@
 import { Lock } from 'lucide-react';
-import { useId } from 'react';
+import { useEffect, useId } from 'react';
 import { Link, useMatch, useNavigate } from 'react-router';
 import { Alert, SpaceDot, Skeleton } from '../components/ui/display';
 import { Button } from '../components/ui/button';
@@ -38,6 +38,11 @@ export function SpaceSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const onSettings = useMatch('/spaces/:spaceId/settings');
   const labelId = useId();
+  const { clearSwitchError } = spaces;
+  // A menü (Sheet) megnyitásakor a korábbi váltási hiba nem marad ott.
+  useEffect(() => {
+    clearSwitchError();
+  }, [clearSwitchError]);
 
   const isAdmin = state.kind === 'signed-in' && state.me.systemRole === 'system_admin';
   const { memberSpaces } = spaces;
@@ -45,8 +50,10 @@ export function SpaceSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   const teams = memberSpaces.filter((space) => space.type === 'team');
   const projects = memberSpaces.filter((space) => space.type === 'project');
 
-  function change(spaceId: string) {
-    void spaces.selectSpace(spaceId);
+  async function change(spaceId: string) {
+    const ok = await spaces.selectSpace(spaceId);
+    // Hibánál a Sheet nyitva marad, hogy a hibaüzenet látható legyen; sikernél navigál és bezár.
+    if (!ok) return;
     // A beállítások oldalon a váltás az új színtér beállításaira visz; máshol marad az oldalon.
     if (onSettings) void navigate(`/spaces/${spaceId}/settings`);
     onNavigate?.();
@@ -98,11 +105,11 @@ export function SpaceSwitcher({ onNavigate }: { onNavigate?: () => void }) {
     );
   } else {
     control = (
-      <Select value={spaces.currentSpaceId ?? ''} onValueChange={change}>
+      <Select value={spaces.currentSpaceId ?? ''} onValueChange={(id) => void change(id)}>
         <SelectTrigger aria-labelledby={labelId}>
           <SelectValue placeholder="Válassz színteret" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="z-(--z-modal)">
           {general.map((space) => (
             <SelectItem key={space.id} value={space.id}>
               <SpaceOption space={space} />

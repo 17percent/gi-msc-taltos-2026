@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import type { AdminUser } from '@taltos/shared';
 import { ShieldMinus, ShieldPlus } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
@@ -67,7 +68,7 @@ export function AdminAdminsPage() {
   async function change(user: AdminUser, systemRole: 'user' | 'system_admin') {
     const action = systemRole === 'system_admin' ? 'grant-admin' : 'revoke-admin';
     try {
-      await api.put(`/api/v1/admin/users/${user.id}/system-role`, { systemRole });
+      await api.put(apiPath`/api/v1/admin/users/${user.id}/system-role`, { systemRole });
       setPageError(null);
       if (systemRole === 'system_admin') {
         toast.success(`${user.displayName} mostantól Rendszeradminisztrátor.`);

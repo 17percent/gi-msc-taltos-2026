@@ -82,7 +82,7 @@ export function problem(status: number, code: string, details?: unknown): Respon
 export type RouteHandler = (request: {
   url: URL;
   init: RequestInit | undefined;
-}) => Response | 'pending';
+}) => Response | 'pending' | Promise<Response>;
 export type RouteTable = Record<string, Response | RouteHandler>;
 
 export type Call = {

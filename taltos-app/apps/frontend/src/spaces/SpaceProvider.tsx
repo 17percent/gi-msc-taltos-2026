@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { SpaceSummary } from '@taltos/shared';
 import { messageFor } from '../api/errors';
 import { isApiError } from '../api/client';
@@ -42,22 +42,34 @@ function SignedInSpaceProvider({ me, children }: { me: MeResponse; children: Rea
     await refreshMe();
   }, [reload, refreshMe]);
 
+  const clearSwitchError = useCallback(() => setSwitchError(null), []);
+
+  // Gyors egymás utáni váltásnál csak a legutóbbi kérés állíthat vissza; a visszaállás célja az
+  // utolsó, a szerver által megerősített érték (`null`: a `/me` currentSpaceId-je).
+  const latestRequest = useRef(0);
+  const confirmed = useRef<string | null>(null);
+
   const selectSpace = useCallback(
-    async (spaceId: string) => {
-      if (spaceId === currentSpaceId) return;
-      const previous = override;
+    async (spaceId: string): Promise<boolean> => {
+      if (spaceId === currentSpaceId) return true;
+      const request = ++latestRequest.current;
       setSwitchError(null);
       setOverride(spaceId);
       try {
         await api.put('/api/v1/me/current-space', { spaceId });
+        confirmed.current = spaceId;
+        return true;
       } catch (error) {
         // Nem sikerült rögzíteni a szerveren: a váltó visszaáll, és a felhasználó látja az okot.
-        setOverride(previous);
-        setSwitchError(messageFor(error, { action: 'switch-space' }));
-        if (isApiError(error) && error.code === 'not_space_member') await refreshMembership();
+        if (request === latestRequest.current) {
+          setOverride(confirmed.current);
+          setSwitchError(messageFor(error, { action: 'switch-space' }));
+          if (isApiError(error) && error.code === 'not_space_member') await refreshMembership();
+        }
+        return false;
       }
     },
-    [api, currentSpaceId, override, refreshMembership],
+    [api, currentSpaceId, refreshMembership],
   );
 
   const value = useMemo<SpaceContextValue>(
@@ -68,6 +80,7 @@ function SignedInSpaceProvider({ me, children }: { me: MeResponse; children: Rea
       currentSpaceId,
       switchError,
       selectSpace,
+      clearSwitchError,
       reload,
       refreshMembership,
     }),
@@ -78,6 +91,7 @@ function SignedInSpaceProvider({ me, children }: { me: MeResponse; children: Rea
       currentSpaceId,
       switchError,
       selectSpace,
+      clearSwitchError,
       reload,
       refreshMembership,
     ],

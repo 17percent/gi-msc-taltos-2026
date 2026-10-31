@@ -1,6 +1,8 @@
+import { usePageTitle } from '../layout/use-page-title';
 import { Link } from 'react-router';
 
 export function NotFoundPage() {
+  usePageTitle('Az oldal nem létezik');
   return (
     <section className="max-w-(--read-width)">
       <h1 className="font-display text-4xl leading-tight font-semibold tracking-tight">
