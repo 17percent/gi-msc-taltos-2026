@@ -21,7 +21,9 @@ export type SpaceContextValue = {
   currentSpaceId: string | null;
   /** A váltás sikertelen volt: felhasználói üzenet, vagy `null`. */
   switchError: string | null;
-  selectSpace: (spaceId: string) => Promise<void>;
+  /** Sikerrel tér vissza; hibánál a váltó visszaáll és a `switchError` kitöltődik. */
+  selectSpace: (spaceId: string) => Promise<boolean>;
+  clearSwitchError: () => void;
   /** Újratölti a `GET /spaces`-t. */
   reload: () => void;
   /** A saját tagságot érintő művelet után: `/me` és `GET /spaces` újratöltése (spec 2.5). */

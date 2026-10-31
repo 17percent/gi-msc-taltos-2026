@@ -293,7 +293,7 @@ describe('Adminisztráció › Színterek', () => {
       name: 'Platform',
       type: 'project',
       description: 'Rövid leírás',
-      color: '#C2872B',
+      color: '#988216',
       initialManagerId: 'u-boss',
     });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Új színtér' })).toBeNull());

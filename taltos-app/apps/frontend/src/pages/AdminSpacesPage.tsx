@@ -1,3 +1,4 @@
+import { apiPath } from '../api/paths';
 import type { SpaceSummary } from '@taltos/shared';
 import { Check, Lock, Pencil, Plus, Settings, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -58,7 +59,7 @@ export function AdminSpacesPage() {
 
   async function closeSpace(space: SpaceSummary) {
     try {
-      await api.post(`/api/v1/spaces/${space.id}/close`);
+      await api.post(apiPath`/api/v1/spaces/${space.id}/close`);
       setPageError(null);
       toast.success(`A(z) „${space.name}” projekt-tér lezárva.`);
       spaces.reload();

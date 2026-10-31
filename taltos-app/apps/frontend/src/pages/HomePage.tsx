@@ -1,3 +1,4 @@
+import { usePageTitle } from '../layout/use-page-title';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { HEALTH_PATH, type HealthResponse, type LoginError } from '@taltos/shared';
@@ -11,6 +12,7 @@ type BackendState = { kind: 'checking' } | { kind: 'up'; version: string } | { k
  * addig a bejelentkezett felhasználó a backend-kapcsolat kártyát látja.
  */
 export function HomePage() {
+  usePageTitle('Kezdőlap');
   const { state } = useAuth();
   const [params] = useSearchParams();
   const loginError = state.kind === 'signed-in' ? null : (params.get('error') as LoginError | null);
