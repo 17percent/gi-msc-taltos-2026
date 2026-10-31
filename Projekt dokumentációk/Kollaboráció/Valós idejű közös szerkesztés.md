@@ -64,7 +64,7 @@ Böngésző (React SPA)                           Backend (Node.js)
 
 ## Adatmodell-változások
 
-- **Új:** `document_collab_state (document_id PK/FK, state bytea, updated_at)` — a Yjs-dokumentum kódolt állapota (a végleges oszlopok a B4-ben; ~~`ydoc_state`, `state_vector`~~ korábbi vázlat). A checkpoint előtti közreműködők perzisztálása és a Yjs-generáció kezelése ❓ nyitott (NY11–NY19 a naplóban).
+- **Új:** `document_collab_state (document_id PK/FK, state bytea, updated_at)` — a Yjs-dokumentum kódolt állapota (a végleges oszlopok a B4-ben; ~~`ydoc_state`, `state_vector`~~ korábbi vázlat). A checkpoint előtti közreműködők perzisztálása D51 szerint a `pending_contributors` oszlopban; a Yjs-generáció kezelése ❓ nyitott (NY19, a WP6 előtt dől el).
 - **`documents.content`** megmarad mint *materializált* szöveg: a szerver a Y.Text tartalmát debounce-szal visszaírja, így a generált `search_vector` (D4) magától frissül.
 - **`document_revisions`**: változatlan szerkezet (teljes szövegű pillanatkép), plusz `contributors uuid[]` (vagy külön `document_revision_contributors` tábla) — egy revíziónak több szerzője lehet.
 - **Megszűnik:** `locks` tábla, a lock-végpontok, a `lock_acquired` / `lock_released` / `lock_expired` események.
@@ -123,7 +123,7 @@ A klasszikus „Mentés” gomb értelmét veszti: minden változás azonnal a s
 
 | # | Munkacsomag | Tartalom | Kész, ha |
 |---|---|---|---|
-| K0 | Spike | Hocuspocus + CodeMirror 6 + yCollab minimál PoC két böngészővel, a meglévő render-pipeline-nal | Két felhasználó egyszerre ír, névcímkék látszanak, nincs ütközés |
+| K0 | Spike ✅ *(WP3, 2026-10-31)* | Hocuspocus + CodeMirror 6 + yCollab minimál PoC két böngészővel, a meglévő render-pipeline-nal | Két felhasználó egyszerre ír, névcímkék látszanak, nincs ütközés — **teljesült**, lásd lent |
 | K1 | Collab szerver | Hocuspocus integrálása a Fastify mellé, `onAuthenticate` (session, allowlist, Origin), read-only mód | Jogosulatlan kapcsolat elutasítva, read-only nem tud írni |
 | K2 | Perzisztencia | `document_collab_state` migráció (Drizzle), betöltés/tárolás, `documents.content` materializálás, kezdeti Y.Doc a meglévő tartalomból | Szerver-újraindítás után semmi nem vész el, a keresés friss |
 | K3 | Szerkesztőcsere | `@uiw/react-md-editor` → CodeMirror 6 **élő előnézettel** (Obsidian-modell, D40), helyi menü, Tulajdonság-panel, forrásnézet-kapcsoló, Táltos-téma, `y-indexeddb` | Funkcionális egyezés a mostani szerkesztővel, offline-szerkesztés összefésül |
@@ -134,6 +134,19 @@ A klasszikus „Mentés” gomb értelmét veszti: minden változás azonnal a s
 | K8 | Dokumentáció | D29 naplópont (✅ rögzítve), D7/D16/D26 jelölése, [[Szerkesztés/Zárolás|Zárolás]] jegyzet „kiváltva” állapotba, API-kontraktus frissítése, szakdolgozat-fejezet | Napló és jegyzetek konzisztensek |
 
 A sorrend kockázat-előrehozó (D27 szellemében): a szerkesztőcsere és a perzisztencia a legkockázatosabb, ezért a K0 spike mindkettőt érinti.
+
+### A K0 spike eredménye (WP3, 2026-10-31)
+
+A H5 WP3 „kész”-kritériuma teljesült (a tulajdonos két Google-fiókkal, két böngészőben ellenőrizte): két felhasználó egyszerre ír élő előnézetben, a névcímkék látszanak, ütközés nincs, és a tartalom a backend újraindítása után megmarad; a Review-ra váró dokumentum csak olvasható, idegen színtér dokumentuma semleges üzenetet ad. **A megállási feltétel nem lépett életbe: a D29 marad**, a D7 lock nem tér vissza.
+
+A spike hatóköre (a tulajdonos döntései szerint): hozzáférés = session + allowlist + aktív színtér-tagság közvetlen lekérdezéssel (a WP4 `can()` váltja), írás csak Piszkozat és Átdolgozandó állapotban nem lezárt színtérben; minimális perzisztencia (`document_collab_state` + `documents.content` egy tranzakcióban); élő előnézet címsorra, kiemelésre, listára és linkre; a `rehype-sanitize` pipeline még fogyasztó nélkül.
+
+Tanulságok, amelyekre a WP6-nak építenie kell:
+- **Determinisztikus seed:** az állapot nélküli dokumentum `documents.content`-ből seedelt Y.Doc-ja rögzített Yjs-kliensazonosítót kap, különben a memóriából kiürült, mentetlen dokumentum újratöltése a visszacsatlakozó kliens állapotával összeolvadva megkettőzi a szöveget. Ezért a WP6 visszaállítása és jóváhagyás-alkalmazása a `document_collab_state`-et is írja (összefügg a Yjs-generáció kérdésével, NY19, a WP6 előtt).
+- **NUL karakter:** a Postgres `text` nem tárol 0x00-t, a Y.Text igen; a materializált szövegből kimarad.
+- **Üres dekoráció:** a CodeMirror üres mark-tartományra kivételt dob, ami minden tranzakciót megbénít; minden dekoráció `from < to` őrrel.
+
+A review-k nyitva hagyott (Minor) tételei a WP6-hoz: szerveroldali awareness-kikényszerítés és a távoli `cursor` mező validálása; a nyitott kapcsolatok újraellenőrzése tagság- és állapotváltáskor (most csak csatlakozáskor dől el); a `/static/` képszűrő `%2e%2e` megkerülése és a külső linkek `rel`-je az első render-fogyasztó előtt, CSP-vel együtt; mentés csak tényleges változáskor (a `search_vector` újraszámolása drága); a csak olvasható szerkesztő fókuszálhatósága (a11y); a `@hocuspocus/server` és a `@hocuspocus/provider` verziójának igazítása.
 
 ## Kapcsolódó döntések
 

@@ -1,7 +1,8 @@
 # taltos-app
 
-A Táltos tudásbázis alkalmazása: pnpm monorepo, TypeScript end-to-end. A WP0 (skeleton, Compose,
-CI) és a WP1 (adatbázis-séma, migrációk, seed) kész; üzleti funkció még nincs benne. A terv és a szabályok a repó gyökerében:
+A Táltos tudásbázis alkalmazása: pnpm monorepo, TypeScript end-to-end. Kész: WP0 (skeleton, Compose,
+CI), WP1 (adatbázis-séma, migrációk, seed), WP2 (bejelentkezés, munkamenet, allowlist) és WP3 (közös
+szerkesztés spike). A terv és a szabályok a repó gyökerében:
 [`Arch/CLAUDE.md`](../Arch/CLAUDE.md), a munkacsomagok: [H5](../Arch/tudasbazis-munkacsomagok-h5.md).
 
 ## Szerkezet
@@ -189,3 +190,23 @@ rendszerindítás nem fut.
 
 `GET /auth/login`, `GET /auth/callback` (hibánál `/?error=not_on_allowlist`, `/?error=setup_pending` vagy `/?error=login_failed`), `POST /auth/logout` (érvényes munkamenet nélkül 401, de az elavult session-sütit törli),
 `GET /api/v1/me`. Az `/auth/*` útvonalakat a reverse proxynak (nginx, Vite dev-proxy) a backendre kell továbbítania.
+
+## Közös szerkesztés (WP3 spike)
+
+A `/collab` csatorna Hocuspocus a Fastify-jal közös folyamatban (D29); a szerződés a
+[`packages/shared/src/collab.ts`](packages/shared/src/collab.ts): a dokumentumnév a dokumentum UUID-ja, a tartalom egyetlen
+`Y.Text` (`content`), az Awareness `user` mezője `{ name, color }`. A szerkesztő: `/documents/:documentId` (CodeMirror 6 +
+`y-codemirror.next`, élő előnézet címsorra, kiemelésre, listára és linkre, névcímkés távoli kurzorok).
+
+- **Hozzáférés (ideiglenes, a WP4 `can()` váltja):** az upgrade kapuja (Origin, munkamenet, allowlist) után aktív
+  színtér-tagság. Nem tag és nem létező dokumentum ugyanazt a `permission-denied` választ kapja. Írni csak Piszkozat és
+  Átdolgozandó állapotban lehet nem lezárt színtérben; egyébként a kapcsolat csak olvasható, a módosításait a szerver eldobja.
+- **Perzisztencia (minimális):** betöltés a `document_collab_state`-ből, ennek hiányában a `documents.content`-ből (rögzített
+  Yjs-kliensazonosítóval, hogy az újratöltés ne kettőzze meg a szöveget). Mentés 2 mp csend után, legfeljebb 10 mp-enként,
+  egy tranzakcióban: `document_collab_state` + `documents.content` (NUL nélkül), a tranzakción belül újraellenőrzött
+  írhatósággal. Revízió, checkpoint, `pending_contributors` és esemény a WP6-é.
+- **Markdown-renderelés:** `apps/frontend/src/markdown/render-markdown.ts` (remark → rehype → `rehype-sanitize`, képek csak a
+  `/static/` útvonalról) az egyetlen HTML-pipeline (D16).
+- **Kipróbálás fejlesztésben:** seedelt adatbázis (`docker compose down -v`, `up --build`, majd a seed), belépés után egy
+  Általános színtérbeli Piszkozat dokumentum azonosítójával: `http://localhost:8080/documents/<uuid>`.
+- **DB-integrációs teszt:** `src/realtime/collab.int.test.ts` (a `TEST_DATABASE_URL` mellett fut, lásd Adatbázis-tesztek).

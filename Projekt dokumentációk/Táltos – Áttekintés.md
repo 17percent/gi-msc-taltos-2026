@@ -46,7 +46,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 |---|---|---|---|
 | [[Kollaboráció/Színterek\|Színterek]] | csapat- és projekt-terek, Általános; **zárt: csak a tagok látják** | 2 | 📘 D44 |
 | [[Kollaboráció/Kommentek\|Kommentek]] | egyesített feed (comment, system, review), auditált szerkesztés, @említés a tagok közül | 9 | ✅ · 📘 D35, D45 · ❓ említés-formátum |
-| [[Kollaboráció/Valós idejű közös szerkesztés\|Valós idejű közös szerkesztés]] | Yjs + Hocuspocus, névcímkés kurzorok; kiváltja a zárolást | 4 | 📘 |
+| [[Kollaboráció/Valós idejű közös szerkesztés\|Valós idejű közös szerkesztés]] | Yjs + Hocuspocus, névcímkés kurzorok; kiváltja a zárolást; a K0 spike kész (WP3) | 4 | 📘 D29 · ❓ Yjs-generáció (NY19) |
 
 ## Felfedezés
 
