@@ -1,5 +1,13 @@
 import type {
   AdminUser,
+  CreateMembershipRequest,
+  CreateSpaceRequestRequest,
+  MembershipDecisionResult,
+  MembershipRequestDecision,
+  RequestCreated,
+  RequestState,
+  SpaceRequestDecision,
+  SpaceRequestDecisionResult,
   SpaceColor,
   SpaceDetail,
   SpaceMember,
@@ -15,6 +23,8 @@ export type StoreFailureCode =
   | 'not_found'
   | 'forbidden'
   | 'space_closed'
+  | 'request_pending'
+  | 'request_closed'
   | 'last_space_manager'
   | 'last_admin'
   | 'owner_handover_required'
@@ -113,6 +123,49 @@ export interface SpaceStore {
     input: { userId: string; spaceId: string; newOwnerId: string },
     now: Date,
   ): Promise<StoreResult<{ movedDocuments: number }>>;
+
+  /**
+   * Felvételi kérés (D44, D56): a térzár alatt újraellenőrzi a lezártságot és a tagságot; a függő kérés (a részleges
+   * egyedi index 23505-ös hibája is) `request_pending`. A Rendszeradmin nem kérhet (`forbidden`).
+   */
+  createMembershipRequest(
+    actor: Actor,
+    spaceId: string,
+    input: CreateMembershipRequest,
+    now: Date,
+  ): Promise<StoreResult<RequestCreated>>;
+  /** A kérés színtere és állapota a döntés jogosultság-ellenőrzéséhez; `undefined`: nincs ilyen kérés. */
+  getMembershipRequest(
+    requestId: string,
+  ): Promise<{ spaceId: string; state: RequestState } | undefined>;
+  /**
+   * Döntés: egy tranzakció (kérés zárolva, az állapot újraellenőrzése: `request_closed`; lezárt térben csak a
+   * Rendszeradmin: `space_closed`); jóváhagyáskor tagfelvétel (alapszerep: Szerző) és `member_added`, majd
+   * `membership_request_decided`.
+   */
+  decideMembershipRequest(
+    actor: Actor,
+    requestId: string,
+    decision: MembershipRequestDecision,
+    now: Date,
+  ): Promise<StoreResult<MembershipDecisionResult>>;
+
+  /** Projekt-tér kérése: a javasolt gazdának aktív allowlistes felhasználónak kell lennie (`validation_error`). */
+  createSpaceRequest(
+    actor: Actor,
+    input: CreateSpaceRequestRequest,
+    now: Date,
+  ): Promise<StoreResult<RequestCreated>>;
+  /**
+   * Döntés: jóváhagyáskor ugyanaz a térlétrehozás, mint a `createSpace` (project típus, a cél a leírás, a javasolt gazda
+   * a kezdeti gazda), egy tranzakcióban a kérés lezárásával és az eseményekkel; bármely hiba mindent visszagörget.
+   */
+  decideSpaceRequest(
+    actor: Actor,
+    requestId: string,
+    decision: SpaceRequestDecision,
+    now: Date,
+  ): Promise<StoreResult<SpaceRequestDecisionResult>>;
 
   /** `GET /users?q=` (D56): név szerint, csak az aktív allowlistes felhasználók, legfeljebb `limit` találat. */
   searchUsers(query: string, limit: number): Promise<UserRef[]>;

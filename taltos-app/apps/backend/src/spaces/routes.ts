@@ -29,6 +29,7 @@ import {
 import type { AccessStore } from '../policy/access-store.js';
 import { isSpaceManager } from '../policy/policy.js';
 import type { Actor } from '../policy/targets.js';
+import { registerRequestRoutes } from './request-routes.js';
 import type { SpaceStore, StoreFailure } from './store.js';
 
 export interface SpaceRouteDependencies {
@@ -384,4 +385,7 @@ export function registerSpaceRoutes(api: FastifyInstance, deps: SpaceRouteDepend
       return result.ok ? reply.code(204).send() : sendFailure(reply, result);
     },
   );
+
+  // ── felvételi és projekt-tér kérések (D44, D56) ──────────────────────────────
+  registerRequestRoutes(api, deps);
 }

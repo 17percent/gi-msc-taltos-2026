@@ -103,6 +103,30 @@ export interface MembershipRequestDecision {
   role?: SpaceRole;
 }
 
+/** A kérések állapota (`request_state`): a felvételi és a projekt-tér kérése is ezt használja. */
+export type RequestState = 'pending' | 'approved' | 'rejected';
+
+/** A kérés benyújtásának válasza (201): csak az azonosító és az állapot (a listanézet a WP23). */
+export interface RequestCreated {
+  id: string;
+  state: 'pending';
+}
+
+/** `POST /api/v1/membership-requests/:id/decision` válasza; jóváhagyáskor a megadott vagy alapértelmezett szerep. */
+export interface MembershipDecisionResult {
+  id: string;
+  state: Exclude<RequestState, 'pending'>;
+  spaceId: string;
+  role?: SpaceRole;
+}
+
+/** `POST /api/v1/space-requests/:id/decision` válasza; jóváhagyáskor a létrejött színtér azonosítója. */
+export interface SpaceRequestDecisionResult {
+  id: string;
+  state: Exclude<RequestState, 'pending'>;
+  spaceId?: string;
+}
+
 /**
  * A 403 `not_space_member` `details` mezője (B5 A10, D44). A hívó nem tag, ezért csak a színtér
  * neve és a gazdák látszanak; dokumentumcím, darabszám vagy taglétszám soha.
