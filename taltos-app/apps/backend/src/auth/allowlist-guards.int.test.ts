@@ -226,10 +226,10 @@ describe.skipIf(!url)(
      * Egyidejűség: a szinkron `blockedBy` ellenőrzése nem zárolja a `spaces` / `users(system_admin)` sorokat (a tagkezelés
      * igen, B4 S8), így a szinkron „van másik gazda/admin” döntése és a tagkezelés „van másik gazda/admin” döntése
      * ugyanarra a másikra támaszkodhat, miközben egymást érvénytelenítik (write-skew).
-     * A teszt determinisztikus: a szinkron `allowlist`-sor UPDATE-jénél (a védelmi döntés UTÁN) egy tesztkapcsolat sorzára
-     * tartja fel, közben a tagkezelés lefut és commitol, majd a kapu feloldódik. Elvárt (helyes) viselkedés: a végén marad
-     * belépni képes gazda/admin. Ha a teszt PIROS, az termékhiba (a szinkron védelme versenyben nem tartja az invariánst):
-     * javítás a szerzőé (pl. a szinkron zárolja az érintett `spaces` / admin sorokat, vagy az UPDATE után újraellenőriz).
+     * A teszt determinisztikus: a szinkront az `allowlist`-sor UPDATE-jénél egy tesztkapcsolat sorzára tartja fel; a
+     * tagkezelés ekkor indul, és a szinkron által már zárolt `spaces` / admin sornál kell várnia (két zárra váró munkamenet),
+     * majd a kapu feloldódik. Elvárt (helyes) viselkedés: a tagkezelés a szinkron után, annak eredményét látva dönt, és a
+     * végén marad belépni képes gazda/admin. Ha a második várakozó nem jelenik meg, a szinkron nem zárol (F2 regresszió).
      */
     describe('7b. a szinkron egyidejű a tagkezeléssel: az utolsó gazda/admin nem veszhet el (write-skew)', () => {
       const allowlistGate = (email: string) =>
@@ -245,17 +245,26 @@ describe.skipIf(!url)(
         const wanted = await configWithout(await emailOf(m1));
         const gate = await allowlistGate(await emailOf(m1));
         let syncing: ReturnType<typeof sync> | undefined;
-        let removal: Awaited<ReturnType<typeof h.store.removeMember>>;
+        let removing: ReturnType<typeof h.store.removeMember> | undefined;
         try {
           syncing = sync(wanted);
           syncing.catch(() => undefined);
-          // A szinkron a védelmi döntés (m2 még aktív gazda) után az m1 allowlist-soránál vár.
+          // A szinkron a tér sorát már a döntése előtt zárolja, és az m1 allowlist-soránál vár.
           await waitForLockWaiters(ctl, db, 1, 'syncAllowlist az allowlist-sor UPDATE-jénél vár');
-          removal = await h.store.removeMember(user(m1), space, m2, NOW);
+          // A tagkezelés a tér sorának zárjánál a szinkron mögé sorolódik (nem dönthet ugyanarra a másik gazdára).
+          removing = h.store.removeMember(user(m1), space, m2, NOW);
+          removing.catch(() => undefined);
+          await waitForLockWaiters(
+            ctl,
+            db,
+            2,
+            'removeMember a tér sorának záránál a szinkron mögött vár',
+          );
         } finally {
           await gate.release();
         }
         await syncing;
+        const removal = await removing;
 
         const { rows } = await ctl.query<{ n: number }>(
           `SELECT count(*)::int AS n
@@ -280,16 +289,25 @@ describe.skipIf(!url)(
         const wanted = await configWithout(await emailOf(r1));
         const gate = await allowlistGate(await emailOf(r1));
         let syncing: ReturnType<typeof sync> | undefined;
-        let demotion: Awaited<ReturnType<typeof h.store.changeSystemRole>>;
+        let demoting: ReturnType<typeof h.store.changeSystemRole> | undefined;
         try {
           syncing = sync(wanted);
           syncing.catch(() => undefined);
           await waitForLockWaiters(ctl, db, 1, 'syncAllowlist az allowlist-sor UPDATE-jénél vár');
-          demotion = await h.store.changeSystemRole(admin(r1), r2, 'user', NOW);
+          // A lefokozás az admin-sorok záránál a szinkron mögé sorolódik.
+          demoting = h.store.changeSystemRole(admin(r1), r2, 'user', NOW);
+          demoting.catch(() => undefined);
+          await waitForLockWaiters(
+            ctl,
+            db,
+            2,
+            'changeSystemRole az admin-sorok záránál a szinkron mögött vár',
+          );
         } finally {
           await gate.release();
         }
         await syncing;
+        const demotion = await demoting;
 
         const { rows } = await ctl.query<{ n: number }>(
           `SELECT count(*)::int AS n
