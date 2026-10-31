@@ -118,7 +118,7 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
       });
     });
 
-    it('removeMember: az indítványozó kérése visszavonódik (member_removed, aktor az eltávolító), a review-er helye megszűnik, a döntött megmarad', async () => {
+    it('removeMember: az indítványozó kérése visszavonódik (member_removed, aktor az eltávolító), a review-er helye megszűnik (a döntötté is)', async () => {
       const h = await setup();
       const [m, init, r1, r2] = [
         await h.user('m'),
@@ -160,6 +160,10 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
           reason: 'member_removed',
         }),
       );
+      // a döntött review-er (r2) helye is megszűnik, a döntése elvész; az esemény is megíródik
+      expect((await h.store.removeMember(user(m), space, r2, NOW)).ok).toBe(true);
+      expect(await h.activeReviewers(d2)).toEqual([]);
+      expect((await h.events(space)).filter((e) => e.type === 'reviewer_removed')).toHaveLength(2);
       // r1 a d1-en is megjelölt volt, de a kérés már vissza volt vonva: ott nem keletkezik új esemény
       expect(log.filter((e) => e.type === 'reviewer_removed')).toHaveLength(1);
     });

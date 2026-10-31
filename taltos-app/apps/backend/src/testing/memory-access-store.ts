@@ -23,7 +23,7 @@ export interface MemoryDocument {
     initiatorId: string;
     /** Az aktív review-er helyek. */
     reviewers: string[];
-    /** Közülük akik már döntöttek (a döntésük kiesés után is megmarad). */
+    /** Közülük akik már döntöttek (a hely megszűnésekor a döntés is elvész, D51b). */
     decided?: string[];
   };
 }

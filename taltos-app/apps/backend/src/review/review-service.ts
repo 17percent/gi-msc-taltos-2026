@@ -115,10 +115,10 @@ interface VacatedRow extends Record<string, unknown> {
 }
 
 /**
- * A kiesett felhasználó függő review-er helyei megszűnnek (D51 b): a még el nem döntött, aktív sor `ended_at` +
- * `end_reason = 'removed'`, `reviewer_removed` esemény. `spaceId`-val csak az adott tér, nélküle minden tér (az
- * allowlist-szinkron). A már meghozott döntés nem változik (a döntött sor érintetlen). Visszaadja az érintett
- * kérések számát; a kérés a pótlásig nem dönthető el (`change_requests_guard`).
+ * A kiesett felhasználó függő review-er helyei megszűnnek (D51 b): az aktív sor `ended_at` +
+ * `end_reason = 'removed'` a döntéstől függetlenül (a távozó döntése elvész, így nem számít bele a két jóváhagyásba;
+ * a másik review-er döntése érintetlen), `reviewer_removed` esemény. `spaceId`-val csak az adott tér, nélküle minden
+ * tér (az allowlist-szinkron). Visszaadja az érintett kérések számát; a kérés a pótlásig nem dönthető el (`change_requests_guard`).
  */
 export async function vacateReviewer(tx: ReviewTx, input: VacateInput, now: Date): Promise<number> {
   const spaceFilter = input.spaceId === undefined ? sql`TRUE` : sql`d.space_id = ${input.spaceId}`;
@@ -128,7 +128,7 @@ export async function vacateReviewer(tx: ReviewTx, input: VacateInput, now: Date
       FROM change_requests c
       JOIN documents d ON d.id = c.document_id
      WHERE c.id = r.change_request_id AND c.state = 'pending'
-       AND r.reviewer_id = ${input.userId} AND r.ended_at IS NULL AND r.decision IS NULL
+       AND r.reviewer_id = ${input.userId} AND r.ended_at IS NULL
        AND ${spaceFilter}
     RETURNING c.id AS change_request_id, c.document_id, d.space_id`);
   const events: AppEvent[] = result.rows.map((row) =>

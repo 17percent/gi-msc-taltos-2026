@@ -274,13 +274,15 @@ export class MemorySpaceStore implements SpaceStore {
     return count;
   }
 
-  /** A `vacateReviewer` párja: az el nem döntött aktív hely megszűnik, a döntött marad. */
+  /** A `vacateReviewer` párja: az aktív hely döntéstől függetlenül megszűnik. */
   private vacate(spaceId: string, userId: string, actorId: string): void {
     for (const [documentId, doc] of this.world.documents) {
       const pending = doc.pending;
       if (doc.spaceId !== spaceId || !pending) continue;
-      if (!pending.reviewers.includes(userId) || pending.decided?.includes(userId)) continue;
+      if (!pending.reviewers.includes(userId)) continue;
+      // a hely a döntéstől függetlenül megszűnik, a döntés elvész (D51b); a másik review-eré marad
       pending.reviewers = pending.reviewers.filter((r) => r !== userId);
+      pending.decided = pending.decided?.filter((r) => r !== userId);
       this.emit({
         type: 'reviewer_removed',
         spaceId,

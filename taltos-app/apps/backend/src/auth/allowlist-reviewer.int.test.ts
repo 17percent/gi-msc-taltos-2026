@@ -72,13 +72,17 @@ describe.skipIf(!url)('allowlist-szinkron és a review-er helyek (PostgreSQL, C1
       'owner_handover_required',
     ]);
     expect((await h.activeReviewers(d1)).sort()).toEqual([other]);
-    expect((await h.activeReviewers(d2)).sort()).toEqual([other, removed].sort()); // a döntött hely megmarad
+    expect((await h.activeReviewers(d2)).sort()).toEqual([other]); // a döntött hely is megszűnik (D51b)
     expect((await h.activeReviewers(d3)).sort()).toEqual([other, protectedUser].sort());
 
     const log = (await h.events(space)).filter((e) => e.type === 'reviewer_removed');
-    expect(log).toEqual([
+    expect(log).toHaveLength(2); // a döntött hely is megszűnik, a másik review-er (other) döntése érintetlen
+    expect(log).toContainEqual(
       expect.objectContaining({ actorId: null, documentId: d1, reason: 'allowlist_removed' }),
-    ]);
+    );
+    expect(log).toContainEqual(
+      expect.objectContaining({ actorId: null, documentId: d2, reason: 'allowlist_removed' }),
+    );
   });
 
   it('a második futás nem ír újra (idempotens): nincs újabb reviewer_removed', async () => {

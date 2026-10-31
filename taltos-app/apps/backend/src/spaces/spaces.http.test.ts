@@ -526,7 +526,7 @@ describe('DELETE /spaces/:id/members/:userId', () => {
     expect(ctx.collab.access.documents.get(doc)?.reviewState).toBe('pending'); // a kérés él, pótlásra vár
   });
 
-  it('a már döntött review-er helye és döntése megmarad, ha a tagot eltávolítják', async () => {
+  it('a már döntött review-er helye is megszűnik, a döntése elvész (D51b), a másik review-er helye marad', async () => {
     const id = standardSpace();
     const doc = newDoc(id, mgr.userId, {
       reviewState: 'pending',
@@ -538,8 +538,15 @@ describe('DELETE /spaces/:id/members/:userId', () => {
       },
     });
     expect((await remove(mgr, id, bela.userId)).statusCode).toBe(204);
-    expect(events('reviewer_removed')).toHaveLength(0);
-    expect(ctx.collab.access.documents.get(doc)?.pending?.reviewers).toContain(bela.userId);
+    expect(events('reviewer_removed')).toEqual([
+      expect.objectContaining({
+        documentId: doc,
+        details: { reviewerId: bela.userId, reason: 'member_removed' },
+      }),
+    ]);
+    const pending = ctx.collab.access.documents.get(doc)?.pending;
+    expect(pending?.reviewers).toEqual([mgr.userId]);
+    expect(pending?.decided ?? []).not.toContain(bela.userId);
   });
 });
 
