@@ -16,6 +16,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-23, a WP2 review-ja): **D54** — a rendszerindítás csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (a D52 módosítása; addig mások `setup_pending`), az archivált dokumentum tulajdonosa kivehető az allowlistből (a D53 pontosítása).*
 
+*10. verzió kiegészítése (2026-10-31, WP3 előtt): **NY19 ütemezése** — a Yjs-generáció kérdése a WP3 helyett a WP6 előtt dől el (a tulajdonos döntése; a spike nem használ `y-indexeddb`-t, így nincs helyi gyorsítótár). Új D-pont nincs.*
+
 *Előző verzió: 9. — **Versenytárs-elemzés átvezetése (2026-10-19):** a [[Versenytárs-elemzés]] V1–V60 döntései D29–D41 naplópontként; a D28 (Élő Atlasz) átvéve az `Arch/` naplóból. D7 kiváltva (D29), D6 írási oldala felülírva (D31, D32), D19 felülírva (D34), D16, D26 és D28 módosítva. A 8. verzió a `Tervezés (ötödik kör)` mappában változatlanul megmarad.*
 
 *8. verzió: — **Postgres-only tárolási architektúra** (D1 felülvizsgálat): a Git-alapú tartalomtárolás elhagyva, a tartalom és a teljes revíziótörténet közvetlenül PostgreSQL-ben él. D3, D9, D12, D24 megszűnt/tárgytalanná vált; D1, D2, D4, D10, D11, D13, D15, D17, D19, D21, D22, D26, D27 ennek megfelelően átdolgozva; NY2 megszűnt, NY5 új javaslatként felvéve. A korábbi (Git+Postgres) verzió indoklása a D1 alatt, változástörténetként megőrizve.*
@@ -655,7 +657,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **NY16 — E-mail-beállítások és leiratkozás (D46; WP18 előtt):** a H5 WP18 említi, de nincs napló-pontja; D21 szerint addig nem épül.
 - **NY17 — A Rendszeradmin audit-láthatósága (D43; WP9 előtt):** a rendszerszintű audit és a retenciós előnézet címet és komment-szöveget adhat, holott a Rendszeradminnak nincs tartalmi joga. Mely mezőket láthatja?
 - **NY18 — Az első Rendszeradmin és a konfigurációból töltött allowlist: LEZÁRVA** — az első Rendszeradmin és az Általános kezdő Színtérgazdája: D52; a konfig-szinkron szemantikája: D53.
-- **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); a függő review sorsa a projekt-tér lezárásakor (WP4); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP3, WP14); a legal hold hatóköre (WP33).
+- **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); a függő review sorsa a projekt-tér lezárásakor (WP4); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP6, WP14; a tulajdonos 2026-10-31-én a WP3-ból halasztotta, mert a spike nem használ `y-indexeddb`-t); a legal hold hatóköre (WP33).
 
 ## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*
 
