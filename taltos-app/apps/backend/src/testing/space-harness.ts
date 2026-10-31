@@ -50,6 +50,12 @@ export function memoryHarness(): StoreHarness {
           })),
       );
     },
+    eventsOfType: (type) =>
+      Promise.resolve(
+        store.events
+          .filter((e) => e.type === type)
+          .map((e) => ({ actorId: e.actorId, details: e.details })),
+      ),
     owner: (id) => Promise.resolve(world.documents.get(id)?.ownerId as string),
     reviewState: (id) => Promise.resolve(world.documents.get(id)?.reviewState as string),
     activeReviewers: (id) => Promise.resolve(world.documents.get(id)?.pending?.reviewers ?? []),

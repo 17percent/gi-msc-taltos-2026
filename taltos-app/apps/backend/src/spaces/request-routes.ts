@@ -95,7 +95,8 @@ export function registerRequestRoutes(api: FastifyInstance, deps: SpaceRouteDepe
       ) {
         return reply;
       }
-      if (!request.body.approve && request.body.role !== undefined) {
+      const { approve, role } = request.body;
+      if (!approve && role !== undefined) {
         return invalid(reply, '/body/role', 'elutasításnál a szerep nem adható meg');
       }
       const result = await spaces.decideMembershipRequest(

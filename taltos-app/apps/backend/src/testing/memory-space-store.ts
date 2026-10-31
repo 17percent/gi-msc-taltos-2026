@@ -555,16 +555,13 @@ export class MemorySpaceStore implements SpaceStore {
     let spaceId: string | undefined;
     if (decision.approve) {
       // a `createSpace` mutáció előtt ellenőriz, így hiba esetén a kérés függő marad és semmi nem íródik
-      const created = await this.createSpace(
-        actor,
-        {
-          name: request.name,
-          type: 'project',
-          description: request.purpose,
-          color: decision.color,
-          initialManagerId: request.proposedManagerId,
-        },
-      );
+      const created = await this.createSpace(actor, {
+        name: request.name,
+        type: 'project',
+        description: request.purpose,
+        color: decision.color,
+        initialManagerId: request.proposedManagerId,
+      });
       if (!created.ok) return created;
       spaceId = created.value.id;
     }

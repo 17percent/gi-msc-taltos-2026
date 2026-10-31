@@ -69,11 +69,13 @@ const isMember = (spaceId: string, session: TestSession) => {
 describe('POST /spaces/:id/membership-requests', () => {
   it('401 munkamenet nélkül, 400 érvénytelen törzs, 404 ismeretlen tér', async () => {
     const space = newSpace();
-    expect((await call(undefined, 'POST', `/spaces/${space}/membership-requests`, {})).statusCode).toBe(
-      401,
-    );
+    expect(
+      (await call(undefined, 'POST', `/spaces/${space}/membership-requests`, {})).statusCode,
+    ).toBe(401);
     expectProblem(
-      await call(out, 'POST', `/spaces/${space}/membership-requests`, { viaDocumentId: 'nem-uuid' }),
+      await call(out, 'POST', `/spaces/${space}/membership-requests`, {
+        viaDocumentId: 'nem-uuid',
+      }),
       400,
       'validation_error',
     );
@@ -156,20 +158,33 @@ describe('POST /membership-requests/:id/decision', () => {
 
   it('401 / 404 / 400', async () => {
     const id = await pending(newSpace());
-    expect((await call(undefined, 'POST', `/membership-requests/${id}/decision`, { approve: true })).statusCode).toBe(401);
+    expect(
+      (await call(undefined, 'POST', `/membership-requests/${id}/decision`, { approve: true }))
+        .statusCode,
+    ).toBe(401);
     expectProblem(
       await call(mgr, 'POST', `/membership-requests/${randomUUID()}/decision`, { approve: true }),
       404,
       'not_found',
     );
-    expectProblem(await call(mgr, 'POST', `/membership-requests/${id}/decision`, {}), 400, 'validation_error');
     expectProblem(
-      await call(mgr, 'POST', `/membership-requests/${id}/decision`, { approve: true, role: 'owner' }),
+      await call(mgr, 'POST', `/membership-requests/${id}/decision`, {}),
       400,
       'validation_error',
     );
     expectProblem(
-      await call(mgr, 'POST', `/membership-requests/${id}/decision`, { approve: false, role: 'author' }),
+      await call(mgr, 'POST', `/membership-requests/${id}/decision`, {
+        approve: true,
+        role: 'owner',
+      }),
+      400,
+      'validation_error',
+    );
+    expectProblem(
+      await call(mgr, 'POST', `/membership-requests/${id}/decision`, {
+        approve: false,
+        role: 'author',
+      }),
       400,
       'validation_error',
     );
@@ -295,8 +310,14 @@ describe('POST /space-requests', () => {
   });
 
   it('401 / 400', async () => {
-    expect((await call(undefined, 'POST', '/space-requests', body(mgr.userId))).statusCode).toBe(401);
-    expectProblem(await call(out, 'POST', '/space-requests', { name: 'x' }), 400, 'validation_error');
+    expect((await call(undefined, 'POST', '/space-requests', body(mgr.userId))).statusCode).toBe(
+      401,
+    );
+    expectProblem(
+      await call(out, 'POST', '/space-requests', { name: 'x' }),
+      400,
+      'validation_error',
+    );
     expectProblem(
       await call(out, 'POST', '/space-requests', body(mgr.userId, { name: '   ' })),
       400,
@@ -314,7 +335,12 @@ describe('POST /space-requests', () => {
 
   it('201: bármely belépett felhasználó, a Rendszeradmin is; space_requested esemény személyes adat nélkül', async () => {
     for (const who of [out, admin]) {
-      const res = await call(who, 'POST', '/space-requests', body(mgr.userId, { name: who.userId }));
+      const res = await call(
+        who,
+        'POST',
+        '/space-requests',
+        body(mgr.userId, { name: who.userId }),
+      );
       expect(res.statusCode, res.body).toBe(201);
       expect(res.json<RequestCreated>().state).toBe('pending');
     }
@@ -337,7 +363,8 @@ describe('POST /space-requests/:id/decision', () => {
   it('401 / 403 / 404', async () => {
     const id = await request();
     expect(
-      (await call(undefined, 'POST', `/space-requests/${id}/decision`, { approve: false })).statusCode,
+      (await call(undefined, 'POST', `/space-requests/${id}/decision`, { approve: false }))
+        .statusCode,
     ).toBe(401);
     expectProblem(
       await call(out, 'POST', `/space-requests/${id}/decision`, { approve: false }),
@@ -358,7 +385,12 @@ describe('POST /space-requests/:id/decision', () => {
 
   it('400: jóváhagyás szín nélkül, a palettán kívüli szín, elutasítás színnel; a kérés függő marad', async () => {
     const id = await request();
-    for (const bad of [{ approve: true }, { approve: true, color: '#000000' }, { approve: false, color: palette }, {}]) {
+    for (const bad of [
+      { approve: true },
+      { approve: true, color: '#000000' },
+      { approve: false, color: palette },
+      {},
+    ]) {
       expectProblem(
         await call(admin, 'POST', `/space-requests/${id}/decision`, bad),
         400,
@@ -418,7 +450,10 @@ describe('POST /space-requests/:id/decision', () => {
     const id = await request();
     await call(admin, 'POST', `/space-requests/${id}/decision`, { approve: true, color: palette });
     expectProblem(
-      await call(admin, 'POST', `/space-requests/${id}/decision`, { approve: true, color: palette }),
+      await call(admin, 'POST', `/space-requests/${id}/decision`, {
+        approve: true,
+        color: palette,
+      }),
       409,
       'request_closed',
     );
@@ -430,7 +465,10 @@ describe('POST /space-requests/:id/decision', () => {
     ctx.collab.access.addSpace(randomUUID(), 'foglalt'); // kis-nagybetűtől független névütközés
     const before = ctx.spaces.events.length;
     expectProblem(
-      await call(admin, 'POST', `/space-requests/${id}/decision`, { approve: true, color: palette }),
+      await call(admin, 'POST', `/space-requests/${id}/decision`, {
+        approve: true,
+        color: palette,
+      }),
       400,
       'validation_error',
     );
@@ -445,7 +483,10 @@ describe('POST /space-requests/:id/decision', () => {
     const id = await request();
     ctx.store.allowlist.delete('mgr@example.test');
     expectProblem(
-      await call(admin, 'POST', `/space-requests/${id}/decision`, { approve: true, color: palette }),
+      await call(admin, 'POST', `/space-requests/${id}/decision`, {
+        approve: true,
+        color: palette,
+      }),
       400,
       'validation_error',
     );

@@ -110,6 +110,13 @@ export function pgHarness(db: TestDb): StoreHarness {
         ...(r.reason === null ? {} : { reason: r.reason }),
       }));
     },
+    async eventsOfType(type) {
+      const { rows } = await admin<{ actor_id: string | null; details: Record<string, unknown> }>(
+        'SELECT actor_id, details FROM events WHERE type = $1 ORDER BY id',
+        [type],
+      );
+      return rows.map((r) => ({ actorId: r.actor_id, details: r.details }));
+    },
     async owner(id) {
       const { rows } = await admin<{ owner_id: string }>(
         'SELECT owner_id FROM documents WHERE id = $1',

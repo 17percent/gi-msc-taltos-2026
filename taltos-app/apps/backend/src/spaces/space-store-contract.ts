@@ -24,6 +24,10 @@ export interface StoreHarness {
   events(
     spaceId: string,
   ): Promise<{ type: string; actorId: string | null; documentId?: string; reason?: string }[]>;
+  /** Egy típusú események (térhez nem kötöttek is) sorrendben: aktor és részletek. */
+  eventsOfType(
+    type: string,
+  ): Promise<{ actorId: string | null; details: Record<string, unknown> }[]>;
   owner(documentId: string): Promise<string>;
   reviewState(documentId: string): Promise<string>;
   /** Az aktív (nem megszűnt) review-er helyek. */
@@ -332,6 +336,248 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
           NOW,
         ),
       ).toMatchObject({ code: 'not_found' });
+    });
+
+    it('createMembershipRequest: egy függő kérés térenként és felhasználónként; tag, admin, lezárt tér elutasítva', async () => {
+      const h = await setup();
+      const [m, a, o, root] = [
+        await h.user('m'),
+        await h.user('a'),
+        await h.user('o'),
+        await h.user('root', { admin: true }),
+      ];
+      const space = await h.space();
+      await h.member(space, m, 'space_manager');
+      await h.member(space, a);
+      const via = '11111111-1111-4111-8111-111111111111';
+      const first = await h.store.createMembershipRequest(
+        user(o),
+        space,
+        { viaDocumentId: via },
+        NOW,
+      );
+      expect(first).toMatchObject({ ok: true, value: { state: 'pending' } });
+      expect(await h.store.createMembershipRequest(user(o), space, {}, NOW)).toMatchObject({
+        ok: false,
+        code: 'request_pending',
+      });
+      expect(await h.store.createMembershipRequest(user(a), space, {}, NOW)).toMatchObject({
+        code: 'forbidden',
+      });
+      expect(await h.store.createMembershipRequest(admin(root), space, {}, NOW)).toMatchObject({
+        code: 'forbidden',
+      });
+      const closed = await h.space({ closed: true });
+      expect(await h.store.createMembershipRequest(user(o), closed, {}, NOW)).toMatchObject({
+        code: 'space_closed',
+      });
+      const logged = await h.eventsOfType('membership_requested');
+      expect(logged).toHaveLength(1);
+      expect(logged[0]?.details).toEqual({
+        requestId: first.ok ? first.value.id : '',
+        viaDocumentId: via,
+      });
+    });
+
+    it('decideMembershipRequest: jóváhagyás tagot és eseményt ad, az újabb döntés request_closed, az elutasított újra kérhet', async () => {
+      const h = await setup();
+      const [m, o1, o2] = [await h.user('m'), await h.user('o1'), await h.user('o2')];
+      const space = await h.space();
+      await h.member(space, m, 'space_manager');
+      const r1 = await h.store.createMembershipRequest(user(o1), space, {}, NOW);
+      const r2 = await h.store.createMembershipRequest(user(o2), space, {}, NOW);
+      if (!r1.ok || !r2.ok) throw new Error('a kérés nem jött létre');
+      expect(await h.store.getMembershipRequest(r1.value.id)).toEqual({
+        spaceId: space,
+        state: 'pending',
+      });
+      expect(
+        await h.store.decideMembershipRequest(user(m), r1.value.id, { approve: true }, NOW),
+      ).toEqual({
+        ok: true,
+        value: { id: r1.value.id, state: 'approved', spaceId: space, role: 'author' },
+      });
+      expect(await h.isMember(space, o1)).toBe(true);
+      expect(
+        await h.store.decideMembershipRequest(user(m), r1.value.id, { approve: false }, NOW),
+      ).toMatchObject({ ok: false, code: 'request_closed' });
+      expect(
+        await h.store.decideMembershipRequest(
+          user(m),
+          r2.value.id,
+          { approve: true, role: 'space_manager' },
+          NOW,
+        ),
+      ).toMatchObject({ ok: true, value: { role: 'space_manager' } });
+      expect(
+        await h.store.decideMembershipRequest(
+          user(m),
+          '00000000-0000-4000-8000-000000000000',
+          { approve: true },
+          NOW,
+        ),
+      ).toMatchObject({ code: 'not_found' });
+      const events = await h.events(space);
+      expect(events.map((e) => e.type)).toEqual([
+        'membership_requested',
+        'membership_requested',
+        'member_added',
+        'membership_request_decided',
+        'member_added',
+        'membership_request_decided',
+      ]);
+      // elutasítás: nincs tagság, utána új kérés adható
+      const o3 = await h.user('o3');
+      const r3 = await h.store.createMembershipRequest(user(o3), space, {}, NOW);
+      if (!r3.ok) throw new Error('a kérés nem jött létre');
+      expect(
+        await h.store.decideMembershipRequest(user(m), r3.value.id, { approve: false }, NOW),
+      ).toMatchObject({ ok: true, value: { state: 'rejected' } });
+      expect(await h.isMember(space, o3)).toBe(false);
+      expect((await h.store.createMembershipRequest(user(o3), space, {}, NOW)).ok).toBe(true);
+    });
+
+    it('decideMembershipRequest: lezárt térben csak a Rendszeradmin dönthet, a gazda space_closed', async () => {
+      const h = await setup();
+      const [m, o, root] = [
+        await h.user('m'),
+        await h.user('o'),
+        await h.user('root', { admin: true }),
+      ];
+      const space = await h.space({ type: 'project' });
+      await h.member(space, m, 'space_manager');
+      const request = await h.store.createMembershipRequest(user(o), space, {}, NOW);
+      if (!request.ok) throw new Error('a kérés nem jött létre');
+      // a kérés függő, a tér utólag záródik le
+      const closing = await h.store.closeSpace(admin(root), space, NOW);
+      expect(closing.ok).toBe(true);
+      expect(
+        await h.store.decideMembershipRequest(user(m), request.value.id, { approve: true }, NOW),
+      ).toMatchObject({ ok: false, code: 'space_closed' });
+      expect(await h.isMember(space, o)).toBe(false);
+      expect(
+        (
+          await h.store.decideMembershipRequest(
+            admin(root),
+            request.value.id,
+            { approve: true },
+            NOW,
+          )
+        ).ok,
+      ).toBe(true);
+      expect(await h.isMember(space, o)).toBe(true);
+    });
+
+    it('decideMembershipRequest: a kizárt allowlist-címűt nem vesszük fel (validation_error), a kérés függő marad', async () => {
+      const h = await setup();
+      const [m, ghost] = [await h.user('m'), await h.user('ghost', { allowlisted: false })];
+      const space = await h.space();
+      await h.member(space, m, 'space_manager');
+      const request = await h.store.createMembershipRequest(user(ghost), space, {}, NOW);
+      if (!request.ok) throw new Error('a kérés nem jött létre');
+      expect(
+        await h.store.decideMembershipRequest(user(m), request.value.id, { approve: true }, NOW),
+      ).toMatchObject({ ok: false, code: 'validation_error' });
+      expect(await h.store.getMembershipRequest(request.value.id)).toMatchObject({
+        state: 'pending',
+      });
+      expect(await h.isMember(space, ghost)).toBe(false);
+    });
+
+    it('createSpaceRequest + decideSpaceRequest: a jóváhagyás project teret, kezdeti gazdát és eseményeket ad egy lépésben', async () => {
+      const h = await setup();
+      const [req, mgr, root] = [
+        await h.user('req'),
+        await h.user('mgr'),
+        await h.user('root', { admin: true }),
+      ];
+      const created = await h.store.createSpaceRequest(
+        user(req),
+        { name: 'Projekt Hold', purpose: 'Cél', proposedManagerId: mgr },
+        NOW,
+      );
+      if (!created.ok) throw new Error('a kérés nem jött létre');
+      expect(created.value.state).toBe('pending');
+      const decided = await h.store.decideSpaceRequest(
+        admin(root),
+        created.value.id,
+        { approve: true, color: '#2E8B6F' },
+        NOW,
+      );
+      if (!decided.ok || decided.value.spaceId === undefined) throw new Error('a döntés elbukott');
+      const spaceId = decided.value.spaceId;
+      const space = await h.store.getSpace(spaceId);
+      expect(space).toMatchObject({
+        name: 'Projekt Hold',
+        type: 'project',
+        description: 'Cél',
+        color: '#2E8B6F',
+        closed: false,
+        memberCount: 1,
+      });
+      expect(space?.managers.map((u) => u.id)).toEqual([mgr]);
+      expect(await h.isMember(spaceId, mgr)).toBe(true);
+      expect((await h.events(spaceId)).map((e) => e.type)).toEqual([
+        'space_created',
+        'space_manager_assigned',
+      ]);
+      const decisions = await h.eventsOfType('space_request_decided');
+      expect(decisions).toEqual([
+        {
+          actorId: root,
+          details: { requestId: created.value.id, approved: true, spaceId },
+        },
+      ]);
+      expect((await h.eventsOfType('space_requested'))[0]?.actorId).toBe(req);
+      expect(
+        await h.store.decideSpaceRequest(admin(root), created.value.id, { approve: false }, NOW),
+      ).toMatchObject({ ok: false, code: 'request_closed' });
+    });
+
+    it('decideSpaceRequest: hiba esetén (foglalt név) semmi nem íródik és a kérés függő marad; az elutasítás nem hoz létre teret', async () => {
+      const h = await setup();
+      const [req, mgr, root] = [
+        await h.user('req'),
+        await h.user('mgr'),
+        await h.user('root', { admin: true }),
+      ];
+      expect(
+        await h.store.createSpaceRequest(
+          user(req),
+          { name: 'X', purpose: '', proposedManagerId: '00000000-0000-4000-8000-000000000000' },
+          NOW,
+        ),
+      ).toMatchObject({ ok: false, code: 'validation_error' });
+      const taken = await h.store.createSpace(
+        admin(root),
+        { name: 'Foglalt', type: 'team', description: '', color: '#3B6FB6', initialManagerId: mgr },
+        NOW,
+      );
+      expect(taken.ok).toBe(true);
+      const dup = await h.store.createSpaceRequest(
+        user(req),
+        { name: 'foglalt', purpose: 'Cél', proposedManagerId: mgr },
+        NOW,
+      );
+      if (!dup.ok) throw new Error('a kérés nem jött létre');
+      expect(
+        await h.store.decideSpaceRequest(
+          admin(root),
+          dup.value.id,
+          { approve: true, color: '#2E8B6F' },
+          NOW,
+        ),
+      ).toMatchObject({ ok: false, code: 'validation_error' });
+      expect(await h.eventsOfType('space_created')).toHaveLength(1);
+      expect(await h.eventsOfType('space_request_decided')).toEqual([]);
+      // a függő kérés a hiba után is eldönthető; az elutasítás nem hoz létre teret
+      expect(
+        await h.store.decideSpaceRequest(admin(root), dup.value.id, { approve: false }, NOW),
+      ).toEqual({ ok: true, value: { id: dup.value.id, state: 'rejected' } });
+      expect(await h.eventsOfType('space_created')).toHaveLength(1);
+      expect(
+        (await h.eventsOfType('space_request_decided')).map((e) => e.details.approved),
+      ).toEqual([false]);
     });
 
     it('changeSystemRole: az utolsó (aktív allowlistes) admin védett; a kizárt címűt nem számoljuk pótlónak', async () => {

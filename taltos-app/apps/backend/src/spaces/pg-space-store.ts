@@ -519,7 +519,9 @@ export function createPgSpaceStore(db: Db): SpaceStore {
               actorId: actor.userId,
               details: {
                 requestId,
-                ...(input.viaDocumentId === undefined ? {} : { viaDocumentId: input.viaDocumentId }),
+                ...(input.viaDocumentId === undefined
+                  ? {}
+                  : { viaDocumentId: input.viaDocumentId }),
               },
             },
             now,
@@ -652,63 +654,65 @@ export function createPgSpaceStore(db: Db): SpaceStore {
 
     async decideSpaceRequest(actor, requestId, decision, now) {
       try {
-        return await db.transaction(async (tx): Promise<StoreResult<SpaceRequestDecisionResult>> => {
-          const [request] = await tx
-            .select({
-              name: t.spaceRequests.name,
-              purpose: t.spaceRequests.purpose,
-              proposedManagerId: t.spaceRequests.proposedManagerId,
-              state: t.spaceRequests.state,
-            })
-            .from(t.spaceRequests)
-            .where(eq(t.spaceRequests.id, requestId))
-            .for('update');
-          if (!request) return fail('not_found');
-          if (request.state !== 'pending') return fail('request_closed');
+        return await db.transaction(
+          async (tx): Promise<StoreResult<SpaceRequestDecisionResult>> => {
+            const [request] = await tx
+              .select({
+                name: t.spaceRequests.name,
+                purpose: t.spaceRequests.purpose,
+                proposedManagerId: t.spaceRequests.proposedManagerId,
+                state: t.spaceRequests.state,
+              })
+              .from(t.spaceRequests)
+              .where(eq(t.spaceRequests.id, requestId))
+              .for('update');
+            if (!request) return fail('not_found');
+            if (request.state !== 'pending') return fail('request_closed');
 
-          let spaceId: string | undefined;
-          if (decision.approve) {
-            // Ugyanaz a térlétrehozás, mint a POST /spaces; hiba esetén a kérés függő marad (a tx visszagördül).
-            const created = await createSpaceTx(
+            let spaceId: string | undefined;
+            if (decision.approve) {
+              // Ugyanaz a térlétrehozás, mint a POST /spaces; hiba esetén a kérés függő marad (a tx visszagördül).
+              const created = await createSpaceTx(
+                tx,
+                actor,
+                {
+                  name: request.name,
+                  type: 'project',
+                  description: request.purpose,
+                  color: decision.color,
+                  initialManagerId: request.proposedManagerId,
+                },
+                now,
+              );
+              if (!created.ok) return created;
+              spaceId = created.value.id;
+            }
+            const state = decision.approve ? ('approved' as const) : ('rejected' as const);
+            await tx
+              .update(t.spaceRequests)
+              .set({
+                state,
+                decidedBy: actor.userId,
+                decidedAt: now,
+                ...(spaceId === undefined ? {} : { createdSpaceId: spaceId }),
+              })
+              .where(eq(t.spaceRequests.id, requestId));
+            await recordEvent(
               tx,
-              actor,
               {
-                name: request.name,
-                type: 'project',
-                description: request.purpose,
-                color: decision.color,
-                initialManagerId: request.proposedManagerId,
+                type: 'space_request_decided',
+                actorId: actor.userId,
+                details: {
+                  requestId,
+                  approved: decision.approve,
+                  ...(spaceId === undefined ? {} : { spaceId }),
+                },
               },
               now,
             );
-            if (!created.ok) return created;
-            spaceId = created.value.id;
-          }
-          const state = decision.approve ? ('approved' as const) : ('rejected' as const);
-          await tx
-            .update(t.spaceRequests)
-            .set({
-              state,
-              decidedBy: actor.userId,
-              decidedAt: now,
-              ...(spaceId === undefined ? {} : { createdSpaceId: spaceId }),
-            })
-            .where(eq(t.spaceRequests.id, requestId));
-          await recordEvent(
-            tx,
-            {
-              type: 'space_request_decided',
-              actorId: actor.userId,
-              details: {
-                requestId,
-                approved: decision.approve,
-                ...(spaceId === undefined ? {} : { spaceId }),
-              },
-            },
-            now,
-          );
-          return ok({ id: requestId, state, ...(spaceId === undefined ? {} : { spaceId }) });
-        });
+            return ok({ id: requestId, state, ...(spaceId === undefined ? {} : { spaceId }) });
+          },
+        );
       } catch (error) {
         if (isUniqueViolation(error, 'spaces_name_lower_uq'))
           return fail('validation_error', NAME_TAKEN);
