@@ -18,6 +18,7 @@ const EXPECTED = [
   '0005_roles_and_grants',
   '0006_function_search_path',
   '0007_system_bootstrapped_event',
+  '0008_null_actor_event_exceptions',
 ];
 
 const files = readdirSync(MIGRATIONS_FOLDER)
@@ -55,6 +56,35 @@ describe('migrációk (B4 3. szakasz) - szintaxis', () => {
         new RegExp(`ALTER FUNCTION\\s+${fn}\\([^)]*\\)\\s+SET search_path = pg_catalog, public;`),
       );
     }
+  });
+
+  it('a 0008 a rendszer-típusok listáját változatlanul hagyja és két szűk (típus, ok) kivétellel bővíti (D56)', () => {
+    const body = (name: string): string =>
+      readFileSync(join(MIGRATIONS_FOLDER, `${name}.sql`), 'utf8')
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('--'))
+        .join('\n');
+    const list = (sql: string): string | undefined => /type IN \(([^)]*)\)/.exec(sql)?.[1];
+    const previous = body('0007_system_bootstrapped_event');
+    const current = body('0008_null_actor_event_exceptions');
+    expect(list(current)).toBeDefined();
+    expect(list(current)).toBe(list(previous)); // a rendszer-típusok listája szóról szóra ugyanaz
+
+    // DROP, majd ADD ... NOT VALID, majd VALIDATE (rövid ACCESS EXCLUSIVE, a VALIDATE nem blokkolja az írást).
+    expect(current).toMatch(/DROP CONSTRAINT events_actor_required;/);
+    expect(current).toMatch(/ADD CONSTRAINT events_actor_required CHECK[\s\S]*\) NOT VALID;/);
+    expect(current).toMatch(/VALIDATE CONSTRAINT events_actor_required;/);
+
+    // Pontosan a két kivétel, NULL-biztosan (COALESCE: hiányzó details vagy reason nem mehet át).
+    const exceptions = [...current.matchAll(/OR \(type = '(\w+)' AND ([^\n]*)\)/g)].map((m) => [
+      m[1],
+      m[2]?.replace(/\)+$/, ''),
+    ]);
+    expect(exceptions).toEqual([
+      ['review_withdrawn', "COALESCE(details->>'reason', '') = 'space_closed'"],
+      ['reviewer_removed', "COALESCE(details->>'reason', '') = 'allowlist_removed'"],
+    ]);
+    expect(current).not.toContain('member_removed'); // a member_removed okú visszavonásnak van aktora
   });
 
   it.each(EXPECTED)(
