@@ -2,7 +2,7 @@
 
 A Táltos tudásbázis alkalmazása: pnpm monorepo, TypeScript end-to-end. Kész: WP0 (skeleton, Compose,
 CI), WP1 (adatbázis-séma, migrációk, seed), WP2 (bejelentkezés, munkamenet, allowlist), WP3 (közös
-szerkesztés spike) és WP4a (szerepkörök, zárt színterek, láthatóság — backend; a WP4b felülete hátravan). A terv és a szabályok a repó gyökerében:
+szerkesztés spike) és WP4 (szerepkörök, zárt színterek, láthatóság: WP4a backend, WP4b felület). A terv és a szabályok a repó gyökerében:
 [`Arch/CLAUDE.md`](../Arch/CLAUDE.md), a munkacsomagok: [H5](../Arch/tudasbazis-munkacsomagok-h5.md).
 
 ## Szerkezet
@@ -240,3 +240,29 @@ A következő csomagoknak (a review-k nyomán):
 - **WP6:** tag-eltávolításkor és lezáráskor a nyitott `/collab` kapcsolatok bontása (ma csak az új kapcsolat dönt `can()`-nel).
 - **WP8:** a `document.submit` archivált dokumentumra ma tiltott; az `unarchive` kéréshez ezt rendezni kell.
 - **WP23:** a felvételi kérés `viaDocumentId`-je csak `can('document.read')` után oldható fel címre (FK nélkül, ellenőrizetlenül tárolt).
+
+## Felület: alkalmazáskeret, Adminisztráció, Színtér beállításai (WP4b)
+
+A felület a jóváhagyott UX-spec szerint épült:
+[Adminisztráció és színtér-beállítások](../Projekt%20dokumentációk/Felhasználók/Adminisztráció%20és%20színtér-beállítások.md)
+(D57). Komponensek: bemásolt shadcn/ui a Radix-primitívekkel, `lucide-react`, `cva` + `clsx` + `tailwind-merge`, `cmdk`,
+`sonner` (D14, D57), kizárólag a [Táltos Design System](../Prototypes/taltos-design-system.md) tokenjeivel (6.1 szakasz,
+`--scrim`).
+
+- **API-kliens** (`apps/frontend/src/api/`): `apiFetch` (`X-CSRF-Token` a `/me`-ből minden mutáló kérésen, RFC 9457 →
+  `ApiError(code)`), egyetlen kód → magyar üzenet tábla (`errors.ts`; a szerver szövegét nem jeleníti meg), `apiPath`
+  (kódolt útvonal-paraméterek; a `:spaceId` UUID-ellenőrzött).
+- **Alkalmazáskeret** (`layout/`): fejléc, oldalsáv (mobilon Sheet), ugrás a tartalomra, oldalcím minden útvonalon.
+  A **színtérváltó** az aktuális színteret a szerveren tárolja (`PUT /api/v1/me/current-space`, a `/me` `currentSpaceId`-je;
+  `users.current_space_id`, `0009` migráció); csak sikeres váltás után navigál, gyors kettős váltásnál csak a legutolsó
+  kérés állíthat vissza.
+- **Oldalak:** `/admin` (színterek: létrehozás, átnevezés, végleges lezárás; Rendszeradminok; önfelvétel) és
+  `/spaces/:spaceId/settings` (alapadatok, tagok, felvétel `GET /users`-szel, szerepváltás, eltávolítás). A
+  vezérlők a spec szerep × állapot mátrixát követik (`spaces/capabilities.ts`); a felület csak elrejt, a jogosultságot a
+  backend dönti el. A Szerző csak olvasható nézetet kap; nem tagnak csak a tér neve és a gazdák látszanak.
+- **Színtér-paletta:** a `SPACE_COLOR_PALETTE` minden színe legalább 3:1 kontrasztú minden felületen mindkét témában
+  (`spaces/palette-contrast.test.ts`).
+
+Nyitva hagyott, későbbi tételek: a tulajdonjog-átadás felülete (WP5/WP11), a kérések felülete (WP23), a CSP és a
+biztonsági fejlécek (külön feladat), valamint a review apróbb pontjai (dupla újratöltések, kérés-időtúllépés, a
+megerősítő ablak kilépő animációja, fókusz a kereső után, a `SpaceProvider` újramountolása).
