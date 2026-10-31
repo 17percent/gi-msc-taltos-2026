@@ -562,7 +562,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Előzmény:** a WP4 tervezése 17 pontot talált, amelyet a napló, a B4, a B5 és a vault nem, vagy egymásnak ellentmondva rendezett (pl. a D55 aktor nélküli eseménye és az `events_actor_required` CHECK, a mátrix és a B5 eltérései).
 **Döntés (tulajdonos, pontonként, az ajánlott opciókkal):**
-- **Aktor nélküli visszavonás:** a `review_withdrawn` csak `reason = space_closed` esetén lehet NULL aktorú; az `events_actor_required` CHECK erre a szűk kivételre bővül (új migráció). Minden más visszavonásnak van aktora.
+- **Aktor nélküli visszavonás:** a `review_withdrawn` csak `reason = space_closed` esetén lehet NULL aktorú; az `events_actor_required` CHECK erre a szűk kivételre bővül (új migráció). Minden más visszavonásnak van aktora. *Kiegészítés (2026-10-31, a WP4a packetjei):* ugyanígy a `reviewer_removed` is lehet NULL aktorú, de csak `reason = allowlist_removed` esetén: az allowlist-szinkron (rendszerfolyamat) az allowlistről levett függő review-er helyét is megszünteti (D51b), ugyanabban a migrációban.
 - **Értesítés:** a WP4 csak eseményt ír (közös `recordEvent`); a D55 értesítéseit a WP10 köti rá, a hiányzó értesítési kategóriát ott, naplóponttal veszi fel.
 - **`/collab` a policy-n:** a WP3 ideiglenes tagság-ellenőrzését már a WP4 cseréli a `can()`-re (nem a WP6), így egyetlen policy-pont él.
 - **Felhasználókeresés:** új `GET /api/v1/users?q=` (belépett felhasználónak; csak azonosító, név, avatar; legalább 2 karakter, legfeljebb 10 találat) a tagfelvételhez és a projekt-tér kérésének javasolt gazdájához.
@@ -571,7 +571,7 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **`admin_handover`:** törzs `{ spaceId, newOwnerId }`; a felhasználó adott színtérbeli összes (archivált is) dokumentuma az új, aktív tagra kerül; a Rendszeradmin bármikor hívhatja, lezárt térben is; `owner_changed` (ok: `admin_handover`).
 - **Általános színtér:** tagot eltávolítani tilos (403 `forbidden`); szerepváltás engedett. Kilépés csak az allowlistről.
 - **Tag eltávolítása:** aki a színtérben csak archivált dokumentumok tulajdonosa, eltávolítható (a D54 analógiája). Ha a tag egy függő review-kérés indítványozója, a kérés ugyanabban a tranzakcióban visszavonódik (`review_withdrawn`, ok: `member_removed`, aktor: az eltávolító), a dokumentum újra Piszkozat.
-- **Felvételi kérés:** a Rendszeradmin is dönthet róla. Nem tag Rendszeradmin felvételt nem kérhet (403; helyette önfelvétel), projekt-teret igen.
+- **Felvételi kérés:** a Rendszeradmin is dönthet róla. Nem tag Rendszeradmin felvételt nem kérhet (403; helyette önfelvétel), projekt-teret igen. *Kiegészítés (2026-10-31):* lezárt projekt-térbe új felvételi kérés nem nyújtható be (403 `space_closed`); a már függő kérésről ott csak a Rendszeradmin dönthet (ez admin tagkezelés), a Színtérgazda nem.
 - **Önfelvétel:** a Rendszeradmin a kért szerepbe (Szerző vagy Színtérgazda) veheti fel magát (`self_assigned`).
 - **Lezárás:** csak projekt-tér zárható le; más típus 403 `forbidden`; a már lezárt tér újbóli lezárása idempotens (200).
 - **Projekt-tér kérése:** a létrejövő tér `project` típusú, leírása a kérés célja; a színét a Rendszeradmin jóváhagyáskor választja egy rögzített hex-palettából; elutasítási indoklás nincs.
