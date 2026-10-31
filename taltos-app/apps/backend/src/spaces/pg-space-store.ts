@@ -426,7 +426,10 @@ export function createPgSpaceStore(db: Db): SpaceStore {
         if (ownerId === undefined) return fail('not_found');
         // A döntés óta változhatott a tulajdonos: a jogosultságot a zár alatt újra ellenőrizzük.
         const actorRole = await activeMemberRole(tx, spaceId, actor.userId);
-        if (actorRole !== 'space_manager' && !(ownerId === actor.userId && actorRole !== undefined)) {
+        if (
+          actorRole !== 'space_manager' &&
+          !(ownerId === actor.userId && actorRole !== undefined)
+        ) {
           return fail('forbidden');
         }
         if (input.newOwnerId === ownerId) {

@@ -321,16 +321,12 @@ export function describeSpaceStoreContract(name: string, setup: () => Promise<St
       });
       expect((await h.store.transferOwnership(user(a), input(doc, b), NOW)).ok).toBe(true);
       expect(await h.owner(doc)).toBe(b);
-      expect((await h.store.transferOwnership(user(m), input(archived, b), NOW)).ok).toBe(
-        true,
-      );
+      expect((await h.store.transferOwnership(user(m), input(archived, b), NOW)).ok).toBe(true);
       const closed = await h.space({ closed: true });
       await h.member(closed, a);
       await h.member(closed, b);
       const closedDoc = await h.document(closed, a);
-      expect(
-        await h.store.transferOwnership(user(a), input(closedDoc, b), NOW),
-      ).toMatchObject({
+      expect(await h.store.transferOwnership(user(a), input(closedDoc, b), NOW)).toMatchObject({
         code: 'space_closed',
       });
       // elavult jogosultság: aki közben kikerült a térből (volt gazda / volt tulajdonos), már nem adhat át

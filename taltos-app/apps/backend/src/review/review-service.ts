@@ -22,30 +22,39 @@ interface WithdrawnRow extends Record<string, unknown> {
 /**
  * A függő kérések visszavonása egy halmazra: kérés → `withdrawn` (`decided_at`), az aktív review-er sorok
  * `ended_at`/`end_reason = 'closed'`, a dokumentum `pending` → `draft` (csak olvasható marad, ha a tér lezárt).
- * Egyetlen utasítás (adat-módosító CTE-k), a visszavont kérések sorait adja vissza.
+ * Külön utasításokban fut (lásd a törzset), a visszavont kérések sorait adja vissza.
  */
 async function withdraw(
   tx: ReviewTx,
   where: ReturnType<typeof sql>,
   now: Date,
 ): Promise<WithdrawnRow[]> {
-  const result = await tx.execute<WithdrawnRow>(sql`
-    WITH w AS (
-      UPDATE change_requests c
-         SET state = 'withdrawn', decided_at = ${now}::timestamptz
-        FROM documents d
-       WHERE d.id = c.document_id AND c.state = 'pending' AND ${where}
-      RETURNING c.id, c.document_id, d.space_id
-    ), rv AS (
-      UPDATE change_request_reviewers r
-         SET ended_at = ${now}::timestamptz, end_reason = 'closed'
-       WHERE r.change_request_id IN (SELECT id FROM w) AND r.ended_at IS NULL
-    ), d2 AS (
-      UPDATE documents SET review_state = 'draft'
-       WHERE id IN (SELECT document_id FROM w) AND review_state = 'pending'
-    )
-    SELECT id, document_id, space_id FROM w`);
-  return result.rows;
+  // Külön utasítások (nem egy adat-módosító CTE): egy CTE minden ága az utasítás kezdeti pillanatképét látja, így egy
+  // közben commitolt cserélő review-er sor láthatatlan maradna a seprő UPDATE-nek. Az első UPDATE zárolja a kéréseket,
+  // a következők már READ COMMITTED alatt, friss pillanatképpel futnak.
+  const withdrawn = await tx.execute<WithdrawnRow>(sql`
+    UPDATE change_requests c
+       SET state = 'withdrawn', decided_at = ${now}::timestamptz
+      FROM documents d
+     WHERE d.id = c.document_id AND c.state = 'pending' AND ${where}
+    RETURNING c.id, c.document_id, d.space_id`);
+  if (withdrawn.rows.length === 0) return [];
+  const ids = sql.join(
+    withdrawn.rows.map((row) => sql`${row.id}::uuid`),
+    sql`, `,
+  );
+  const documentIds = sql.join(
+    withdrawn.rows.map((row) => sql`${row.document_id}::uuid`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    UPDATE change_request_reviewers
+       SET ended_at = ${now}::timestamptz, end_reason = 'closed'
+     WHERE change_request_id IN (${ids}) AND ended_at IS NULL`);
+  await tx.execute(sql`
+    UPDATE documents SET review_state = 'draft'
+     WHERE id IN (${documentIds}) AND review_state = 'pending'`);
+  return withdrawn.rows;
 }
 
 /**

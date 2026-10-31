@@ -105,6 +105,7 @@ export async function syncAllowlist(
     const toRemove = rows
       .filter((row) => row.deletedAt === null && !wantedSet.has(row.email))
       .map((row) => row.email);
+    if (toRemove.length > 0) await lockForRemovalGuards(tx, toRemove);
     for (const email of toRemove) {
       const user = await userIdOf(tx, email);
       const reason = user === undefined ? undefined : await blockedBy(tx, user);
@@ -136,6 +137,28 @@ export async function syncAllowlist(
 }
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/**
+ * A `blockedBy` döntése előtt ugyanazokat a zárakat vesszük meg, amelyeket a HTTP-utak (`removeMember`,
+ * `changeSystemRole`), ugyanabban a sorrendben (előbb a színterek `ORDER BY id`, utána az összes `system_admin`
+ * felhasználó `ORDER BY id`), így nincs holtpont, és a közben futó gazda-/admin-változás nem okozhat írási ferdeséget
+ * (az utolsó gazda/admin eltávolítását). A zárolt sorok: a kivett címek felhasználóinak aktív gazdasági terei.
+ */
+async function lockForRemovalGuards(tx: Tx, emails: readonly string[]): Promise<void> {
+  const list = sql.join(
+    emails.map((email) => sql`${email}`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    SELECT s.id FROM spaces s
+     WHERE s.deleted_at IS NULL AND s.id IN (
+       SELECT sm.space_id FROM space_members sm
+         JOIN users u ON u.id = sm.user_id
+        WHERE lower(u.email) IN (${list}) AND sm.role = 'space_manager' AND sm.removed_at IS NULL)
+     ORDER BY s.id FOR UPDATE`);
+  await tx.execute(sql`
+    SELECT id FROM users WHERE system_role = 'system_admin' ORDER BY id FOR UPDATE`);
+}
 
 async function userIdOf(tx: Tx, email: string): Promise<string | undefined> {
   const { rows } = await tx.execute<{ id: string }>(
