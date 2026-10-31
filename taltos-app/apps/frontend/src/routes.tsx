@@ -8,6 +8,11 @@ export const routes: RouteObject[] = [
     element: <RootLayout />,
     children: [
       { index: true, element: <HomePage /> },
+      {
+        // A szerkesztő (CodeMirror, Yjs, unified) külön csomagba kerül: a kezdőoldal nem tölti le.
+        path: 'documents/:documentId',
+        lazy: async () => ({ Component: (await import('./pages/DocumentPage')).DocumentPage }),
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
