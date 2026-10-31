@@ -3,9 +3,13 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type {
   AdminUser,
+  MembershipDecisionResult,
+  RequestCreated,
   SpaceColor,
   SpaceDetail,
   SpaceMember,
+  SpaceRequestDecisionResult,
+  SpaceRole,
   SpaceSummary,
   SpaceType,
   UserRef,
@@ -20,7 +24,8 @@ import {
   withdrawForInitiator,
 } from '../review/review-service.js';
 import { otherActiveAdminExists, otherActiveManagerExists } from './guards.js';
-import { fail, ok, type SpaceStore, type StoreResult } from './store.js';
+import type { Actor } from '../policy/targets.js';
+import { fail, ok, type NewSpace, type SpaceStore, type StoreResult } from './store.js';
 
 type Db = NodePgDatabase;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -139,6 +144,59 @@ const NAME_TAKEN = 'Ilyen nevű színtér már van.';
 /** `LIKE` jokerek (`%`, `_`) és a védőkarakter semlegesítése: a keresett szöveg szó szerint értendő. */
 export const escapeLike = (text: string): string => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
+/**
+ * A térlétrehozás közös útja (`POST /spaces` és a projekt-tér kérésének jóváhagyása): a hívó tranzakciójában fut, így a
+ * kérés lezárásával együtt atomi. A foglalt név 23505-ös hibáját a hívó fordítja `validation_error`-ra.
+ */
+async function createSpaceTx(
+  tx: Tx,
+  actor: Actor,
+  input: NewSpace,
+  now: Date,
+): Promise<StoreResult<SpaceDetail>> {
+  if (!(await activeUserExists(tx, input.initialManagerId))) {
+    return fail('validation_error', 'A kezdeti Színtérgazda nem található.');
+  }
+  const spaceId = randomUUID();
+  await tx.insert(t.spaces).values({
+    id: spaceId,
+    name: input.name,
+    type: input.type,
+    description: input.description,
+    color: input.color,
+    createdBy: actor.userId,
+    createdAt: now,
+  });
+  await tx.insert(t.spaceMembers).values({
+    spaceId,
+    userId: input.initialManagerId,
+    role: 'space_manager',
+    addedBy: actor.userId,
+    createdAt: now,
+  });
+  await recordEvents(
+    tx,
+    [
+      {
+        type: 'space_created',
+        spaceId,
+        actorId: actor.userId,
+        details: { type: input.type, initialManagerId: input.initialManagerId },
+      },
+      {
+        type: 'space_manager_assigned',
+        spaceId,
+        actorId: actor.userId,
+        details: { userId: input.initialManagerId },
+      },
+    ],
+    now,
+  );
+  const detail = await detailOf(tx, spaceId);
+  if (!detail) throw new Error('A létrehozott színtér nem olvasható vissza.');
+  return ok(detail);
+}
+
 /** A színterek, a tagság és a rendszerszerepek PostgreSQL-megvalósítása (`taltos_app` szerepkör: SELECT/INSERT/UPDATE). */
 export function createPgSpaceStore(db: Db): SpaceStore {
   return {
@@ -174,49 +232,7 @@ export function createPgSpaceStore(db: Db): SpaceStore {
 
     async createSpace(actor, input, now) {
       try {
-        return await db.transaction(async (tx): Promise<StoreResult<SpaceDetail>> => {
-          if (!(await activeUserExists(tx, input.initialManagerId))) {
-            return fail('validation_error', 'A kezdeti Színtérgazda nem található.');
-          }
-          const spaceId = randomUUID();
-          await tx.insert(t.spaces).values({
-            id: spaceId,
-            name: input.name,
-            type: input.type,
-            description: input.description,
-            color: input.color,
-            createdBy: actor.userId,
-            createdAt: now,
-          });
-          await tx.insert(t.spaceMembers).values({
-            spaceId,
-            userId: input.initialManagerId,
-            role: 'space_manager',
-            addedBy: actor.userId,
-            createdAt: now,
-          });
-          await recordEvents(
-            tx,
-            [
-              {
-                type: 'space_created',
-                spaceId,
-                actorId: actor.userId,
-                details: { type: input.type, initialManagerId: input.initialManagerId },
-              },
-              {
-                type: 'space_manager_assigned',
-                spaceId,
-                actorId: actor.userId,
-                details: { userId: input.initialManagerId },
-              },
-            ],
-            now,
-          );
-          const detail = await detailOf(tx, spaceId);
-          if (!detail) throw new Error('A létrehozott színtér nem olvasható vissza.');
-          return ok(detail);
-        });
+        return await db.transaction((tx) => createSpaceTx(tx, actor, input, now));
       } catch (error) {
         if (isUniqueViolation(error, 'spaces_name_lower_uq'))
           return fail('validation_error', NAME_TAKEN);
@@ -472,6 +488,237 @@ export function createPgSpaceStore(db: Db): SpaceStore {
         );
         return ok({ movedDocuments: moved.length });
       }),
+
+    async createMembershipRequest(actor, spaceId, input, now) {
+      try {
+        return await db.transaction(async (tx): Promise<StoreResult<RequestCreated>> => {
+          const space = await lockSpace(tx, spaceId);
+          if (!space) return fail('not_found');
+          // A Rendszeradmin önfelvétellel lép be, a tag már bent van (D56); a térzár alatt újraellenőrizve.
+          if (
+            isSystemAdmin(actor) ||
+            (await activeMemberRole(tx, spaceId, actor.userId)) !== undefined
+          ) {
+            return fail('forbidden');
+          }
+          if (space.closed) return fail('space_closed');
+          const requestId = randomUUID();
+          await tx.insert(t.membershipRequests).values({
+            id: requestId,
+            spaceId,
+            userId: actor.userId,
+            viaDocumentId: input.viaDocumentId ?? null,
+            message: input.message ?? null,
+            createdAt: now,
+          });
+          await recordEvent(
+            tx,
+            {
+              type: 'membership_requested',
+              spaceId,
+              actorId: actor.userId,
+              details: {
+                requestId,
+                ...(input.viaDocumentId === undefined
+                  ? {}
+                  : { viaDocumentId: input.viaDocumentId }),
+              },
+            },
+            now,
+          );
+          return ok({ id: requestId, state: 'pending' as const });
+        });
+      } catch (error) {
+        // A függő kérés egyedi indexe a végső védelem a térzár mellett is.
+        if (isUniqueViolation(error, 'membership_requests_one_pending_uq')) {
+          return fail('request_pending', 'Már van függő felvételi kérésed ebbe a színtérbe.');
+        }
+        throw error;
+      }
+    },
+
+    async getMembershipRequest(requestId) {
+      const [row] = await db
+        .select({ spaceId: t.membershipRequests.spaceId, state: t.membershipRequests.state })
+        .from(t.membershipRequests)
+        .where(eq(t.membershipRequests.id, requestId));
+      return row;
+    },
+
+    decideMembershipRequest: (actor, requestId, decision, now) =>
+      db.transaction(async (tx): Promise<StoreResult<MembershipDecisionResult>> => {
+        // Zárolási sorrend: előbb a tér (mint a tagkezelés többi műveleténél), utána a kérés.
+        const [probe] = await tx
+          .select({ spaceId: t.membershipRequests.spaceId })
+          .from(t.membershipRequests)
+          .where(eq(t.membershipRequests.id, requestId));
+        if (!probe) return fail('not_found');
+        const space = await lockSpace(tx, probe.spaceId);
+        if (!space) return fail('not_found');
+        const [request] = await tx
+          .select({
+            userId: t.membershipRequests.userId,
+            state: t.membershipRequests.state,
+          })
+          .from(t.membershipRequests)
+          .where(eq(t.membershipRequests.id, requestId))
+          .for('update');
+        if (!request) return fail('not_found');
+        if (request.state !== 'pending') return fail('request_closed');
+        // Lezárt térben a függő kérésről csak a Rendszeradmin dönthet (admin tagkezelés, D56).
+        if (space.closed && !isSystemAdmin(actor)) return fail('space_closed');
+
+        let role: SpaceRole | undefined;
+        if (decision.approve) {
+          if (!(await activeUserExists(tx, request.userId))) {
+            return fail('validation_error', 'A felhasználó nem található.');
+          }
+          role = decision.role ?? 'author';
+          const current = await activeMemberRole(tx, probe.spaceId, request.userId);
+          if (current === undefined) {
+            await tx
+              .insert(t.spaceMembers)
+              .values({
+                spaceId: probe.spaceId,
+                userId: request.userId,
+                role,
+                addedBy: actor.userId,
+                createdAt: now,
+              })
+              .onConflictDoUpdate({
+                target: [t.spaceMembers.spaceId, t.spaceMembers.userId],
+                set: { role, addedBy: actor.userId, removedAt: null },
+              });
+            await recordEvent(
+              tx,
+              {
+                type: 'member_added',
+                spaceId: probe.spaceId,
+                actorId: actor.userId,
+                details: { userId: request.userId, role },
+              },
+              now,
+            );
+          } else {
+            role = current; // közben már tag lett: a meglévő szerepe marad
+          }
+        }
+        const state = decision.approve ? ('approved' as const) : ('rejected' as const);
+        await tx
+          .update(t.membershipRequests)
+          .set({ state, decidedBy: actor.userId, decidedAt: now })
+          .where(eq(t.membershipRequests.id, requestId));
+        await recordEvent(
+          tx,
+          {
+            type: 'membership_request_decided',
+            spaceId: probe.spaceId,
+            actorId: actor.userId,
+            details: {
+              requestId,
+              approved: decision.approve,
+              ...(role === undefined ? {} : { role }),
+            },
+          },
+          now,
+        );
+        return ok({
+          id: requestId,
+          state,
+          spaceId: probe.spaceId,
+          ...(role === undefined ? {} : { role }),
+        });
+      }),
+
+    createSpaceRequest: (actor, input, now) =>
+      db.transaction(async (tx): Promise<StoreResult<RequestCreated>> => {
+        if (!(await activeUserExists(tx, input.proposedManagerId))) {
+          return fail('validation_error', 'A javasolt Színtérgazda nem található.');
+        }
+        const requestId = randomUUID();
+        await tx.insert(t.spaceRequests).values({
+          id: requestId,
+          requestedBy: actor.userId,
+          name: input.name,
+          purpose: input.purpose,
+          proposedManagerId: input.proposedManagerId,
+          createdAt: now,
+        });
+        await recordEvent(
+          tx,
+          { type: 'space_requested', actorId: actor.userId, details: { requestId } },
+          now,
+        );
+        return ok({ id: requestId, state: 'pending' as const });
+      }),
+
+    async decideSpaceRequest(actor, requestId, decision, now) {
+      try {
+        return await db.transaction(
+          async (tx): Promise<StoreResult<SpaceRequestDecisionResult>> => {
+            const [request] = await tx
+              .select({
+                name: t.spaceRequests.name,
+                purpose: t.spaceRequests.purpose,
+                proposedManagerId: t.spaceRequests.proposedManagerId,
+                state: t.spaceRequests.state,
+              })
+              .from(t.spaceRequests)
+              .where(eq(t.spaceRequests.id, requestId))
+              .for('update');
+            if (!request) return fail('not_found');
+            if (request.state !== 'pending') return fail('request_closed');
+
+            let spaceId: string | undefined;
+            if (decision.approve) {
+              // Ugyanaz a térlétrehozás, mint a POST /spaces; hiba esetén a kérés függő marad (a tx visszagördül).
+              const created = await createSpaceTx(
+                tx,
+                actor,
+                {
+                  name: request.name,
+                  type: 'project',
+                  description: request.purpose,
+                  color: decision.color,
+                  initialManagerId: request.proposedManagerId,
+                },
+                now,
+              );
+              if (!created.ok) return created;
+              spaceId = created.value.id;
+            }
+            const state = decision.approve ? ('approved' as const) : ('rejected' as const);
+            await tx
+              .update(t.spaceRequests)
+              .set({
+                state,
+                decidedBy: actor.userId,
+                decidedAt: now,
+                ...(spaceId === undefined ? {} : { createdSpaceId: spaceId }),
+              })
+              .where(eq(t.spaceRequests.id, requestId));
+            await recordEvent(
+              tx,
+              {
+                type: 'space_request_decided',
+                actorId: actor.userId,
+                details: {
+                  requestId,
+                  approved: decision.approve,
+                  ...(spaceId === undefined ? {} : { spaceId }),
+                },
+              },
+              now,
+            );
+            return ok({ id: requestId, state, ...(spaceId === undefined ? {} : { spaceId }) });
+          },
+        );
+      } catch (error) {
+        if (isUniqueViolation(error, 'spaces_name_lower_uq'))
+          return fail('validation_error', NAME_TAKEN);
+        throw error;
+      }
+    },
 
     async searchUsers(query, limit) {
       const rows = await db.execute<{

@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AdminUser,
+  CreateMembershipRequest,
+  CreateSpaceRequestRequest,
+  MembershipDecisionResult,
+  MembershipRequestDecision,
+  RequestCreated,
+  RequestState,
+  SpaceRequestDecision,
+  SpaceRequestDecisionResult,
   SpaceColor,
   SpaceDetail,
   SpaceMember,
@@ -34,6 +42,15 @@ export class MemorySpaceStore implements SpaceStore {
   /** A rögzített események (a PostgreSQL-ben az `events` tábla sorai). */
   readonly events: AppEvent[] = [];
   readonly outcomes: MemoryRequestOutcome[] = [];
+  /** A felvételi és a projekt-tér kérései (a PostgreSQL-ben a `membership_requests` és a `space_requests` sorai). */
+  readonly membershipRequests = new Map<
+    string,
+    { spaceId: string; userId: string; state: RequestState }
+  >();
+  readonly spaceRequests = new Map<
+    string,
+    { name: string; purpose: string; proposedManagerId: string; state: RequestState }
+  >();
 
   constructor(
     private readonly world: MemoryAccessStore,
@@ -422,6 +439,147 @@ export class MemorySpaceStore implements SpaceStore {
       });
     }
     return Promise.resolve(ok({ movedDocuments: moved }));
+  }
+
+  createMembershipRequest(
+    actor: Actor,
+    spaceId: string,
+    input: CreateMembershipRequest,
+  ): Promise<StoreResult<RequestCreated>> {
+    const space = this.world.spaces.get(spaceId);
+    if (!space || space.deleted) return Promise.resolve(fail('not_found'));
+    if (isSystemAdmin(actor) || this.role(spaceId, actor.userId) !== undefined) {
+      return Promise.resolve(fail('forbidden'));
+    }
+    if (space.closed) return Promise.resolve(fail('space_closed'));
+    if (this.world.pendingRequests.has(`${spaceId}:${actor.userId}`)) {
+      return Promise.resolve(
+        fail('request_pending', 'Már van függő felvételi kérésed ebbe a színtérbe.'),
+      );
+    }
+    const id = randomUUID();
+    this.membershipRequests.set(id, { spaceId, userId: actor.userId, state: 'pending' });
+    this.world.addPendingMembershipRequest(spaceId, actor.userId);
+    this.emit({
+      type: 'membership_requested',
+      spaceId,
+      actorId: actor.userId,
+      details: {
+        requestId: id,
+        ...(input.viaDocumentId === undefined ? {} : { viaDocumentId: input.viaDocumentId }),
+      },
+    });
+    return Promise.resolve(ok({ id, state: 'pending' as const }));
+  }
+
+  getMembershipRequest(requestId: string) {
+    const request = this.membershipRequests.get(requestId);
+    return Promise.resolve(request && { spaceId: request.spaceId, state: request.state });
+  }
+
+  decideMembershipRequest(
+    actor: Actor,
+    requestId: string,
+    decision: MembershipRequestDecision,
+  ): Promise<StoreResult<MembershipDecisionResult>> {
+    const request = this.membershipRequests.get(requestId);
+    const space = request && this.world.spaces.get(request.spaceId);
+    if (!request || !space || space.deleted) return Promise.resolve(fail('not_found'));
+    if (request.state !== 'pending') return Promise.resolve(fail('request_closed'));
+    if (space.closed && !isSystemAdmin(actor)) return Promise.resolve(fail('space_closed'));
+    let role: SpaceRole | undefined;
+    if (decision.approve) {
+      if (!this.isActiveUser(request.userId)) {
+        return Promise.resolve(fail('validation_error', 'A felhasználó nem található.'));
+      }
+      const current = this.role(request.spaceId, request.userId);
+      role = current ?? decision.role ?? 'author';
+      if (current === undefined) {
+        this.world.addMember(request.spaceId, request.userId, role);
+        this.emit({
+          type: 'member_added',
+          spaceId: request.spaceId,
+          actorId: actor.userId,
+          details: { userId: request.userId, role },
+        });
+      }
+    }
+    request.state = decision.approve ? 'approved' : 'rejected';
+    this.world.pendingRequests.delete(`${request.spaceId}:${request.userId}`);
+    this.emit({
+      type: 'membership_request_decided',
+      spaceId: request.spaceId,
+      actorId: actor.userId,
+      details: {
+        requestId,
+        approved: decision.approve,
+        ...(role === undefined ? {} : { role }),
+      },
+    });
+    return Promise.resolve(
+      ok({
+        id: requestId,
+        state: request.state,
+        spaceId: request.spaceId,
+        ...(role === undefined ? {} : { role }),
+      }),
+    );
+  }
+
+  createSpaceRequest(
+    actor: Actor,
+    input: CreateSpaceRequestRequest,
+  ): Promise<StoreResult<RequestCreated>> {
+    if (!this.isActiveUser(input.proposedManagerId)) {
+      return Promise.resolve(fail('validation_error', 'A javasolt Színtérgazda nem található.'));
+    }
+    const id = randomUUID();
+    this.spaceRequests.set(id, {
+      name: input.name,
+      purpose: input.purpose,
+      proposedManagerId: input.proposedManagerId,
+      state: 'pending',
+    });
+    this.emit({ type: 'space_requested', actorId: actor.userId, details: { requestId: id } });
+    return Promise.resolve(ok({ id, state: 'pending' as const }));
+  }
+
+  async decideSpaceRequest(
+    actor: Actor,
+    requestId: string,
+    decision: SpaceRequestDecision,
+  ): Promise<StoreResult<SpaceRequestDecisionResult>> {
+    const request = this.spaceRequests.get(requestId);
+    if (!request) return fail('not_found');
+    if (request.state !== 'pending') return fail('request_closed');
+    let spaceId: string | undefined;
+    if (decision.approve) {
+      // a `createSpace` mutáció előtt ellenőriz, így hiba esetén a kérés függő marad és semmi nem íródik
+      const created = await this.createSpace(actor, {
+        name: request.name,
+        type: 'project',
+        description: request.purpose,
+        color: decision.color,
+        initialManagerId: request.proposedManagerId,
+      });
+      if (!created.ok) return created;
+      spaceId = created.value.id;
+    }
+    request.state = decision.approve ? 'approved' : 'rejected';
+    this.emit({
+      type: 'space_request_decided',
+      actorId: actor.userId,
+      details: {
+        requestId,
+        approved: decision.approve,
+        ...(spaceId === undefined ? {} : { spaceId }),
+      },
+    });
+    return ok({
+      id: requestId,
+      state: request.state,
+      ...(spaceId === undefined ? {} : { spaceId }),
+    });
   }
 
   searchUsers(query: string, limit: number): Promise<UserRef[]> {
