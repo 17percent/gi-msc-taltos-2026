@@ -27,7 +27,6 @@ import {
   authorizeSystem,
 } from '../policy/authorize.js';
 import type { AccessStore } from '../policy/access-store.js';
-import { isSpaceManager } from '../policy/policy.js';
 import type { Actor } from '../policy/targets.js';
 import { registerRequestRoutes } from './request-routes.js';
 import type { SpaceStore, StoreFailure } from './store.js';
@@ -365,20 +364,19 @@ export function registerSpaceRoutes(api: FastifyInstance, deps: SpaceRouteDepend
       },
     },
     async (request, reply) => {
-      const target = await authorizeDocument(
+      const allowed = await authorizeDocument(
         access,
         request,
         reply,
         'document.owner.transfer',
         request.params.id,
       );
-      if (target === undefined) return reply;
+      if (allowed === undefined) return reply;
       const result = await spaces.transferOwnership(
         actorOf(request),
         {
           documentId: request.params.id,
           newOwnerId: request.body.userId,
-          actorIsManager: isSpaceManager(target.space),
         },
         clock(),
       );

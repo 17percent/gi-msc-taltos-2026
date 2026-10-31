@@ -380,7 +380,7 @@ export class MemorySpaceStore implements SpaceStore {
 
   transferOwnership(
     actor: Actor,
-    input: { documentId: string; newOwnerId: string; actorIsManager: boolean },
+    input: { documentId: string; newOwnerId: string },
   ): Promise<StoreResult<null>> {
     const doc = this.world.documents.get(input.documentId);
     // az eldobott piszkozat nem létezik, az archivált átadható
@@ -388,8 +388,11 @@ export class MemorySpaceStore implements SpaceStore {
     const space = this.world.spaces.get(doc.spaceId);
     if (!space || space.deleted) return Promise.resolve(fail('not_found'));
     if (space.closed) return Promise.resolve(fail('space_closed'));
-    if (doc.ownerId !== actor.userId && !input.actorIsManager)
-      return Promise.resolve(fail('forbidden'));
+    // a jogosultság a (zár alatti) aktuális tagságból: a tulajdonos csak aktív tagként, különben aktív gazda
+    const actorRole = this.role(doc.spaceId, actor.userId);
+    const allowed =
+      actorRole === 'space_manager' || (doc.ownerId === actor.userId && actorRole !== undefined);
+    if (!allowed) return Promise.resolve(fail('forbidden'));
     if (input.newOwnerId === doc.ownerId) {
       return Promise.resolve(
         fail('invalid_new_owner', 'Az új tulajdonos már most is a tulajdonos.'),
@@ -430,6 +433,8 @@ export class MemorySpaceStore implements SpaceStore {
     let moved = 0;
     for (const [documentId, doc] of this.world.documents) {
       if (doc.spaceId !== input.spaceId || doc.ownerId !== input.userId) continue;
+      // az eldobott piszkozat nem létezik (D54)
+      if (doc.deleted && !doc.everApproved) continue;
       doc.ownerId = input.newOwnerId;
       moved += 1;
       this.emit({

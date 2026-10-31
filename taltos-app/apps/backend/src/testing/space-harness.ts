@@ -31,7 +31,7 @@ export function memoryHarness(): StoreHarness {
     document(spaceId, ownerId, options = {}) {
       const id = randomUUID();
       world.addDocument(id, spaceId, ownerId, {
-        deleted: options.archived ?? false,
+        deleted: (options.archived ?? false) || (options.discarded ?? false),
         everApproved: options.archived ?? false,
         reviewState: options.pending ? 'pending' : 'draft',
         ...(options.pending ? { pending: { id: randomUUID(), ...options.pending } } : {}),

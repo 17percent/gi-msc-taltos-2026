@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type {
   AdminUser,
@@ -425,7 +425,10 @@ export function createPgSpaceStore(db: Db): SpaceStore {
         const ownerId = doc.rows[0]?.owner_id;
         if (ownerId === undefined) return fail('not_found');
         // A döntés óta változhatott a tulajdonos: a jogosultságot a zár alatt újra ellenőrizzük.
-        if (ownerId !== actor.userId && !input.actorIsManager) return fail('forbidden');
+        const actorRole = await activeMemberRole(tx, spaceId, actor.userId);
+        if (actorRole !== 'space_manager' && !(ownerId === actor.userId && actorRole !== undefined)) {
+          return fail('forbidden');
+        }
         if (input.newOwnerId === ownerId) {
           return fail('invalid_new_owner', 'Az új tulajdonos már most is a tulajdonos.');
         }
@@ -465,11 +468,17 @@ export function createPgSpaceStore(db: Db): SpaceStore {
         if ((await activeMemberRole(tx, input.spaceId, input.newOwnerId)) === undefined) {
           return fail('invalid_new_owner', 'Az új tulajdonos nem a színtér aktív tagja.');
         }
-        // Egy set-alapú UPDATE az összes (archivált is) dokumentumra; lezárt térben is megy (D56).
+        // Egy set-alapú UPDATE az összes (archivált is) dokumentumra, az eldobott piszkozat nélkül (D54); lezárt térben is megy (D56).
         const moved = await tx
           .update(t.documents)
           .set({ ownerId: input.newOwnerId })
-          .where(and(eq(t.documents.spaceId, input.spaceId), eq(t.documents.ownerId, input.userId)))
+          .where(
+            and(
+              eq(t.documents.spaceId, input.spaceId),
+              eq(t.documents.ownerId, input.userId),
+              or(isNull(t.documents.deletedAt), isNotNull(t.documents.approvedRevisionId)),
+            ),
+          )
           .returning({ id: t.documents.id });
         await recordEvents(
           tx,
