@@ -14,8 +14,18 @@ export interface MeResponse {
     type: SpaceType;
     role: SpaceRole;
   }>;
+  /**
+   * A színtérváltó aktuális színtere (D57): a mentett érték, ha a felhasználó még aktív tagja; különben az
+   * Általános, majd az első saját tér; saját tér nélkül `null`.
+   */
+  currentSpaceId: string | null;
   /** Double-submit CSRF-token: minden mutáló kérésben az `X-CSRF-Token` fejlécben kell visszaküldeni. */
   csrfToken: string;
+}
+
+/** A `PUT /api/v1/me/current-space` törzse (D57); siker: 204. */
+export interface SetCurrentSpaceRequest {
+  spaceId: string;
 }
 
 /**

@@ -40,7 +40,16 @@ describe('munkamenet és allowlist-kapu (/api/v1)', () => {
     expect(response.headers['cache-control']).toBe('no-store');
     const body = response.json<MeResponse>();
     expect(Object.keys(body).sort()).toEqual(
-      ['avatarUrl', 'csrfToken', 'displayName', 'email', 'id', 'spaces', 'systemRole'].sort(),
+      [
+        'avatarUrl',
+        'csrfToken',
+        'currentSpaceId',
+        'displayName',
+        'email',
+        'id',
+        'spaces',
+        'systemRole',
+      ].sort(),
     );
     expect(body).toMatchObject({
       id: session.userId,
@@ -49,6 +58,7 @@ describe('munkamenet és allowlist-kapu (/api/v1)', () => {
       systemRole: 'user',
       csrfToken: session.csrf,
       spaces: [{ id: 'sp1', name: 'Általános', type: 'general', role: 'author' }],
+      currentSpaceId: 'sp1',
     });
   });
 

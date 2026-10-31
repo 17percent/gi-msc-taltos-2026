@@ -9,6 +9,7 @@ interface MemoryUser {
   displayName: string;
   avatarUrl: string | null;
   systemRole: 'user' | 'system_admin';
+  currentSpaceId: string | null;
 }
 
 interface MemorySession {
@@ -49,6 +50,7 @@ export class MemoryAuthStore implements AuthStore {
       displayName: email.split('@')[0] ?? email,
       avatarUrl: null,
       systemRole,
+      currentSpaceId: null,
     };
     this.users.set(user.id, user);
     return user;
@@ -56,6 +58,17 @@ export class MemoryAuthStore implements AuthStore {
 
   addMembership(userId: string, space: MeResponse['spaces'][number]): void {
     this.spaceRoles.set(`${userId}:${space.id}`, space);
+  }
+
+  /** A tagság megszűnése (a `/me` tartalék-ágának tesztjéhez). */
+  removeMembership(userId: string, spaceId: string): void {
+    this.spaceRoles.delete(`${userId}:${spaceId}`);
+  }
+
+  setCurrentSpace(userId: string, spaceId: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) user.currentSpaceId = spaceId;
+    return Promise.resolve();
   }
 
   createSession(input: { id: Buffer; userId: string; now: Date; expiresAt: Date }): Promise<void> {
@@ -80,6 +93,7 @@ export class MemoryAuthStore implements AuthStore {
       email: user.email,
       avatarUrl: user.avatarUrl,
       onAllowlist: this.allowlist.has(user.email),
+      currentSpaceId: user.currentSpaceId,
     });
   }
 

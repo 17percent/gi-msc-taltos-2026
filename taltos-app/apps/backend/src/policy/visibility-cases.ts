@@ -138,6 +138,14 @@ export const VISIBILITY_CASES: Record<string, VisibilityCase> = {
       const body = me.json<MeResponse>();
       expect(body.id).toBe(bob.userId);
       expect(body.spaces).toEqual([]);
+      // D57: a másik felhasználó mentett aktuális tere sem szivárog át (a tárolt érték a hívó saját sorából jön).
+      await ctx.store.setCurrentSpace(alice.userId, 'space-a');
+      const again = await ctx.app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: { cookie: bob.cookie },
+      });
+      expect(again.json<MeResponse>().currentSpaceId).toBeNull();
       expect(JSON.stringify(body)).not.toMatch(/alice|Titkos tér/);
     },
   },

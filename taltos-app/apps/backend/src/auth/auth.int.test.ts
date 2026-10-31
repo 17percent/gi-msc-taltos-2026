@@ -8,6 +8,7 @@ import { syncAllowlist } from './allowlist.js';
 import { createPgAccessStore } from '../policy/pg-access-store.js';
 import { createPgSpaceStore } from '../spaces/pg-space-store.js';
 import { createPgCollabStore } from '../realtime/pg-collab-store.js';
+import { resolveCurrentSpaceId } from './current-space.js';
 import { createPgAuthStore } from './pg-store.js';
 import { SessionService, TOUCH_INTERVAL_MS } from './session-service.js';
 import type { OidcIdentity } from './types.js';
@@ -113,6 +114,47 @@ describe.skipIf(!url)('hitelesítés, munkamenet, allowlist-szinkron (WP2)', () 
         role: 'space_manager',
       });
     }
+  });
+
+  it('az aktuális színtér mentése és olvasása a munkamenet-sorral (D57, 0009); a /me tartalék a tagság megszűnése után', async () => {
+    await allow('owner@example.test');
+    const login = await store().login(identity('owner@example.test'), now);
+    if (login.status !== 'ok') throw new Error('a belépés nem sikerült');
+    const { userId } = login;
+    const sessionId = Buffer.alloc(32, 7);
+    await store().createSession({
+      id: sessionId,
+      userId,
+      now,
+      expiresAt: new Date(now.getTime() + 3_600_000),
+    });
+    const [spaceRow] = await q<{ id: string }>(
+      `INSERT INTO spaces (name, type, description, color, created_by) VALUES ('Csapat', 'team', '', '#3B6FB6', $1) RETURNING id`,
+      [userId],
+    );
+    const teamId = spaceRow?.id as string;
+    await q(
+      `INSERT INTO space_members (space_id, user_id, role, added_by) VALUES ($1, $2, 'author', $2)`,
+      [teamId, userId],
+    );
+
+    expect((await store().findSession(sessionId))?.currentSpaceId).toBeNull();
+    await store().setCurrentSpace(userId, teamId);
+    expect((await store().findSession(sessionId))?.currentSpaceId).toBe(teamId);
+    const spaces = await store().spacesOf(userId);
+    expect(resolveCurrentSpaceId(teamId, spaces)).toBe(teamId);
+
+    // A tagság megszűnik: a tárolt id marad (nincs FK), de a /me az Általánosra esik vissza.
+    await q('UPDATE space_members SET removed_at = now() WHERE space_id = $1', [teamId]);
+    const after = await store().spacesOf(userId);
+    const general = after.find((s) => s.type === 'general');
+    expect(general).toBeDefined();
+    expect(resolveCurrentSpaceId(teamId, after)).toBe(general?.id);
+
+    // A törölt tér sem érvényes.
+    await q('UPDATE space_members SET removed_at = NULL WHERE space_id = $1', [teamId]);
+    await q('UPDATE spaces SET deleted_at = now() WHERE id = $1', [teamId]);
+    expect(resolveCurrentSpaceId(teamId, await store().spacesOf(userId))).toBe(general?.id);
   });
 
   it('a bootstrap e-mail három egyidejű belépéséből a jog egyszer íródik (versenyhelyzet, D54)', async () => {
