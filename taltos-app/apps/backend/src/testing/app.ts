@@ -6,6 +6,7 @@ import { LoginRejected, type LoginTransaction, type OidcFlow } from '../auth/oid
 import { SessionService, TOUCH_INTERVAL_MS } from '../auth/session-service.js';
 import type { Clock, OidcIdentity } from '../auth/types.js';
 import type { AppConfig } from '../config.js';
+import { MemoryCollabStore } from './memory-collab-store.js';
 import { MemoryAuthStore } from './memory-store.js';
 
 export const TEST_ORIGIN = 'http://localhost:5173';
@@ -68,6 +69,7 @@ export class FakeOidc implements OidcFlow {
 export interface TestContext {
   app: FastifyInstance;
   store: MemoryAuthStore;
+  collab: MemoryCollabStore;
   clock: TestClock;
   oidc: FakeOidc;
   config: AppConfig;
@@ -90,11 +92,12 @@ export async function createTestApp(
 ): Promise<TestContext> {
   const config = { ...TEST_CONFIG, ...overrides };
   const store = new MemoryAuthStore(config.bootstrapAdminEmail);
+  const collab = new MemoryCollabStore();
   const clock = new TestClock();
   const oidc = new FakeOidc();
   const app = await buildApp(
     config,
-    { store, oidc, cookieSecret: 'teszt-kulcs', clock: clock.now },
+    { store, oidc, collabStore: collab, cookieSecret: 'teszt-kulcs', clock: clock.now },
     options,
   );
   const sessions = new SessionService(
@@ -110,6 +113,7 @@ export async function createTestApp(
   return {
     app,
     store,
+    collab,
     clock,
     oidc,
     config,

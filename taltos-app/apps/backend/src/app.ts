@@ -13,6 +13,7 @@ import { registerProblemHandlers } from './http/problem.js';
 import { serializeError, serializeRequest } from './http/redact.js';
 import { trustImmediateProxy } from './http/trust-proxy.js';
 import { registerCollab } from './realtime/collab.js';
+import type { CollabStore } from './realtime/collab-store.js';
 import { startHeartbeat } from './realtime/heartbeat.js';
 import { registerNotifications } from './realtime/notifications.js';
 import { SocketRegistry } from './realtime/socket-registry.js';
@@ -30,6 +31,8 @@ const WS_SESSION_RECHECK_INTERVAL_MS = 30_000;
 export interface AuthDependencies {
   store: AuthStore;
   oidc: OidcFlow;
+  /** A `/collab` adatelérése (hozzáférés-döntés és Yjs-perzisztencia). */
+  collabStore: CollabStore;
   /** A bejelentkezési kísérlet-süti HMAC-kulcsa (a kliens-secretből származtatva; lásd main.ts). */
   cookieSecret: string;
   clock?: Clock;
@@ -39,6 +42,9 @@ export interface BuildOptions {
   heartbeatIntervalMs?: number;
   /** A nyitott WebSocketek munkamenet-újraellenőrzésének köze (alap: 30 mp). */
   sessionRecheckIntervalMs?: number;
+  /** A `/collab` mentési debounce-a (alap: 2 mp / 10 mp); a tesztek rövidítik. */
+  collabDebounceMs?: number;
+  collabMaxDebounceMs?: number;
 }
 
 export async function buildApp(
@@ -115,7 +121,11 @@ export async function buildApp(
   registerApi(app, { context, store: auth.store });
 
   const realtime = { allowedOrigins: config.allowedOrigins, context, clock, registry };
-  const hocuspocus = registerCollab(app, realtime);
+  const hocuspocus = registerCollab(app, realtime, {
+    store: auth.collabStore,
+    debounceMs: options.collabDebounceMs,
+    maxDebounceMs: options.collabMaxDebounceMs,
+  });
   registerNotifications(app, realtime);
 
   app.addHook('onClose', () => {
