@@ -156,7 +156,14 @@ export class MemoryTagStore implements TagStore {
   createTag(actor: Actor, name: string): Promise<TagRef> {
     const normalized = normalizeTagName(name);
     const existing = [...this.tags.values()].find((tag) => tag.normalized === normalized);
-    if (existing !== undefined) return Promise.resolve({ id: existing.id, name: existing.name });
+    if (existing !== undefined) {
+      // D44: a tárolt írásmód csak a látható használatot látó hívónak jár
+      const seen = this.visibleCount(actor.userId, existing.id) > 0;
+      return Promise.resolve({
+        id: existing.id,
+        name: seen ? existing.name : displayTagName(name),
+      });
+    }
     const tag = this.addTag(name, actor.userId);
     this.emit({ type: 'tag_created', actorId: actor.userId, details: { tagId: tag.id } });
     return Promise.resolve(tag);

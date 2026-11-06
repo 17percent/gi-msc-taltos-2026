@@ -62,7 +62,10 @@ export function registerDocumentRoutes(
       },
     },
     async (request, reply) => {
-      const { spaceId, kind, tagIds, sourceDocumentId } = request.body;
+      const { kind, tagIds } = request.body;
+      // Kanonikus (kisbetűs) azonosítók: az Ajv `uuid` formátuma és a Postgres `uuid` kis/nagybetű-független.
+      const spaceId = request.body.spaceId.toLowerCase();
+      const sourceDocumentId = request.body.sourceDocumentId?.toLowerCase();
       // A célszínterében tagság (nem tagnak `not_space_member`), lezárt térben `space_closed`.
       if (!(await authorizeSpace(access, request, reply, 'document.create', spaceId))) return reply;
       // Duplikálásnál a forráshoz is `document.read` kell: nem tag forrásra `not_space_member` a forrás címe nélkül (D44).
@@ -93,10 +96,9 @@ export function registerDocumentRoutes(
     { schema: { params: idParams } },
     async (request, reply) => {
       // Nem létező vagy eldobott dokumentum: 404; nem tag: 403 `not_space_member`, a cím nélkül (A10).
-      if (!(await authorizeDocument(access, request, reply, 'document.read', request.params.id))) {
-        return reply;
-      }
-      const detail = await documents.getDocument(actorOf(request).userId, request.params.id);
+      const id = request.params.id.toLowerCase();
+      if (!(await authorizeDocument(access, request, reply, 'document.read', id))) return reply;
+      const detail = await documents.getDocument(actorOf(request).userId, id);
       return detail === undefined ? sendProblem(reply, 'not_found') : detail;
     },
   );
@@ -105,7 +107,9 @@ export function registerDocumentRoutes(
     '/documents/:id/draft',
     { schema: { params: idParams } },
     async (request, reply) => {
-      const id = request.params.id;
+      // Kanonikus (kisbetűs) azonosító: a /collab dokumentumnevek kisbetűsek, a Hocuspocus szigorúan hasonlít, ezért a
+      // nagybetűs kérés nem kerülheti meg a nyitott kapcsolatok bontását (D59).
+      const id = request.params.id.toLowerCase();
       if (!(await authorizeDocument(access, request, reply, 'document.draft.discard', id))) {
         return reply;
       }

@@ -245,7 +245,6 @@ describe.skipIf(!url)('DocumentStore és TagStore (PostgreSQL, WP5a)', () => {
         ),
       );
       expect(new Set(results.map((r) => r.id)).size).toBe(1);
-      expect(new Set(results.map((r) => r.name)).size).toBe(1);
       expect((await h.inspect.events()).filter((e) => e.type === 'tag_created')).toHaveLength(1);
     });
   });

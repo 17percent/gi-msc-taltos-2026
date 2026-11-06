@@ -84,7 +84,9 @@ describe('piszkozat-eldobás és a /collab', () => {
     const keptClient = await open(base, alice.cookie, kept);
     const res = await ctx.app.inject({
       method: 'DELETE',
-      url: `/api/v1/documents/${doomed}/draft`,
+      // nagybetűs azonosító: az Ajv `uuid` formátuma és a Postgres `uuid` kis/nagybetű-független, a /collab névre
+      // viszont a Hocuspocus szigorúan hasonlít (D59: a bontás ettől még megtörténik)
+      url: `/api/v1/documents/${doomed.toUpperCase()}/draft`,
       headers: alice.headers,
     });
     expect(res.statusCode).toBe(204);

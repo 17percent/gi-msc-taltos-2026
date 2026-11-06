@@ -26,8 +26,8 @@ export interface RevisionMetadata {
 
 /** JSON-séma minták: a NUL (`U+0000`) karaktert a Postgres `text` nem tárolja, ezért a bemeneti határon utasítjuk el (400). */
 export const NO_NUL_PATTERN = '^[^\\u0000]*$';
-/** Legalább egy nem szóköz karakter, NUL nélkül. */
-export const NON_BLANK_NO_NUL_PATTERN = '^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$';
+/** Legalább egy látható karakter (nem szóköz, nem formázó `\p{Cf}`), NUL nélkül. Az Ajv unicode-módban értelmezi. */
+export const NON_BLANK_NO_NUL_PATTERN = '^[^\\u0000]*[^\\s\\p{Cf}\\u0000][^\\u0000]*$';
 
 /** Dokumentum-cím felső korlátja karakterben (a megjelenítés és a slug miatt; a WP5a feltevése, a napló nem rögzít). */
 export const DOCUMENT_TITLE_MAX = 200;
@@ -37,17 +37,31 @@ export const TAG_NAME_MIN = 1;
 export const TAG_NAME_MAX = 64;
 
 /**
- * A címke normalizált alakja (D34, D59 g): szóközök összevonva és levágva, kisbetű, az ékezet (összetett
- * jelek, NFD) lemosva. Az egyediség a `tags.normalized_name`-en él; a megjelenítési név az elsőként
+ * A címke normalizált alakja (D34, D59 g): NFKC (a kompatibilitási alakok, pl. teljes szélességű betűk
+ * egyesülnek), a formázó karakterek (`\p{Cf}`) elhagyva, az ékezet (összetett jelek, NFD) lemosva, szóközök
+ * összevonva és levágva, kisbetű. Az egyediség a `tags.normalized_name`-en él; a megjelenítési név az elsőként
  * létrehozó írásmódja marad. Az alkalmazás számolja (a DB nem), a kliens és a szerver ugyanezt használja.
  */
 export function normalizeTagName(name: string): string {
-  return name.normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/gu, ' ').trim().toLowerCase();
+  return name
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .toLowerCase();
 }
 
-/** A címke megjelenítési neve: levágva, a szóközök összevonva, a betűk írásmódja megtartva. */
+/**
+ * A címke megjelenítési neve: a formázó karakterek (`\p{Cf}`: nulla szélességű szóköz, irányjelek) elhagyva,
+ * levágva, a szóközök összevonva, a betűk írásmódja megtartva.
+ */
 export function displayTagName(name: string): string {
-  return name.replace(/\s+/gu, ' ').trim();
+  return name
+    .replace(/\p{Cf}/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
 }
 
 /** Egy címke azonosítóval és névvel. */

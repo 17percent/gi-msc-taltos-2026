@@ -125,14 +125,44 @@ export function describeTagStoreContract(
         ]);
       });
 
-      it('normalizált ütközésnél a meglévő sor megy vissza, azonos kulcskészlettel és esemény nélkül', async () => {
+      it('normalizált ütközésnél a meglévő sor azonosítója megy vissza, azonos kulcskészlettel és esemény nélkül', async () => {
         const { h, alice } = await world();
         const bob = await h.user('bob');
         const first = await h.tags.createTag(h.actor(alice), 'Gépi Tanulás', NOW);
         const again = await h.tags.createTag(h.actor(bob), 'gepi   tanulas', NOW);
-        expect(again).toEqual(first);
+        expect(again.id).toBe(first.id);
         expect(Object.keys(again).sort()).toEqual(Object.keys(first).sort());
         expect((await h.inspect.events()).filter((e) => e.type === 'tag_created')).toHaveLength(1);
+      });
+    });
+
+    describe('createTag: a név nem árulja el a rejtett címkét (D44)', () => {
+      it('a hívó számára nem látható használatú címkénél a hívó saját írásmódja jön; a láthatónál a tárolt', async () => {
+        const { h, alice, mine } = await world();
+        const bob = await h.user('bob');
+        const theirs = await h.space();
+        await h.member(theirs, bob);
+        const secret = await h.tag('Titkos');
+        await h.document(theirs, bob, { tagIds: [secret] });
+
+        // alice nem lát ilyen használatot: az azonosító a meglévő, a név a saját írásmódja
+        const hidden = await h.tags.createTag(h.actor(alice), 'tItKoS', NOW);
+        expect(hidden).toEqual({ id: secret, name: 'tItKoS' });
+        // bob látja a használatot: a tárolt írásmód
+        expect(await h.tags.createTag(h.actor(bob), 'tItKoS', NOW)).toEqual({
+          id: secret,
+          name: 'Titkos',
+        });
+        // ha alice is használja (látható dokumentumon), neki is a tárolt írásmód jár
+        await h.document(mine, alice, { tagIds: [secret] });
+        expect(await h.tags.createTag(h.actor(alice), 'tItKoS', NOW)).toEqual({
+          id: secret,
+          name: 'Titkos',
+        });
+        // törölt (archivált) dokumentumon használt címke sem látható használat
+        const gone = await h.tag('Archív');
+        await h.document(mine, alice, { tagIds: [gone], archived: true });
+        expect((await h.tags.createTag(h.actor(alice), 'aRcHíV', NOW)).name).toBe('aRcHíV');
       });
     });
 

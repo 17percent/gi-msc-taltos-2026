@@ -98,8 +98,9 @@ export function createPgTagStore(db: Db): TagStore {
       db.transaction(async (tx) => {
         const display = displayTagName(name);
         const normalized = normalizeTagName(name);
-        // Normalizált ütközésnél nincs hiba és nincs esemény: a meglévő sor megy vissza (D58, D59 f). Az azonosítót az
-        // alkalmazás generálja; a `DO NOTHING` megvárja az egyidejű beszúró commitját, így a következő SELECT látja a sort.
+        // Normalizált ütközésnél nincs hiba és nincs esemény: a meglévő sor azonosítója megy vissza (D58, D59 f). Az
+        // azonosítót az alkalmazás generálja; a `DO NOTHING` megvárja az egyidejű beszúró commitját, így a következő
+        // SELECT látja a sort.
         const inserted = await tx
           .insert(t.tags)
           .values({
@@ -112,20 +113,32 @@ export function createPgTagStore(db: Db): TagStore {
           .onConflictDoNothing({ target: t.tags.normalizedName })
           .returning({ id: t.tags.id, name: t.tags.name });
         const created = inserted[0];
+        const [existing] =
+          created === undefined
+            ? await tx
+                .select({ id: t.tags.id, name: t.tags.name })
+                .from(t.tags)
+                .where(eq(t.tags.normalizedName, normalized))
+            : [created];
+        if (existing === undefined) throw new Error('A címke ütközött, de nem található.');
+        // D44: a név (az elsőként létrehozó írásmódja) csak akkor megy ki, ha a hívó látja a címke használatát egy
+        // látható, nem törölt dokumentumon; különben a hívó saját írásmódja. A vizsgálat MINDKÉT ágon lefut
+        // (azonos lekérdezés-alak), az új címkénél természetesen nincs használat.
+        const used = await tx.execute<{ seen: boolean }>(sql`
+          SELECT EXISTS (
+            SELECT 1 FROM document_tags dt
+              JOIN documents ON documents.id = dt.document_id
+             WHERE dt.tag_id = ${existing.id}
+               AND documents.deleted_at IS NULL
+               AND ${visibleDocumentsWhere(actor.userId)}) AS seen`);
         if (created !== undefined) {
           await recordEvent(
             tx,
             { type: 'tag_created', actorId: actor.userId, details: { tagId: created.id } },
             now,
           );
-          return created;
         }
-        const [existing] = await tx
-          .select({ id: t.tags.id, name: t.tags.name })
-          .from(t.tags)
-          .where(eq(t.tags.normalizedName, normalized));
-        if (existing === undefined) throw new Error('A címke ütközött, de nem található.');
-        return existing;
+        return { id: existing.id, name: used.rows[0]?.seen === true ? existing.name : display };
       }),
 
     async listKinds() {
