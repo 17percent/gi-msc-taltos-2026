@@ -10,7 +10,9 @@ import type { AuthSession } from '../auth/session-service.js';
 import { resolveCurrentSpaceId } from '../auth/current-space.js';
 import type { AuthStore } from '../auth/types.js';
 import { authorizeSpace } from '../policy/authorize.js';
+import { registerDocumentRoutes, type DocumentRouteDependencies } from '../documents/routes.js';
 import { registerSpaceRoutes, type SpaceRouteDependencies } from '../spaces/routes.js';
+import { registerTagRoutes, type TagRouteDependencies } from '../tags/routes.js';
 import { sendProblem } from './problem.js';
 
 export interface ApiDependencies {
@@ -18,6 +20,10 @@ export interface ApiDependencies {
   store: AuthStore;
   /** A színterek, a tagság és az adminisztráció végpontjainak függőségei (WP4a). */
   spaceRoutes: SpaceRouteDependencies;
+  /** A dokumentum-mag végpontjainak függőségei (WP5a). */
+  documentRoutes: DocumentRouteDependencies;
+  /** A címkék és a fajták végpontjainak függőségei (WP5a). */
+  tagRoutes: TagRouteDependencies;
 }
 
 /** A kapu után a kérésnek van munkamenete; hiánya programozási hiba (a kapu nélküli útvonal), nem kliens-hiba. */
@@ -133,6 +139,8 @@ export function registerApi(app: FastifyInstance, deps: ApiDependencies): void {
         },
       );
       registerSpaceRoutes(api, deps.spaceRoutes);
+      registerDocumentRoutes(api, deps.documentRoutes);
+      registerTagRoutes(api, deps.tagRoutes);
       done();
     },
     { prefix: API_PREFIX },

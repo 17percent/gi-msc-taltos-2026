@@ -14,7 +14,9 @@ import { serializeError, serializeRequest } from './http/redact.js';
 import { trustImmediateProxy } from './http/trust-proxy.js';
 import { registerCollab } from './realtime/collab.js';
 import type { AccessStore } from './policy/access-store.js';
+import type { DocumentStore } from './documents/store.js';
 import type { SpaceStore } from './spaces/store.js';
+import type { TagStore } from './tags/store.js';
 import type { CollabStore } from './realtime/collab-store.js';
 import { startHeartbeat } from './realtime/heartbeat.js';
 import { registerNotifications } from './realtime/notifications.js';
@@ -39,6 +41,10 @@ export interface AuthDependencies {
   accessStore: AccessStore;
   /** A színterek, a tagság és a rendszerszerepek adatelérése (WP4a). */
   spaceStore: SpaceStore;
+  /** A dokumentum-mag adatelérése: létrehozás, olvasás, piszkozat-eldobás (WP5a). */
+  documentStore: DocumentStore;
+  /** A címkék és a fajták adatelérése (WP5a). */
+  tagStore: TagStore;
   /** A bejelentkezési kísérlet-süti HMAC-kulcsa (a kliens-secretből származtatva; lásd main.ts). */
   cookieSecret: string;
   clock?: Clock;
@@ -128,18 +134,27 @@ export async function buildApp(
     clock,
     publicOrigin: config.publicOrigin,
   });
-  registerApi(app, {
-    context,
-    store: auth.store,
-    spaceRoutes: { access: auth.accessStore, spaces: auth.spaceStore, clock },
-  });
-
+  // A /collab az API előtt jön létre: az eldobott piszkozat kapcsolatainak bontása (D59) a Hocuspocus-példányt kapja.
   const realtime = { allowedOrigins: config.allowedOrigins, context, clock, registry };
   const hocuspocus = registerCollab(app, realtime, {
     store: auth.collabStore,
     access: auth.accessStore,
     debounceMs: options.collabDebounceMs,
     maxDebounceMs: options.collabMaxDebounceMs,
+  });
+  registerApi(app, {
+    context,
+    store: auth.store,
+    spaceRoutes: { access: auth.accessStore, spaces: auth.spaceStore, clock },
+    documentRoutes: {
+      access: auth.accessStore,
+      documents: auth.documentStore,
+      clock,
+      closeCollabDocument: (documentId) => {
+        hocuspocus.closeConnections(documentId);
+      },
+    },
+    tagRoutes: { tags: auth.tagStore, clock },
   });
   registerNotifications(app, realtime);
 

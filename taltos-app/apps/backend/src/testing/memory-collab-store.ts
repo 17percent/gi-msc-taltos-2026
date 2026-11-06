@@ -72,6 +72,14 @@ export class MemoryCollabStore implements CollabStore {
     this.access.updateSpace(id, patch);
   }
 
+  /** A dokumentum törlése (eldobott piszkozat vagy archívum): a `/collab` nem tölti be és nem menti. */
+  markDeleted(id: string): void {
+    const doc = this.documents.get(id);
+    if (doc) doc.deleted = true;
+    const access = this.access.documents.get(id);
+    if (access) access.deleted = true;
+  }
+
   setReviewState(id: string, reviewState: ReviewState): void {
     const doc = this.documents.get(id);
     if (doc) doc.reviewState = reviewState;

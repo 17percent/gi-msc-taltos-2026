@@ -50,13 +50,13 @@ const memberParams = {
   properties: { id: uuid, userId: uuid },
 } as const;
 
-const actorOf = (request: Parameters<typeof requireAuth>[0]): Actor => {
+export const actorOf = (request: Parameters<typeof requireAuth>[0]): Actor => {
   const session = requireAuth(request);
   return { userId: session.userId, systemRole: session.systemRole };
 };
 
 /** Az üzleti hiba Problem Details-szé fordítása (a kód és a státusz a B5 katalógus szerint párban jár). */
-function sendFailure(reply: FastifyReply, failure: StoreFailure): FastifyReply {
+export function sendFailure(reply: FastifyReply, failure: StoreFailure): FastifyReply {
   return sendProblem(
     reply,
     failure.code,

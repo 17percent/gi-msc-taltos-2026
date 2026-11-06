@@ -162,3 +162,62 @@ export async function vacateReviewer(tx: ReviewTx, input: VacateInput, now: Date
   await recordEvents(tx, events, now);
   return events.length;
 }
+
+export type DiscardResult =
+  | { ok: true; spaceId: string }
+  | { ok: false; reason: 'not_found' | 'request_pending' | 'has_approved_revision' };
+
+/**
+ * Soha be nem küldött piszkozat eldobása (B4 S13 kivétel, D59 e): a `deleted_at` a Jóváhagyott állapot része, ezért
+ * az írója a `ReviewService`. EGYETLEN feltételes UPDATE ... RETURNING dönt, a feltételek a soron, a zár alatt
+ * (READ COMMITTED: az egyidejű második eldobás a sorzárra vár, majd a feltételt újraértékelve 0 sort ad):
+ * nincs Jóváhagyott revízió, nincs `change_requests` sor (így beküldött, majd visszavont/elutasított sem dobható el),
+ * a dokumentum Piszkozat, és még nem törölt. Idő: PK-keresés, a `NOT EXISTS` a `change_requests_doc_idx` (document_id) indexen.
+ * Siker esetén `draft_discarded` esemény a hívó tranzakciójában. A hívó a `can()` döntést (tulajdonos vagy Színtérgazda,
+ * nem lezárt tér) már meghozta, és a tér sorát zárolta; itt nincs jogosultsági döntés.
+ *
+ * Elutasításkor egy második lekérdezés adja az okot: törölt vagy hiányzó sor (egyidejű eldobás) → `not_found`; függő
+ * kérés → `request_pending`; egyébként volt Jóváhagyott revízió vagy review-kérés → `has_approved_revision`.
+ */
+export async function discardDraft(
+  tx: ReviewTx,
+  input: { documentId: string; actorId: string },
+  now: Date,
+): Promise<DiscardResult> {
+  const discarded = await tx.execute<{ space_id: string }>(sql`
+    UPDATE documents d
+       SET deleted_at = ${now}::timestamptz, updated_at = ${now}::timestamptz
+     WHERE d.id = ${input.documentId}
+       AND d.deleted_at IS NULL
+       AND d.approved_revision_id IS NULL
+       AND d.review_state = 'draft'
+       AND NOT EXISTS (SELECT 1 FROM change_requests c WHERE c.document_id = d.id)
+    RETURNING d.space_id`);
+  const spaceId = discarded.rows[0]?.space_id;
+  if (spaceId !== undefined) {
+    await recordEvents(
+      tx,
+      [
+        {
+          type: 'draft_discarded',
+          spaceId,
+          documentId: input.documentId,
+          actorId: input.actorId,
+          details: {},
+        },
+      ],
+      now,
+    );
+    return { ok: true, spaceId };
+  }
+  const state = await tx.execute<{ approved: boolean; deleted: boolean; pending: boolean }>(sql`
+    SELECT d.approved_revision_id IS NOT NULL AS approved,
+           d.deleted_at IS NOT NULL AS deleted,
+           EXISTS (SELECT 1 FROM change_requests c
+                    WHERE c.document_id = d.id AND c.state = 'pending') AS pending
+      FROM documents d WHERE d.id = ${input.documentId}`);
+  const row = state.rows[0];
+  if (row === undefined || (row.deleted && !row.approved))
+    return { ok: false, reason: 'not_found' };
+  return { ok: false, reason: row.pending ? 'request_pending' : 'has_approved_revision' };
+}

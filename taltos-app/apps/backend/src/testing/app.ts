@@ -7,7 +7,9 @@ import { SessionService, TOUCH_INTERVAL_MS } from '../auth/session-service.js';
 import type { Clock, OidcIdentity } from '../auth/types.js';
 import type { AppConfig } from '../config.js';
 import { MemoryCollabStore } from './memory-collab-store.js';
+import { MemoryDocumentStore } from './memory-document-store.js';
 import { MemorySpaceStore } from './memory-space-store.js';
+import { MemoryTagStore } from './memory-tag-store.js';
 import { MemoryAuthStore } from './memory-store.js';
 
 export const TEST_ORIGIN = 'http://localhost:5173';
@@ -73,6 +75,10 @@ export interface TestContext {
   collab: MemoryCollabStore;
   /** A színterek, a tagság és a rendszerszerepek memóriabeli tára (a `collab.access` világán). */
   spaces: MemorySpaceStore;
+  /** A dokumentum-mag memóriabeli tára (a `collab` világán és a `tags` címkéin). */
+  documents: MemoryDocumentStore;
+  /** A címkék és fajták memóriabeli tára (alap fajták: prompt, skill, agent). */
+  tags: MemoryTagStore;
   clock: TestClock;
   oidc: FakeOidc;
   config: AppConfig;
@@ -97,6 +103,8 @@ export async function createTestApp(
   const store = new MemoryAuthStore(config.bootstrapAdminEmail);
   const collab = new MemoryCollabStore();
   const spaces = new MemorySpaceStore(collab.access, store);
+  const tags = new MemoryTagStore(collab.access);
+  const documents = new MemoryDocumentStore(collab, tags);
   const clock = new TestClock();
   const oidc = new FakeOidc();
   const app = await buildApp(
@@ -107,6 +115,8 @@ export async function createTestApp(
       collabStore: collab,
       accessStore: collab.access,
       spaceStore: spaces,
+      documentStore: documents,
+      tagStore: tags,
       cookieSecret: 'teszt-kulcs',
       clock: clock.now,
     },
@@ -127,6 +137,8 @@ export async function createTestApp(
     store,
     collab,
     spaces,
+    documents,
+    tags,
     clock,
     oidc,
     config,
