@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Alert } from '../components/ui/display';
 import { Dialog, DialogTrigger, SheetContent } from '../components/ui/dialog';
 import { Toaster } from '../components/ui/sonner';
+import { CreateDocumentDialog } from '../documents/CreateDocumentDialog';
 import { SpaceProvider } from '../spaces/SpaceProvider';
 import { SidebarContent } from './Sidebar';
 import { UserMenu } from './UserMenu';
@@ -15,6 +16,7 @@ function Shell() {
   const { state, logoutFailed } = useAuth();
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const firstRender = useRef(true);
   const signedIn = state.kind === 'signed-in';
 
@@ -51,7 +53,10 @@ function Shell() {
                   </Button>
                 </DialogTrigger>
                 <SheetContent title="Menü">
-                  <SidebarContent onNavigate={() => setNavOpen(false)} />
+                  <SidebarContent
+                    onNavigate={() => setNavOpen(false)}
+                    onNewDocument={() => setCreateOpen(true)}
+                  />
                 </SheetContent>
               </Dialog>
             ) : null}
@@ -73,7 +78,7 @@ function Shell() {
       <div className="flex">
         {signedIn ? (
           <aside className="sticky top-16 hidden h-[calc(100dvh-var(--space-16))] w-(--sidebar-w) shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-4 lg:flex">
-            <SidebarContent />
+            <SidebarContent onNewDocument={() => setCreateOpen(true)} />
           </aside>
         ) : null}
         <main
@@ -84,6 +89,9 @@ function Shell() {
           <Outlet />
         </main>
       </div>
+      {signedIn ? (
+        <CreateDocumentDialog open={createOpen} onOpenChange={setCreateOpen} mode="blank" />
+      ) : null}
       <Toaster />
     </div>
   );

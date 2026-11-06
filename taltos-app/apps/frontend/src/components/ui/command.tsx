@@ -34,6 +34,29 @@ export function CommandList({ className, ...props }: ComponentProps<typeof Comma
   );
 }
 
+/** Csoport csoportcímmel (DS Menü csoportcímke: eyebrow). A cmdk a címet a csoport nevévé teszi (`aria-labelledby`). */
+export function CommandGroup({
+  className,
+  ...props
+}: ComponentProps<typeof CommandPrimitive.Group>) {
+  return (
+    <CommandPrimitive.Group
+      className={cn(
+        '**:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:tracking-wide **:[[cmdk-group-heading]]:text-muted **:[[cmdk-group-heading]]:uppercase',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function CommandSeparator({
+  className,
+  ...props
+}: ComponentProps<typeof CommandPrimitive.Separator>) {
+  return <CommandPrimitive.Separator className={cn('my-1 h-px bg-border', className)} {...props} />;
+}
+
 export function CommandItem({ className, ...props }: ComponentProps<typeof CommandPrimitive.Item>) {
   return (
     <CommandPrimitive.Item
