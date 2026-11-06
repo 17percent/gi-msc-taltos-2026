@@ -1,6 +1,19 @@
 import { usePageTitle } from '../layout/use-page-title';
 import { Link, Navigate, useParams } from 'react-router';
-import { COLLAB_DOCUMENT_NAME_PATTERN } from '@taltos/shared';
+import {
+  COLLAB_DOCUMENT_NAME_PATTERN,
+  type DocumentDetail,
+  type NotSpaceMemberDetails,
+} from '@taltos/shared';
+import { FileQuestion } from 'lucide-react';
+import { isApiError } from '../api/client';
+import { apiPath } from '../api/paths';
+import { useResource } from '../api/use-resource';
+import { Button } from '../components/ui/button';
+import { Alert, EmptyState, LoadingRegion, Skeleton } from '../components/ui/display';
+import { buttonVariants } from '../components/ui/button-variants';
+import { DocumentHeader } from '../documents/DocumentHeader';
+import { NoAccessState } from '../spaces/NoAccessState';
 import { useAuth } from '../auth/auth-context';
 import { LoginLink } from '../auth/buttons';
 import { CollabEditor } from '../editor/CollabEditor';
@@ -57,15 +70,71 @@ export function DocumentPage() {
     );
   }
 
+  return <DocumentView documentId={documentId} user={state.me} />;
+}
+
+/** A dokumentum adatai (`GET /documents/:id`) és a szerkesztő; a szerkesztő csak sikeres lekérés után töltődik be. */
+function DocumentView({
+  documentId,
+  user,
+}: {
+  documentId: string;
+  user: Parameters<typeof CollabEditor>[0]['user'];
+}) {
+  const doc = useResource(`document:${documentId}`, (client, signal) =>
+    client.get<DocumentDetail>(apiPath`/api/v1/documents/${documentId}`, signal),
+  );
+
+  if (doc.status === 'loading') {
+    return (
+      <LoadingRegion label="A dokumentum betöltése…" className="space-y-3">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-6 w-2/3" />
+      </LoadingRegion>
+    );
+  }
+
+  if (doc.status === 'error') {
+    const error = doc.error;
+    if (isApiError(error) && error.code === 'not_space_member') {
+      return (
+        <NoAccessState
+          subject="document"
+          details={error.details as NotSpaceMemberDetails | undefined}
+        />
+      );
+    }
+    if (isApiError(error) && error.code === 'not_found') {
+      return (
+        <EmptyState
+          icon={FileQuestion}
+          titleAs="h1"
+          title="A dokumentum nem található"
+          action={
+            <Link to="/" className={buttonVariants({ variant: 'primary' })}>
+              Vissza a Kezdőlapra
+            </Link>
+          }
+        >
+          <p>Lehet, hogy eldobták, vagy hibás a hivatkozás.</p>
+        </EmptyState>
+      );
+    }
+    return (
+      <Alert tone="danger">
+        <p>A dokumentum adatai nem töltődtek be.</p>
+        <Button variant="ghost" size="sm" className="mt-2" onClick={doc.reload}>
+          Újrapróbálás
+        </Button>
+      </Alert>
+    );
+  }
+
   return (
-    <section>
-      <title>Dokumentum – Táltos</title>
-      <h1 className="font-display text-3xl leading-tight font-semibold tracking-tight">
-        Dokumentum
-      </h1>
-      <div className="mt-4">
-        <CollabEditor documentId={documentId} user={state.me} />
-      </div>
+    <section className="space-y-4">
+      <DocumentHeader doc={doc.data} onChanged={doc.reload} />
+      <CollabEditor documentId={documentId} user={user} />
     </section>
   );
 }

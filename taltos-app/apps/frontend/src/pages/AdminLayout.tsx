@@ -47,11 +47,14 @@ export function AdminLayout() {
     <div className="space-y-6">
       <header className="space-y-2">
         <PageHeading>Adminisztráció</PageHeading>
-        <p className="text-muted">Színterek és Rendszeradminisztrátorok kezelése.</p>
+        <p className="text-muted">
+          Színterek, Rendszeradminisztrátorok és dokumentumfajták kezelése.
+        </p>
       </header>
       <nav aria-label="Adminisztráció" className="flex gap-1 border-b border-border">
         <Tab to="/admin/spaces">Színterek</Tab>
         <Tab to="/admin/admins">Rendszeradminisztrátorok</Tab>
+        <Tab to="/admin/kinds">Fajták</Tab>
       </nav>
       <Outlet />
     </div>
