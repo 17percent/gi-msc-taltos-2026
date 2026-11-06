@@ -51,12 +51,15 @@ describe('TagPicker', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     const list = await within(dialog).findByRole('listbox');
     expect(input.getAttribute('aria-controls')).toBe(list.id);
-    fireEvent.keyDown(input, { key: 'ArrowDown' });
     const options = within(list).getAllByRole('option');
+    // Alapból a „Nincs kijelölt címke” helyfoglaló sor az aktív; a nyíl az első valódi sorra lép.
+    expect(options[0]?.textContent).toBe('Nincs kijelölt címke');
     await waitFor(() => expect(options[0]?.getAttribute('aria-selected')).toBe('true'));
-    expect(input.getAttribute('aria-activedescendant')).toBe(options[0]?.id);
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     await waitFor(() => expect(options[1]?.getAttribute('aria-selected')).toBe('true'));
+    await waitFor(() => expect(input.getAttribute('aria-activedescendant')).toBe(options[1]?.id));
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await waitFor(() => expect(options[2]?.getAttribute('aria-selected')).toBe('true'));
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => expect(chips(dialog)).toEqual(['Promptok']));
     // Törlés után a fókusz a beviteli mezőre kerül.
@@ -113,7 +116,11 @@ describe('TagPicker', () => {
     const group = await within(dialog).findByRole('group', { name: 'Ezt kerested?' });
     expect(within(group).getAllByRole('option')).toHaveLength(3);
     // Nincs kiemelt sor, az Enter csak a státuszsort írja ki.
-    expect(within(dialog).queryAllByRole('option', { selected: true })).toHaveLength(0);
+    expect(
+      within(dialog)
+        .queryAllByRole('option', { selected: true })
+        .map((option) => option.textContent),
+    ).toEqual(['Nincs kijelölt címke']);
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(
       await within(dialog).findByText(
@@ -301,5 +308,68 @@ describe('TagPicker', () => {
     );
     fireEvent.click(within(dialog).getByRole('button', { name: '„Címke 0” címke törlése' }));
     expect(input.disabled).toBe(false);
+  });
+
+  const live = (dialog: HTMLElement) =>
+    dialog.querySelector('[data-testid="tag-live"]')?.textContent ?? '';
+
+  it('élő régió: a találatszám és a hozzáadás/törlés minden körben újra bemondódik (azonos szöveg is)', async () => {
+    const { dialog, input } = await openPicker({
+      search: { exact: null, similar: [{ id: 's2', name: 'Promptok', count: 9 }] },
+    });
+    type(input, 'promtp');
+    await waitFor(() => expect(live(dialog)).toBe('1 találat és javaslat'));
+    fireEvent.click(await within(dialog).findByRole('option', { name: 'Promptok' }));
+    await waitFor(() =>
+      expect(live(dialog)).toContain('„Promptok” hozzáadva. 1 címke kiválasztva.'),
+    );
+    // Új gépelés: a találatszám újra mondja magát (az előző hozzáadás-szöveg nem marad ott).
+    // A már kiválasztott címke nem javaslat, ezért most 0.
+    type(input, 'promtp');
+    await waitFor(() => expect(live(dialog)).toBe('0 találat és javaslat'));
+    fireEvent.click(within(dialog).getByRole('button', { name: '„Promptok” címke törlése' }));
+    await waitFor(() => expect(live(dialog)).toContain('„Promptok” törölve. 0 címke kiválasztva.'));
+    type(input, 'promtp');
+    fireEvent.click(await within(dialog).findByRole('option', { name: 'Promptok' }));
+    const again = live(dialog);
+    expect(again).toContain('„Promptok” hozzáadva. 1 címke kiválasztva.');
+    // Azonos szöveg másodszor: közben a régió tartalma megváltozott (törlés, találatszám), így újra bemondódik.
+    fireEvent.click(within(dialog).getByRole('button', { name: '„Promptok” címke törlése' }));
+    const afterRemove = live(dialog);
+    type(input, 'promtp');
+    await waitFor(() => expect(live(dialog)).toBe('1 találat és javaslat'));
+    expect(afterRemove).not.toBe(live(dialog));
+    fireEvent.click(await within(dialog).findByRole('option', { name: 'Promptok' }));
+    expect(live(dialog)).toBe(again);
+  });
+
+  it('üres mezőnél az Enter nem hivatkozik nem létező javaslatra vagy „Mégis új címke” sorra', async () => {
+    const { dialog, input } = await openPicker();
+    fireEvent.click(input);
+    await within(dialog).findByRole('group', { name: 'Meglévő címkék' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await within(dialog).findByText(/Válassz a listából/)).toBeTruthy();
+    expect(within(dialog).queryByText(/Mégis új címke/)).toBeNull();
+    expect(chips(dialog)).toEqual([]);
+  });
+
+  it('javaslatoknál az aria-activedescendant címkézett elemre mutat; ↑/Home/End', async () => {
+    const { dialog, input } = await openPicker({
+      search: { exact: null, similar: [{ id: 's2', name: 'Promptok', count: 9 }] },
+    });
+    type(input, 'promtp');
+    await within(dialog).findByRole('group', { name: 'Ezt kerested?' });
+    await waitFor(() => expect(input.getAttribute('aria-activedescendant')).toBeTruthy());
+    const target = () => document.getElementById(input.getAttribute('aria-activedescendant') ?? '');
+    expect(target()?.textContent).toBe('Nincs kijelölt címke');
+    expect(target()?.getAttribute('aria-hidden')).toBeNull();
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await waitFor(() => expect(target()?.textContent).toBe('Promptok'));
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    await waitFor(() => expect(target()?.textContent).toBe('Nincs kijelölt címke'));
+    fireEvent.keyDown(input, { key: 'End' });
+    await waitFor(() => expect(target()?.textContent).toMatch(/Mégis új címke/));
+    fireEvent.keyDown(input, { key: 'Home' });
+    await waitFor(() => expect(target()?.textContent).toBe('Nincs kijelölt címke'));
   });
 });

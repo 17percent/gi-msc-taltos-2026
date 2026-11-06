@@ -84,6 +84,31 @@ export function TagPicker({
       : 'Adj meg legalább egy látható karaktert.';
   const atLimit = value.length >= TAG_LIMIT;
 
+  // A cmdk 1.1.1 az `aria-activedescendant`-et csak az érték (kijelölés) váltásakor számolja, és a sorok
+  // újrarajzolásakor elavult (vagy hiányzó) azonosítót hagyhat. A kijelölt sorra a DOM `aria-selected`
+  // jelzése a megbízható forrás, ezért az attribútumot ahhoz igazítjuk (a cmdk a saját propját a
+  // komponens-spread után írja, így prop-ként nem felülírható).
+  useEffect(() => {
+    const input = inputRef.current;
+    const root = input?.closest('[cmdk-root]');
+    if (!input || !root) return;
+    const sync = () => {
+      const selected = root.querySelector('[cmdk-item][aria-selected="true"]')?.id ?? '';
+      if ((input.getAttribute('aria-activedescendant') ?? '') === selected) return;
+      if (selected) input.setAttribute('aria-activedescendant', selected);
+      else input.removeAttribute('aria-activedescendant');
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-selected', 'aria-activedescendant'],
+    });
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!searchable) return;
     const controller = new AbortController();
@@ -154,11 +179,6 @@ export function TagPicker({
   // „helyfoglaló” sor áll elöl, így látható sor nincs kiemelve, és az Enter csak a státuszsort írja ki.
   const exactDefault = exact !== null && !exactSelected;
   const needsPlaceholder = hasMatches && !exactDefault;
-  const listKey = [
-    text,
-    current ? (current.error === undefined ? 'ok' : 'err') : 'wait',
-    catalog.status,
-  ].join('|');
   const listOpen = open && !atLimit;
 
   function add(tag: TagRef, typed?: string) {
@@ -201,7 +221,10 @@ export function TagPicker({
       event.stopPropagation();
       setOpen(false);
     } else if (event.key === 'ArrowDown' && !listOpen && !atLimit) {
-      setOpen(true);
+      {
+        setAnnounce('');
+        setOpen(true);
+      }
     } else if (event.key === 'Enter') {
       // Űrlapon belül az Enter ne küldje be a dialógust (a cmdk a kijelölt sort választja).
       event.preventDefault();
@@ -257,11 +280,15 @@ export function TagPicker({
           autoComplete="off"
           aria-describedby={[hintId, describedBy].filter(Boolean).join(' ')}
           onClick={() => {
-            if (query === '' && !atLimit) setOpen(true);
+            if (query === '' && !atLimit) {
+              setAnnounce('');
+              setOpen(true);
+            }
           }}
           onValueChange={(next) => {
             setQuery(next);
             setOpen(next !== '');
+            setAnnounce('');
             setNotice((previous) => (previous?.kind === 'choose' ? null : previous));
             createTag.reset();
           }}
@@ -288,7 +315,7 @@ export function TagPicker({
             {notice.text}
           </p>
         ) : null}
-        <p role="status" className="sr-only">
+        <p role="status" data-testid="tag-live" className="sr-only">
           {announce || countText}
         </p>
         {listOpen ? (
@@ -321,19 +348,24 @@ export function TagPicker({
                   </p>
                 ) : null}
                 {hasMatches || newRowVisible ? (
-                  <CommandList key={listKey}>
+                  <CommandList>
                     {needsPlaceholder ? (
                       <CommandItem
                         value="__choose__"
-                        aria-hidden="true"
-                        className="hidden"
+                        // Látszólag nincs kijelölt sor, de a képernyőolvasó számára az `aria-activedescendant`
+                        // célja címkézett elem (nem `aria-hidden`).
+                        className="sr-only min-h-0 p-0"
                         onSelect={() =>
                           setNotice({
                             kind: 'choose',
-                            text: 'Válassz a javaslatok közül, vagy a „Mégis új címke” lehetőséget.',
+                            text: searchable
+                              ? 'Válassz a javaslatok közül, vagy a „Mégis új címke” lehetőséget.'
+                              : 'Válassz a listából a nyilakkal, vagy írj be egy témát.',
                           })
                         }
-                      />
+                      >
+                        Nincs kijelölt címke
+                      </CommandItem>
                     ) : null}
                     {existing.length > 0 ? (
                       <CommandGroup heading="Meglévő címkék">
@@ -365,6 +397,7 @@ export function TagPicker({
                       <>
                         {hasMatches ? <CommandSeparator /> : null}
                         <CommandItem
+                          key={newRowState}
                           value={NEW_VALUE}
                           disabled={newRowState !== 'ready' || createTag.pending}
                           aria-busy={createTag.pending || undefined}
