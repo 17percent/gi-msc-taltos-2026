@@ -138,7 +138,9 @@ export class MemoryTagStore implements TagStore {
     if (normalizedQuery === '') return Promise.resolve({ exact: null, similar: [] });
     const candidates = this.visible(viewerId)
       .map((tag) => ({ tag, sim: similarity(tag.normalized, normalizedQuery) }))
-      .filter(({ sim }) => sim >= TAG_SIMILARITY_THRESHOLD);
+      .filter(
+        ({ tag, sim }) => sim >= TAG_SIMILARITY_THRESHOLD || tag.normalized === normalizedQuery,
+      );
     const exact = candidates.find(({ tag }) => tag.normalized === normalizedQuery);
     const similar = candidates
       .filter(({ tag }) => tag.normalized !== normalizedQuery)

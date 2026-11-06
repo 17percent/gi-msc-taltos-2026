@@ -67,7 +67,7 @@ export function createPgTagStore(db: Db): TagStore {
                    normalized_name = ${normalizedQuery} AS is_exact,
                    similarity(normalized_name, ${normalizedQuery}) AS sim
               FROM tags
-             WHERE normalized_name % ${normalizedQuery}
+             WHERE normalized_name % ${normalizedQuery} OR normalized_name = ${normalizedQuery}
           ), used AS (
             SELECT cand.id, cand.name, cand.normalized_name, cand.is_exact, cand.sim, count(*)::int AS n
               FROM cand

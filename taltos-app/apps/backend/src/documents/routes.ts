@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import {
   DOCUMENT_TITLE_MAX,
+  NON_BLANK_NO_NUL_PATTERN,
+  NO_NUL_PATTERN,
   type CreateDocumentRequest,
   type DocumentDetail,
 } from '@taltos/shared';
@@ -46,8 +48,13 @@ export function registerDocumentRoutes(
           additionalProperties: false,
           properties: {
             spaceId: uuid,
-            title: { type: 'string', minLength: 1, maxLength: DOCUMENT_TITLE_MAX, pattern: '\\S' },
-            kind: { type: 'string', minLength: 1, maxLength: 64 },
+            title: {
+              type: 'string',
+              minLength: 1,
+              maxLength: DOCUMENT_TITLE_MAX,
+              pattern: NON_BLANK_NO_NUL_PATTERN,
+            },
+            kind: { type: 'string', minLength: 1, maxLength: 64, pattern: NO_NUL_PATTERN },
             tagIds: { type: 'array', items: uuid, maxItems: TAG_IDS_MAX, uniqueItems: true },
             sourceDocumentId: uuid,
           },

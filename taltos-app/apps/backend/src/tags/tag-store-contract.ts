@@ -91,6 +91,23 @@ export function describeTagStoreContract(
       expect((await h.tags.searchTags(bob, 'titkos')).exact?.count).toBe(1);
     });
 
+    it('a csak írásjelből álló címke (nincs trigramja) pontos egyezéssel megtalálható', async () => {
+      const { h, alice, mine } = await world();
+      const plus = await h.tag('++');
+      const hash = await h.tag('#');
+      await h.document(mine, alice, { tagIds: [plus, hash] });
+      expect((await h.tags.searchTags(alice, '++')).exact).toEqual({
+        id: plus,
+        name: '++',
+        count: 1,
+      });
+      expect((await h.tags.searchTags(alice, '#')).exact).toEqual({
+        id: hash,
+        name: '#',
+        count: 1,
+      });
+    });
+
     describe('createTag', () => {
       it('új címke: {id, name}, tag_created esemény; a név az elsőként létrehozó írásmódja (szóközök összevonva)', async () => {
         const { h, alice } = await world();

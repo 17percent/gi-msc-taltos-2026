@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import {
   KIND_KEY_PATTERN,
   KIND_LABEL_MAX,
+  NON_BLANK_NO_NUL_PATTERN,
+  NO_NUL_PATTERN,
   TAG_NAME_MAX,
   TAG_NAME_MIN,
   displayTagName,
@@ -37,7 +39,7 @@ export function registerTagRoutes(api: FastifyInstance, deps: TagRouteDependenci
         querystring: {
           type: 'object',
           additionalProperties: false,
-          properties: { q: { type: 'string', maxLength: 256 } },
+          properties: { q: { type: 'string', maxLength: 256, pattern: NO_NUL_PATTERN } },
         },
       },
     },
@@ -62,7 +64,7 @@ export function registerTagRoutes(api: FastifyInstance, deps: TagRouteDependenci
               type: 'string',
               minLength: TAG_NAME_MIN,
               maxLength: TAG_NAME_MAX,
-              pattern: '\\S',
+              pattern: NON_BLANK_NO_NUL_PATTERN,
             },
           },
         },
@@ -95,7 +97,12 @@ export function registerTagRoutes(api: FastifyInstance, deps: TagRouteDependenci
           additionalProperties: false,
           properties: {
             key: { type: 'string', pattern: KIND_KEY_PATTERN },
-            label: { type: 'string', minLength: 1, maxLength: KIND_LABEL_MAX, pattern: '\\S' },
+            label: {
+              type: 'string',
+              minLength: 1,
+              maxLength: KIND_LABEL_MAX,
+              pattern: NON_BLANK_NO_NUL_PATTERN,
+            },
           },
         },
       },
