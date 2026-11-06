@@ -22,7 +22,6 @@ export const ERROR_CODES = {
   last_admin: 409,
   owner_handover_required: 409,
   has_approved_revision: 409,
-  tag_exists: 409,
   stale_base_revision: 412,
   invalid_reviewers: 422,
   invalid_new_owner: 422,

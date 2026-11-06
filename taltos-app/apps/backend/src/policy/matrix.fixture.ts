@@ -178,6 +178,27 @@ export const MATRIX = {
     line: 'D56: adminisztratív átadás (admin_handover) — csak Rendszeradmin, lezárt térben is',
     cells: [F, F, F, OK, OK, OK],
   },
+  'document.create': {
+    line: 'Dokumentum létrehozása üresen vagy duplikálással (D47, D58; a forrás és a cél színterében is tag) — Szerző, Színtérgazda',
+    cells: [N, OK, OK, N, OK, OK],
+  },
+  'document.draft.discard': {
+    line: 'Soha be nem küldött piszkozat eldobása (D59) — (✓) ⁶ Szerző: saját; Színtérgazda ✓',
+    cells: [N, OK, OK, N, OK, OK],
+    document: (actorId) => ({ ownerId: actorId }),
+  },
+  'tags.list': {
+    line: 'D58: címkelista és -javaslat (látható dokumentumokra szűrve) — bármely belépett felhasználó',
+    cells: [OK, OK, OK, OK, OK, OK],
+  },
+  'tag.create': {
+    line: 'D59 f: címke létrehozása — bármely belépett felhasználó',
+    cells: [OK, OK, OK, OK, OK, OK],
+  },
+  'kinds.list': {
+    line: 'Allowlist, Rendszeradminisztrátorok, fajta-lista (olvasás) — bármely belépett felhasználó',
+    cells: [OK, OK, OK, OK, OK, OK],
+  },
 } as const satisfies Record<Action, MatrixRow>;
 
 export const SYSTEM_ACTOR_IDS = { self: 'u-actor', other: OTHER } as const;
@@ -404,6 +425,131 @@ function closedRows(): ExtraRow[] {
   return rows;
 }
 
+const FOOT6 =
+  'Szerepkörök.md ⁶: csak a saját (tulajdonában lévő) dokumentumát; lezárt térben egyik sem (D59)';
+
+/** A létrehozás és a piszkozat-eldobás extra dimenziói (D47, D58, D59): zárt tér, tulajdonos, Általános. */
+function createDiscardRows(): ExtraRow[] {
+  const self = SYSTEM_ACTOR_IDS.self;
+  const other = SYSTEM_ACTOR_IDS.other;
+  return [
+    {
+      name: 'document.create lezárt térben: Szerző → space_closed',
+      line: FOOT3,
+      action: 'document.create',
+      role: 'author',
+      space: CLOSED,
+      expect: 'space_closed',
+    },
+    {
+      name: 'document.create lezárt térben: Színtérgazda → space_closed',
+      line: FOOT3,
+      action: 'document.create',
+      role: 'manager',
+      space: CLOSED,
+      expect: 'space_closed',
+    },
+    {
+      name: 'document.create lezárt térben: nem tag → not_space_member (a tagság előbb dönt)',
+      line: 'D44: nem tag semmit nem tud a térről',
+      action: 'document.create',
+      role: 'nonMember',
+      space: CLOSED,
+      expect: 'not_space_member',
+    },
+    {
+      name: 'document.create az Általánosban: Szerző → ok',
+      line: 'D47: üres létrehozás az Általánosban is',
+      action: 'document.create',
+      role: 'author',
+      space: { type: 'general' },
+      expect: 'ok',
+    },
+    {
+      name: 'document.create csapat-térben: nem tag Rendszeradmin → not_space_member (tartalmi joga nincs)',
+      line: 'D43: a Rendszeradminnak tartalmi joga nincs',
+      action: 'document.create',
+      role: 'adminNonMember',
+      expect: 'not_space_member',
+    },
+    {
+      name: 'document.draft.discard nem tulajdonos Szerző → forbidden',
+      line: FOOT6,
+      action: 'document.draft.discard',
+      role: 'author',
+      document: { ownerId: other },
+      expect: 'forbidden',
+    },
+    {
+      name: 'document.draft.discard nem tulajdonos admin+Szerző → forbidden',
+      line: FOOT6,
+      action: 'document.draft.discard',
+      role: 'adminAuthor',
+      document: { ownerId: other },
+      expect: 'forbidden',
+    },
+    {
+      name: 'document.draft.discard nem tulajdonos Színtérgazda → ok',
+      line: 'Soha be nem küldött piszkozat eldobása — Színtérgazda ✓',
+      action: 'document.draft.discard',
+      role: 'manager',
+      document: { ownerId: other },
+      expect: 'ok',
+    },
+    {
+      name: 'document.draft.discard lezárt térben: tulajdonos Szerző → space_closed',
+      line: FOOT6,
+      action: 'document.draft.discard',
+      role: 'author',
+      space: CLOSED,
+      document: { ownerId: self },
+      expect: 'space_closed',
+    },
+    {
+      name: 'document.draft.discard lezárt térben: Színtérgazda → space_closed',
+      line: FOOT6,
+      action: 'document.draft.discard',
+      role: 'manager',
+      space: CLOSED,
+      document: { ownerId: other },
+      expect: 'space_closed',
+    },
+    {
+      name: 'document.draft.discard lezárt térben: nem tulajdonos Szerző → forbidden (a szerep a zártság előtt dönt)',
+      line: FOOT6,
+      action: 'document.draft.discard',
+      role: 'author',
+      space: CLOSED,
+      document: { ownerId: other },
+      expect: 'forbidden',
+    },
+    {
+      name: 'document.draft.discard lezárt térben: nem tag → not_space_member',
+      line: 'D44: nem tag semmit nem tud a térről',
+      action: 'document.draft.discard',
+      role: 'nonMember',
+      space: CLOSED,
+      expect: 'not_space_member',
+    },
+    {
+      name: 'document.draft.discard nem tag admin → not_space_member (tartalmi joga nincs)',
+      line: 'D43: a Rendszeradminnak tartalmi joga nincs',
+      action: 'document.draft.discard',
+      role: 'adminNonMember',
+      document: { ownerId: self },
+      expect: 'not_space_member',
+    },
+    {
+      name: 'document.draft.discard Review-ra váró állapotban is ok a policynál (a 409 üzleti szabály, a tárban)',
+      line: 'D59 e: request_pending / has_approved_revision a szolgáltatás hibája, nem a policy-é',
+      action: 'document.draft.discard',
+      role: 'author',
+      document: { ownerId: self, reviewState: 'pending' },
+      expect: 'ok',
+    },
+  ];
+}
+
 export const EXTRA_ROWS: readonly ExtraRow[] = [
   // Általános színtér
   {
@@ -570,4 +716,5 @@ export const EXTRA_ROWS: readonly ExtraRow[] = [
     expect: 'ok',
   },
   ...closedRows(),
+  ...createDiscardRows(),
 ];

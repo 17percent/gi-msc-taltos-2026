@@ -56,6 +56,19 @@ export const ACTIONS = [
   'space.audit.view',
   'system.audit.view',
   'system.kinds.manage',
+  /** Dokumentum létrehozása (üres vagy duplikálás, D47, D58) a célszínterében: tag; lezárt térben `space_closed`. */
+  'document.create',
+  /**
+   * Soha be nem küldött piszkozat eldobása (D59): a tulajdonos (aki tag) vagy a Színtérgazda; lezárt térben
+   * `space_closed`. Az üzleti feltételek (nincs Jóváhagyott revízió, nincs review-kérés) a szolgáltatás 409-esei.
+   */
+  'document.draft.discard',
+  /** Címkelista és -javaslat (`GET /tags`, D58): bármely belépett felhasználó; a tartalmat a láthatósági szűrés védi. */
+  'tags.list',
+  /** Címke létrehozása (`POST /tags`, D59 f): bármely belépett felhasználó. */
+  'tag.create',
+  /** Fajta-lista (`GET /kinds`): bármely belépett felhasználó (a bővítés a `system.kinds.manage`). */
+  'kinds.list',
   /** Adminisztratív tulajdonos-átadás egy színtérre (`POST /admin/users/:id/handover`, D56): Rendszeradmin, lezárt térben is. */
   'system.users.handover',
 ] as const;

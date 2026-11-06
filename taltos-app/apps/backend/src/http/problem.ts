@@ -15,6 +15,8 @@ const TITLES: Partial<Record<ErrorCode, string>> = {
   not_space_member: 'Nem vagy tagja ennek a színtérnek',
   space_closed: 'A színtér le van zárva, csak olvasható',
   not_found: 'Nem található',
+  request_pending: 'Függőben lévő kérés van',
+  has_approved_revision: 'A dokumentumnak már volt Jóváhagyott változata vagy review-kérése',
   last_space_manager: 'Az utolsó Színtérgazda nem távolítható el és nem minősíthető vissza',
   last_admin: 'Az utolsó Rendszeradminisztrátor nem fokozható le',
   owner_handover_required: 'A tag még dokumentumok tulajdonosa: előbb át kell adni',

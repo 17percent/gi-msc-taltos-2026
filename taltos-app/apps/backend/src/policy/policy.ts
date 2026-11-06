@@ -112,6 +112,13 @@ const RULES = {
   'space.audit.view': { scope: 'space', need: 'manager', closed: 'read' },
   'system.audit.view': { scope: 'system', need: 'admin', closed: 'allowed' },
   'system.kinds.manage': { scope: 'system', need: 'admin', closed: 'allowed' },
+  // Létrehozás (D47, D58): a célszínterében tag; nem tagnak (a Rendszeradminnak is) not_space_member.
+  'document.create': { scope: 'space', need: 'member', closed: 'blocked' },
+  // Piszkozat-eldobás (D59): tulajdonos vagy Színtérgazda; az üzleti feltételek (nincs Jóváhagyott, nincs kérés) a tárban.
+  'document.draft.discard': { scope: 'document', need: 'member', closed: 'blocked' },
+  'tags.list': { scope: 'system', need: 'signed_in', closed: 'allowed' },
+  'tag.create': { scope: 'system', need: 'signed_in', closed: 'allowed' },
+  'kinds.list': { scope: 'system', need: 'signed_in', closed: 'allowed' },
   'system.users.handover': { scope: 'system', need: 'admin', closed: 'allowed' },
 } as const satisfies Record<Action, Rule>;
 
@@ -218,8 +225,9 @@ function conditionHolds(
     // a Rendszeradmin nem kér felvételt, hanem önfelvétellel lép be (D56)
     case 'space.membership.request':
       return !isAdmin(actor);
-    // tulajdonjog-átadás: a tulajdonos (aki tag) vagy a Színtérgazda (D55)
+    // tulajdonjog-átadás (D55) és piszkozat-eldobás (D59): a tulajdonos (aki tag) vagy a Színtérgazda
     case 'document.owner.transfer':
+    case 'document.draft.discard':
       return space.membership === 'space_manager' || document?.ownerId === actor.userId;
     // review-er csak a megjelölt, az indítványozó sosem a saját kérését dönti el (mátrix ²)
     case 'document.review.decide':

@@ -16,6 +16,10 @@ describe('hibakód-katalógus', () => {
     expect(isErrorCode('invalid_new_owner')).toBe(true);
   });
 
+  it('a megszűnt tag_exists kód nincs a katalógusban (D58): a címke-ütközés csendes újrahasznosítás', () => {
+    expect(isErrorCode('tag_exists')).toBe(false);
+  });
+
   it('minden státusz érvényes 4xx vagy 5xx', () => {
     for (const status of Object.values(ERROR_CODES)) {
       expect(status).toBeGreaterThanOrEqual(400);

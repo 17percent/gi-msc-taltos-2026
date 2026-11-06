@@ -22,8 +22,10 @@ import type { Actor } from '../policy/targets.js';
 export type StoreFailureCode =
   | 'not_found'
   | 'forbidden'
+  | 'not_space_member'
   | 'space_closed'
   | 'request_pending'
+  | 'has_approved_revision'
   | 'request_closed'
   | 'last_space_manager'
   | 'last_admin'

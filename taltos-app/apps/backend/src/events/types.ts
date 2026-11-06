@@ -61,10 +61,35 @@ export type SystemEvent = ByActor &
   );
 
 export type DocumentEvent = Documented &
-  ByActor & {
-    type: 'owner_changed';
-    details: { from: string; to: string; reason: 'handover' | 'admin_handover' };
-  };
+  ByActor &
+  (
+    | {
+        type: 'owner_changed';
+        details: { from: string; to: string; reason: 'handover' | 'admin_handover' };
+      }
+    /** Létrehozás Piszkozatként, üresen vagy duplikálással (WP5a, D47, D59). */
+    | { type: 'created'; details: Record<string, never> }
+    /** Soha be nem küldött piszkozat eldobása (B4 S13, D59 e). */
+    | { type: 'draft_discarded'; details: Record<string, never> }
+    /**
+     * Duplikálás, MINDKÉT oldalon (D58, D59 b). A másolat oldalán a forrás azonosítói, a forrás oldalán a cél: az
+     * utóbbi idegen színtérbeli másolatot árulhat el, ezért a feed és az audit (WP9) olvasáskor a néző láthatósága
+     * szerint kitakarja (`hidden`). A WP5a-ban nincs eseményt olvasó végpont.
+     */
+    | {
+        type: 'duplicated_from';
+        details:
+          | { sourceDocumentId: string; sourceSpaceId: string; sourceRevisionId: string | null }
+          | { targetDocumentId: string; targetSpaceId: string };
+      }
+  );
+
+/** Címke- és fajta-események (D34, B4 2. szakasz): színtér és dokumentum nélkül; a `details` csak azonosítót visz, nevet nem (D48). */
+export type CatalogEvent = ByActor &
+  (
+    | { type: 'tag_created'; details: { tagId: string } }
+    | { type: 'kind_created'; details: { key: string } }
+  );
 
 /**
  * Visszavonás és review-er kiesés: a változáshoz kötött dokumentum-események. Aktor nélkül csak a felsorolt ok
@@ -91,6 +116,6 @@ export type ReviewEvent = Documented & {
       }
   );
 
-export type AppEvent = SpaceEvent | SystemEvent | DocumentEvent | ReviewEvent;
+export type AppEvent = SpaceEvent | SystemEvent | DocumentEvent | ReviewEvent | CatalogEvent;
 
 export type AppEventType = AppEvent['type'];
