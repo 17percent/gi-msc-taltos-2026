@@ -10,11 +10,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from './ui/dro
 export function RowMenu({
   label,
   id,
+  ariaLabel,
   hasItems = true,
   children,
 }: {
   label: string;
   id?: string;
+  /** Felülírja az alapértelmezett „Műveletek: {név}” hozzáférhető nevet. */
+  ariaLabel?: string;
   hasItems?: boolean;
   children: ReactNode;
 }) {
@@ -22,7 +25,7 @@ export function RowMenu({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" id={id} aria-label={`Műveletek: ${label}`}>
+        <Button variant="ghost" size="icon" id={id} aria-label={ariaLabel ?? `Műveletek: ${label}`}>
           <Ellipsis aria-hidden="true" className="size-5" />
         </Button>
       </DropdownMenuTrigger>
