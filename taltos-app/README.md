@@ -2,7 +2,8 @@
 
 A Táltos tudásbázis alkalmazása: pnpm monorepo, TypeScript end-to-end. Kész: WP0 (skeleton, Compose,
 CI), WP1 (adatbázis-séma, migrációk, seed), WP2 (bejelentkezés, munkamenet, allowlist), WP3 (közös
-szerkesztés spike) és WP4 (szerepkörök, zárt színterek, láthatóság: WP4a backend, WP4b felület). A terv és a szabályok a repó gyökerében:
+szerkesztés spike), WP4 (szerepkörök, zárt színterek, láthatóság: WP4a backend, WP4b felület) és WP5a (dokumentum-mag,
+backend; a WP5b felülete hátravan). A terv és a szabályok a repó gyökerében:
 [`Arch/CLAUDE.md`](../Arch/CLAUDE.md), a munkacsomagok: [H5](../Arch/tudasbazis-munkacsomagok-h5.md).
 
 ## Szerkezet
@@ -266,3 +267,35 @@ A felület a jóváhagyott UX-spec szerint épült:
 Nyitva hagyott, későbbi tételek: a tulajdonjog-átadás felülete (WP5/WP11), a kérések felülete (WP23), a CSP és a
 biztonsági fejlécek (külön feladat), valamint a review apróbb pontjai (dupla újratöltések, kérés-időtúllépés, a
 megerősítő ablak kilépő animációja, fókusz a kereső után, a `SpaceProvider` újramountolása).
+
+## Dokumentum-mag: létrehozás, duplikálás, fajta, címkék (WP5a)
+
+A backend a D58 és a D59 szerint (a B5 „Dokumentumok” és „Címkék, fajta, kapcsolatok” sorai); migráció nem kellett.
+
+- **Végpontok:** `POST /api/v1/documents` (üresen, vagy `sourceDocumentId`-vel duplikálva), `GET /api/v1/documents/:id`
+  (metaadat, állapot, címkék, `approvedMetadata`), `DELETE /api/v1/documents/:id/draft`, `GET/POST /api/v1/tags`,
+  `GET/POST /api/v1/kinds`. Új policy-akciók: `document.create`, `document.draft.discard`, `tags.list`, `tag.create`,
+  `kinds.list`; a mátrix két új sora a `matrix.fixture.ts`-ben.
+- **Létrehozás** (`apps/backend/src/documents/`): egy tranzakcióban a dokumentum, az első revízió (a `RevisionMetadata`
+  pillanatképpel, `@taltos/shared`), a címkék, duplikáláskor a `szarmazik` kapcsolat és a `duplicated_from` mindkét
+  oldalon. A célszíntér `FOR SHARE` zára alatt a `can()` újra dönt. A duplikálás a forrás Jóváhagyott revízióját másolja,
+  ha van, különben az élő tartalmat; a forrás a `visibleDocumentsWhere`-en át töltődik. A slug a címből, ütközésnél utótaggal.
+- **Eldobás:** a `ReviewService.discardDraft` az egyetlen író (`deleted_at`); előtte a színtér `FOR SHARE`, majd a
+  dokumentum `FOR UPDATE` zára, és a `can()` a zárolt tulajdonossal dönt. Utána a dokumentum `/collab`-kapcsolatai
+  bontódnak (kanonikus, kisbetűs azonosítóval).
+- **Címkék** (`apps/backend/src/tags/`): a lista, a darabszám és a javaslat (normalizált egyezés + legfeljebb 3 trigram,
+  `tags_normalized_trgm_idx`) csak a hívó számára látható dokumentumokat számolja. A `POST /tags` mindkét ágon 200
+  `{ id, name }`; a nem látható meglévő címkénél a hívó saját írásmódját adja vissza. A normalizálás (`normalizeTagName`):
+  NFKC, formázó karakterek törlése, kisbetű, ékezetmentesítés, szóköz-összevonás. A `tag_text`-et a trigger tartja karban.
+- **Tesztek:** store-szerződés memória- és pg-adapteren; HTTP (CSRF/Origin is); `/collab`-bontás valódi WebSocketen; a
+  versenyhelyzetek (egyidejű eldobás, eldobás vs. beküldés, tulajdonjog-átadás, slug- és címke-verseny) valódi Postgresen.
+
+A következő csomagoknak (a review-k nyomán):
+
+- **WP5b:** a felület a fenti végpontokra épül; a duplikálás az `approvedMetadata`-ból tölt elő.
+- **WP6:** tartalom-méretkorlát (a ~1 MB fölötti tartalomnál a `search_vector` tsvector-korlátja 500-at adna); a nyitott
+  `/collab` kapcsolat bontás utáni kliens-kezelése (a multiplexelt socket nyitva marad).
+- **WP8:** a beküldés ugyanabban a sorrendben zároljon, mint az eldobás (színtér, majd dokumentum `FOR UPDATE`), lásd B4 nyitott pontjai.
+- **WP9:** a forrás-oldali `duplicated_from` célját (`targetDocumentId`, `targetSpaceId`) olvasáskor a néző láthatósága
+  szerint kell kitakarni (D59), külön láthatósági teszttel.
+- **Éles induló fajta-készlet:** a `kind` kötelező, de élesben a `document_kinds` üres, amíg egy Rendszeradmin nem vesz fel fajtát.

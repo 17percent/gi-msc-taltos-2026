@@ -51,3 +51,10 @@ Egy sor / delegált feladat. `UNKNOWN` = nem mért, nem becsült. A tokenszám a
 | 2026-10-31 23:03 | auto | appsec | 734116 | 35 | 172 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=71817 cached=662299 |
 | 2026-10-31 23:05 | auto | code-reviewer | 2412444 | 57 | 330 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=174843 cached=2237601 |
 | 2026-10-31 23:21 | auto | frontend-web | 21838080 | 303 | 2963 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=814109 cached=21023971 |
+| 2026-11-06 20:43 | feature | engineering-lead | 3086973 | 55 | 318 s | effort=high model=claude-opus-5-5 status=PARTIAL fresh=210829 cached=2876144 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=2-PLAN tier=L |
+| 2026-11-06 21:13 | feature | backend | 17148025 | 171 | 1406 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=483116 cached=16664909 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=3-IMPLEMENT tier=L |
+| 2026-11-06 21:20 | feature | code-reviewer | 3255854 | 73 | 350 s | effort=high model=claude-sonnet-5-5 status=PARTIAL fresh=170092 cached=3085762 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=4-REVIEW tier=L |
+| 2026-11-06 21:24 | feature | database-data-engineer | 5015871 | 99 | 625 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=204424 cached=4811447 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=4-REVIEW tier=L |
+| 2026-11-06 21:34 | feature | backend | 26978929 | 241 | 2652 s | effort=medium model=claude-sonnet-5-5 status=DONE fresh=884660 cached=26094269 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=4-REVIEW tier=L |
+| 2026-11-06 21:40 | feature | appsec | 1697472 | 59 | 358 s | effort=high model=claude-sonnet-5-5 status=DONE fresh=140812 cached=1556660 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=4-REVIEW tier=L |
+| 2026-11-06 21:56 | feature | backend | 32858584 | 271 | 3986 s | effort=medium model=claude-sonnet-5-5 status=PARTIAL fresh=1298733 cached=31559851 task=20261106-203656-wp5a-backend-dokumentum-mag-letr phase=4-REVIEW tier=L |
