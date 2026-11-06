@@ -652,6 +652,8 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **Új címke (NK7):** a „Mégis új címke” kiválasztásakor azonnal `POST /tags`; az esetleg árván maradó címke rejtett (D34 V30).
 - **Idempotencia (NK8):** a `POST /documents` nem idempotens; hálózati hibánál a felület őszintén jelzi, hogy a dokumentum létrejöhetett.
 
+*Kiegészítés (2026-11-06, a 0010 migráció, tulajdonos):* az alap-fajták rendszer-referenciaadatként, `kind_created` esemény nélkül kerülnek be (nincs emberi aktor; a fejlesztői seed is így tölt); a nyomuk a migrációs napló.
+
 **Indoklás:** a felület a meglévő API-ra épül kontraktus-változás nélkül; a fajták felvétele ne igényeljen közvetlen API-hívást; az éles indulás ne akadjon el üres fajta-listán.
 **Vállalt ár:** egy adat-migráció; árva címkék a megszakított létrehozásokból; ritkán egy feleslegesen látszó „Eldobás” menüpont; hálózati hibánál esetleges kettős piszkozat.
 
