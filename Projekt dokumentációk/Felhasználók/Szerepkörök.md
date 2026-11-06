@@ -58,6 +58,8 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 | A színtér és tartalmának látása (lista, keresés, Atlasz, MCP) | – | ✓ | ✓ | (✓) ¹ |
 | Kommentelés, @említés, kedvencek | – | ✓ | ✓ | – |
 | Szerkesztés piszkozatban (közös szerkesztés, D29) | – | ✓ | ✓ | – |
+| Dokumentum létrehozása üresen vagy duplikálással (D47, D58; a forrás és a cél színterében is tag) | – | ✓ | ✓ | – |
+| Soha be nem küldött piszkozat eldobása (D59) | – | (✓) ⁶ | ✓ | – |
 | Review-ra küldés (új dokumentum, módosítás, feltöltés, törlés) két review-errel | – | ✓ | ✓ | – |
 | Review-erként jóváhagyás, elutasítás indoklással | – | (✓) ² | (✓) ² | – |
 | Saját indítvány visszavonása | – | ✓ | ✓ | – |
@@ -80,6 +82,7 @@ Egy felhasználónak színterenként legfeljebb egy szerepe van. Aki nem tag, az
 ³ Az Általánosból tag nem távolítható el (szerepe változtatható). Lezárt projekt-térben minden módosítás tiltott, kivéve a Rendszeradminisztrátor tagkezelését és adminisztratív átadását, valamint a privát kedvencet és követést (D56).
 ⁴ Csak a saját dokumentumát, a színtér egy aktív tagjának, review nélkül.
 ⁵ Adminisztratív átadás (`admin_handover`): egy felhasználó adott színtérbeli összes dokumentuma egy aktív tagra, bármikor, lezárt térben is.
+⁶ Csak a saját (tulajdonában lévő) dokumentumát; lezárt térben egyik sem (D59).
 
 ## Szabályok és védelmek
 

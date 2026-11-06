@@ -83,7 +83,7 @@ TypeScript end-to-end · Node.js + Fastify (JSON Schema → generált OpenAPI) �
 
 | Fájl | Szerep |
 |---|---|
-| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D58, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
+| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D59, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
 | `tudasbazis-db-sema-b4.md` | Séma-referencia: Drizzle-kód, kézi SQL-migrációk, S1–S25 mikrodöntések (a D51-kiegészítéssel), DB-szerepek, retenció táblánként |
 | `tudasbazis-api-kontraktus-b5.md` | API-referencia: A1–A12 elvek, végpontlista szerepkörrel, hibakód-katalógus |
 | `tudasbazis-munkacsomagok-h5.md` | WP0–WP23 + WP30–WP35: sorrend, függőségek, kész-kritériumok, kiesési sorrend |

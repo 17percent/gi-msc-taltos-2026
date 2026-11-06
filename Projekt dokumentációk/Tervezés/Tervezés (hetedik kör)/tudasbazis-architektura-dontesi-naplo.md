@@ -22,6 +22,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-11-06, a WP5 előtt): **D58** — a címkelista, a javaslat és a darabszám csak a látható dokumentumokra szűrve, a `tag_exists` 409 helyett csendes újrahasznosítás (az NY12 lezárva); a duplikálás a Jóváhagyott revízióból, ha van (az NY19 WP5-ös pontja lezárva); a WP5 két szállításban (WP5a backend, WP5b felület).*
 
+*10. verzió kiegészítése (2026-11-06, a WP5a terve): **D59** — a WP5a olvasó végpontjai (`GET/POST /kinds`, `GET /documents/:id` `approvedMetadata`-val), a forrás-oldali `duplicated_from` kitakarása, `származik` kapcsolat és első revízió minden létrehozáskor, piszkozat-eldobás (tulajdonos vagy Színtérgazda, kapcsolatbontással), címke-létrehozás bárkinek, kisebb szabályok.*
+
 *10. verzió kiegészítése (2026-10-31, a WP4 tervezése): **D56** — a WP4 részletszabályai (aktor nélküli visszavonás szűk kivétele, `GET /users`, taglista adminnak, lezárt tér admin-kivételei, `admin_handover` törzse, Általános tagsága, tag-eltávolítás, kérések, lezárás, név és típus) és a WP4a/WP4b bontás.*
 
 *10. verzió kiegészítése (2026-10-31, WP4 előtt): **D55** — tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (az NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket (az NY19 WP4-es pontja lezárva).*
@@ -617,6 +619,21 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 
 **Indoklás:** a D44 „nem tag semmit nem lát” elve a címke-metaadatra is vonatkozzon, séma-változás nélkül; a duplikálás ellenőrzött tartalmat terjesszen, összhangban azzal, hogy az MCP, az export és a letöltés is a Jóváhagyottat adja; a backend-szerződés a felülettől függetlenül tesztelhető legyen.
 **Vállalt ár:** a címkelista felhasználónként számolódik (drágább lekérdezés, nem gyorsítótárazható globálisan); a csendes újrahasznosításkor a címke megjelenítési neve az elsőként létrehozó írásmódja (kis- és nagybetű, ékezet), ami csekély információ; a duplikált piszkozat nem tartalmazza a forrás még review-zatlan módosításait.
+
+### D59 — A WP5a részletszabályai: olvasó végpontok, első revízió, eldobás, címke-létrehozás *(új, 2026-11-06 — a WP5a dispatch-tervének nyitott kérdéseire; kiegészíti a D39, D45, D47, D55, D58 pontot)*
+
+**Előzmény:** a WP5a dispatch-terve tíz el nem döntött pontot talált (a–j).
+**Döntés (tulajdonos, pontonként):**
+- **Olvasó végpontok (a):** a WP5a-ban `GET /kinds`, `POST /kinds` (Rendszeradmin) és egy minimális `GET /documents/:id` (metaadat, `reviewState`, `approvedRevisionId`, `iteration`, címkék) készül; a válasz `approvedMetadata` mezőben a legutóbbi Jóváhagyott revízió metaadat-pillanatképét is adja (vagy `null`), hogy a duplikálás a D58 szerint előtölthessen. A kedvenc, a követés és a függő kérés mezői a saját csomagjukkal jönnek.
+- **`duplicated_from` a forrás oldalán (b):** az esemény a célt is tárolja (`targetDocumentId`, `targetSpaceId`); a feed és az audit (WP9) olvasáskor a néző láthatósága szerint kitakarja (`hidden`), így idegen színtérbeli másolat nem szivárog. A másolat oldali esemény a forrást tárolja.
+- **`származik` kapcsolat (c):** duplikáláskor létrejön a `document_links` sor (másolat → forrás), és a másolat első revíziójának metaadat-pillanatképébe is bekerül (a kapcsolatok a piszkozat-metaadat részei). Olvasó végpontja a WP21-gyel jön; az NY13 „link eltűnik ⇒ kapcsolat megszűnik” szabályának a `származik`-ra gyakorolt hatása a WP16 előtt dől el.
+- **Első revízió (d):** minden létrehozás (üres és duplikálás) első revíziót ír (tartalom + metaadat-pillanatkép: fajta, címkék, kapcsolatok; szerző a létrehozó); a revízió nem véglegesít. A revízió-metaadat típusa itt rögzül, a WP6 és a WP8 ezt használja.
+- **Piszkozat eldobása (e):** a tulajdonos vagy a Színtérgazda dobhatja el (a D55 mintájára); feltétele, hogy a dokumentumnak soha nem volt Jóváhagyott revíziója és review-kérése (függő kérésnél 409 `request_pending`, egyébként 409 `has_approved_revision`); lezárt térben 403 `space_closed`. A `deleted_at`-et a `ReviewService` írja (B4 S13 kivétel), és a dokumentum nyitott `/collab`-kapcsolatai azonnal bontódnak.
+- **Címke létrehozása (f):** bármely belépett felhasználó; `tag_created` csak valódi új címkénél, újrahasznosításkor nincs esemény; a válasz mindkét ágon 200 és `{ id, name }`.
+- **Kisebb pontok (g–j):** a meglévő piszkozat címkéinek módosítása nem a WP5a része (a Tulajdonság-panellel, WP6); archivált forrás is duplikálható (a Jóváhagyott revíziójából); a címke-darabszám csak a nem törölt dokumentumokat számolja, a címkenév 1–64 karakter, a normalizálás közös (kisbetű, ékezetmentesítés, szóközök összevonása); a slug a címből készül, ütközésnél rövid utótaggal.
+
+**Indoklás:** a WP5b-nek legyen mire építenie, a D44 a forrás-oldali eseményen se sérüljön, a két létrehozási út egységes revízió-modellt adjon, és az eldobott dokumentum ne maradjon szerkeszthetőnek látszó kapcsolatban.
+**Vállalt ár:** a `GET /documents/:id` `approvedMetadata` mezője kontraktus-bővítés; a forrás-oldali kitakarás a WP9 felelőssége (addig az esemény nem olvasható ki); egy szűk kapcsolatbontó varrat a `/collab`-ban már a WP6 előtt.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 

@@ -38,7 +38,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 | [[Felhasználók/Allowlist\|Allowlist]] | kérésenkénti belépési jog | 1 | ✅ · 📘 első Rendszeradmin: D52 · 📘 konfig-szinkron: D53 |
 | [[Felhasználók/Munkamenet és CSRF\|Munkamenet és CSRF]] | httpOnly cookie + CSRF, Postgres `sessions` tábla (D51a) | — | ⚙️ · 📘 D51a |
 | [[Felhasználók/Jogosultságok\|Jogosultságok]] | alapelvek; az érvényes mátrix a Szerepkörökben | 2 | 📘 D43, D44 |
-| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix (a WP4a mátrixtesztje cellánként követi) | 2 | 📘 D43, D55, D56 |
+| [[Felhasználók/Szerepkörök\|Szerepkörök]] | Rendszeradminisztrátor; színtéren belül Színtérgazda + Szerző; jogosultsági mátrix (a WP4a mátrixtesztje cellánként követi) | 2 | 📘 D43, D55, D56, D59 |
 | [[Felhasználók/Adminisztráció és színtér-beállítások\|Adminisztráció és színtér-beállítások]] | WP4b UX-spec: app shell, színtérváltó, Adminisztráció, Színtér beállításai, hibaüzenetek; jóváhagyva, megvalósítva (WP4b) | 2 | 📘 D43, D44, D56, D57 |
 
 ## Kollaboráció
@@ -105,6 +105,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 - ✅ **D56 (2026-10-31, a WP4 tervezése):** a WP4 részletszabályai (felhasználókeresés, taglista adminnak, lezárt tér admin-kivételei, `admin_handover`, Általános tagsága, tag-eltávolítás, kérések, lezárás, név/típus) és a WP4a/WP4b bontás.
 - ✅ **D55 (2026-10-31, WP4 előtt):** tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket.
 - ✅ **D58 (2026-11-06, WP5 előtt):** a címkelista, a javaslat és a darabszám csak a látható dokumentumokra, a `tag_exists` 409 helyett csendes újrahasznosítás (NY12 lezárva); duplikálás a Jóváhagyott revízióból, ha van (az NY19 WP5-ös pontja lezárva); WP5a/WP5b bontás.
+- ✅ **D59 (2026-11-06, a WP5a terve):** `GET/POST /kinds`, `GET /documents/:id` `approvedMetadata`-val; első revízió és `származik` minden létrehozáskor; a forrás-oldali `duplicated_from` kitakarva (WP9); piszkozat-eldobás a tulajdonostól vagy a Színtérgazdától, `/collab`-bontással; címke-létrehozás bárkinek.
 - ❓ **Nyitott a naplóban: NY11, NY13, NY14, NY16, NY17, NY19** (többek közt: említés-formátum, kapcsolat-típus tárolása, cross-space értesítés, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
 - Nyitott a naplóban: **NY8** (pilot összehasonlítási alapja), **NY9** (pilot hozzáférése és moderálása), ~~NY10~~ (lezárva: 8 óra / 60 perc).
 - ✅ A v10 részletdokumentumai: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-api-kontraktus-b5|B5 API]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomagok]] (WP0–WP23 + 6 második ütemes csomag).
