@@ -1,13 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { ApprovedMetadata, DocumentDetail, SpaceType, TagRef } from '@taltos/shared';
+import type {
+  ApprovedMetadata,
+  DocumentDetail,
+  HiddenLink,
+  RevisionLink,
+  SpaceType,
+  TagRef,
+} from '@taltos/shared';
 import * as t from '../db/schema.js';
 import { recordEvents } from '../events/record.js';
 import type { AppEvent } from '../events/types.js';
 import { can } from '../policy/policy.js';
 import type { SpaceTarget } from '../policy/targets.js';
 import { visibleDocumentsWhere } from '../policy/visibility.js';
+import type { ReviewState } from '../realtime/collab-store.js';
 import { discardDraft } from '../review/review-service.js';
 import { fail, ok, type StoreResult } from '../spaces/store.js';
 import { firstRevisionMetadata, readRevisionMetadata } from './metadata.js';
@@ -55,6 +63,34 @@ async function tagRefs(db: Db | Tx, ids: readonly string[]): Promise<TagRef[]> {
     .where(inArray(t.tags.id, [...ids]));
   const byId = new Map(rows.map((row) => [row.id, row]));
   return ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+/**
+ * A pillanatkép kapcsolatainak feloldása a néző láthatósága szerint (D44, B5 `/links`): a látható célpont marad, a
+ * nem látható (idegen színtér, eldobott) `{ hidden, spaceId }` lesz, azonosító és cím nélkül. Egy lekérdezés a
+ * célpontok PK-ján; a láthatóság a `visibleDocumentsWhere`-ből. A már nem létező célpont kimarad.
+ */
+async function resolveLinks(
+  db: Db | Tx,
+  viewerId: string,
+  links: readonly RevisionLink[],
+): Promise<(RevisionLink | HiddenLink)[]> {
+  if (links.length === 0) return [];
+  const rows = await db
+    .select({
+      id: t.documents.id,
+      spaceId: t.documents.spaceId,
+      visible: sql<boolean>`(${t.documents.deletedAt} IS NULL OR ${t.documents.approvedRevisionId} IS NOT NULL)
+        AND ${visibleDocumentsWhere(viewerId)}`,
+    })
+    .from(t.documents)
+    .where(inArray(t.documents.id, [...new Set(links.map((link) => link.toId))]));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return links.flatMap((link): (RevisionLink | HiddenLink)[] => {
+    const target = byId.get(link.toId);
+    if (target === undefined) return [];
+    return [target.visible ? link : { hidden: true, spaceId: target.spaceId }];
+  });
 }
 
 /**
@@ -121,7 +157,7 @@ async function loadDetail(
         title: revision.title,
         kind: metadata.kind,
         tags: await tagRefs(db, metadata.tagIds),
-        links: metadata.links,
+        links: await resolveLinks(db, viewerId, metadata.links),
       };
     }
   }
@@ -304,22 +340,27 @@ export function createPgDocumentStore(db: Db): DocumentStore {
         if (spaceId === undefined) return fail('not_found');
         const space = await lockSpaceShared(tx, actor.userId, spaceId);
         if (space === undefined) return fail('not_found');
-        const [doc] = await tx
-          .select({
-            ownerId: t.documents.ownerId,
-            reviewState: t.documents.reviewState,
-            archived: sql<boolean>`${t.documents.deletedAt} IS NOT NULL`,
-          })
-          .from(t.documents)
-          .where(eq(t.documents.id, documentId));
+        // A dokumentum sorának zára (térzár UTÁN: zársorrend tér → dokumentum), KÜLÖN utasításban. Egy beküldés a
+        // `change_requests` INSERT-jével az FK miatt csak `FOR KEY SHARE`-t vesz a soron, ami a `FOR UPDATE`-tel ütközik:
+        // az eldobás megvárja a beküldés commitját, és az ezt követő feltételes UPDATE (új utasítás, friss pillanatkép)
+        // már látja a kérést. Zár nélkül az UPDATE EvalPlanQual-újraellenőrzése a régi pillanatképet használná a
+        // `NOT EXISTS (change_requests)` részlekérdezésre. A zárolt sor tulajdonosával dönt újra a `can()`: az
+        // egyidejű tulajdonjog-átadás után a volt tulajdonos nem dobhatja el.
+        const locked = await tx.execute<{
+          owner_id: string;
+          review_state: ReviewState;
+          archived: boolean;
+        }>(sql`
+          SELECT owner_id, review_state, deleted_at IS NOT NULL AS archived
+            FROM documents WHERE id = ${documentId} FOR UPDATE`);
+        const doc = locked.rows[0];
         if (doc === undefined) return fail('not_found');
-        // A döntés a zár alatt újra: tulajdonos (aki tag) vagy Színtérgazda, nem lezárt térben.
         const decision = can(actor, 'document.draft.discard', {
           documentId,
           space,
-          ownerId: doc.ownerId,
+          ownerId: doc.owner_id,
           archived: doc.archived,
-          reviewState: doc.reviewState,
+          reviewState: doc.review_state,
         });
         if (!decision.ok) return fail(decision.code);
         const result = await discardDraft(tx, { documentId, actorId: actor.userId }, now);

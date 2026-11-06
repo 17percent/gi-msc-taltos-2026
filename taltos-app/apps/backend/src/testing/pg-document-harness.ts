@@ -113,7 +113,11 @@ export function pgDocumentHarness(db: TestDb): DocumentHarness {
               JSON.stringify({
                 kind: approved.kind ?? options.kind ?? 'prompt',
                 tagIds: [...(approved.tagIds ?? [])].sort(),
-                links: [],
+                links: (approved.linkTo ?? []).map((toId) => ({
+                  toId,
+                  type: 'szarmazik',
+                  anchor: null,
+                })),
               }),
               ownerId,
             ],

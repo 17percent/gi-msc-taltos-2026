@@ -24,6 +24,11 @@ export interface RevisionMetadata {
   links: RevisionLink[];
 }
 
+/** JSON-séma minták: a NUL (`U+0000`) karaktert a Postgres `text` nem tárolja, ezért a bemeneti határon utasítjuk el (400). */
+export const NO_NUL_PATTERN = '^[^\\u0000]*$';
+/** Legalább egy nem szóköz karakter, NUL nélkül. */
+export const NON_BLANK_NO_NUL_PATTERN = '^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$';
+
 /** Dokumentum-cím felső korlátja karakterben (a megjelenítés és a slug miatt; a WP5a feltevése, a napló nem rögzít). */
 export const DOCUMENT_TITLE_MAX = 200;
 
@@ -101,6 +106,15 @@ export interface CreateDocumentRequest {
 }
 
 /**
+ * Kapcsolat, amelynek célpontját a néző nem láthatja (idegen színtér, D44): csak a színtér azonosítója, a célpont
+ * azonosítója és címe nélkül (B5 `/links` szabálya).
+ */
+export interface HiddenLink {
+  hidden: true;
+  spaceId: string;
+}
+
+/**
  * A legutóbbi Jóváhagyott revízió metaadata, a duplikálás előtöltéséhez (D58, D59 a): a cím a revízióból, a fajta,
  * a címkék (nevekkel feloldva) és a kapcsolatok a pillanatképből.
  */
@@ -109,7 +123,7 @@ export interface ApprovedMetadata {
   title: string;
   kind: string;
   tags: TagRef[];
-  links: RevisionLink[];
+  links: (RevisionLink | HiddenLink)[];
 }
 
 /**

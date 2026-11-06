@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type {
   ApprovedMetadata,
   DocumentDetail,
+  HiddenLink,
   LinkType,
+  RevisionLink,
   RevisionMetadata,
   SpaceRole,
 } from '@taltos/shared';
@@ -99,7 +101,13 @@ export class MemoryDocumentStore implements DocumentStore {
       title?: string;
       kind?: string;
       tagIds?: string[];
-      approved?: { title?: string; content: string; tagIds?: string[]; kind?: string };
+      approved?: {
+        title?: string;
+        content: string;
+        tagIds?: string[];
+        kind?: string;
+        linkTo?: string[];
+      };
       hasRequest?: boolean;
     } = {},
   ): void {
@@ -111,6 +119,11 @@ export class MemoryDocumentStore implements DocumentStore {
         kind: options.approved.kind ?? options.kind ?? 'prompt',
         tagIds: options.approved.tagIds ?? [],
       });
+      metadata.links = (options.approved.linkTo ?? []).map((toId) => ({
+        toId,
+        type: 'szarmazik' as const,
+        anchor: null,
+      }));
       approved = {
         revisionId: randomUUID(),
         title: options.approved.title ?? options.title ?? 'Cím',
@@ -135,7 +148,7 @@ export class MemoryDocumentStore implements DocumentStore {
     if (options.tagIds) this.tags.attach(id, options.tagIds);
   }
 
-  private detail(id: string): DocumentDetail | undefined {
+  private detail(id: string, viewerId: string): DocumentDetail | undefined {
     const doc = this.world.documents.get(id);
     const record = this.records.get(id);
     if (!doc || !record) return undefined;
@@ -154,7 +167,15 @@ export class MemoryDocumentStore implements DocumentStore {
         title: record.approved.title,
         kind: record.approved.metadata.kind,
         tags: this.tags.refs(record.approved.metadata.tagIds),
-        links: record.approved.metadata.links,
+        links: record.approved.metadata.links.flatMap((link): (RevisionLink | HiddenLink)[] => {
+          const target = this.world.documents.get(link.toId);
+          if (!target) return [];
+          const visible =
+            !(target.deleted && !target.everApproved) &&
+            this.role(target.spaceId, viewerId) !== null &&
+            this.world.spaces.get(target.spaceId)?.deleted === false;
+          return [visible ? link : { hidden: true, spaceId: target.spaceId }];
+        }),
       };
     }
     return {
@@ -278,7 +299,7 @@ export class MemoryDocumentStore implements DocumentStore {
         },
       );
     }
-    const detail = this.detail(id);
+    const detail = this.detail(id, actor.userId);
     if (detail === undefined) throw new Error('A létrehozott dokumentum nem tölthető be.');
     return Promise.resolve(ok(detail));
   }
@@ -289,7 +310,7 @@ export class MemoryDocumentStore implements DocumentStore {
     if (this.role(doc.spaceId, viewerId) === null || this.world.spaces.get(doc.spaceId)?.deleted) {
       return Promise.resolve(undefined);
     }
-    return Promise.resolve(this.detail(documentId));
+    return Promise.resolve(this.detail(documentId, viewerId));
   }
 
   discardDraft(actor: Actor, documentId: string, now: Date): Promise<StoreResult<null>> {

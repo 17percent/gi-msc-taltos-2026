@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../db/test-db.js';
 import { pgDocumentHarness } from '../testing/pg-document-harness.js';
 import { withReplica } from '../testing/pg-space-harness.js';
-import { createControlPool, runGated } from '../testing/pg-race.js';
+import { createControlPool, runGated, waitForLockWaiters } from '../testing/pg-race.js';
 import { describeTagStoreContract } from '../tags/tag-store-contract.js';
 import { describeDocumentStoreContract } from './document-store-contract.js';
 
@@ -148,6 +149,93 @@ describe.skipIf(!url)('DocumentStore és TagStore (PostgreSQL, WP5a)', () => {
         await ctl.end();
       }
     });
+
+    /**
+     * Az eldobás és egy egyidejű beküldés (a WP8 mintája): a beküldés a `change_requests` INSERT-jével kezd (az FK csak
+     * `FOR KEY SHARE`-t vesz a `documents` soron), és csak utána frissíti a `documents.review_state`-et. Az eldobásnak a
+     * sor `FOR UPDATE` zárán KÜLÖN utasításként meg kell várnia a beküldést, hogy a feltételes UPDATE friss pillanatképpel
+     * lássa a kérést; különben `deleted_at` + függő kérés együtt maradna.
+     */
+    async function submissionRace(order: 'insert_first' | 'update_first') {
+      const { h, owner, space } = await world();
+      const id = await h.document(space, owner, {});
+      const ctl = createControlPool(url as string, db);
+      const c = await ctl.connect();
+      // Valódi FK-k és triggerek (NEM replica mód): az FK-ellenőrzés a `documents` soron `FOR KEY SHARE`-t vesz, ami a
+      // `FOR UPDATE`-tel ütközik; a beküldés itt a WP8 mintája: revízió + kérés + két review-er.
+      const [r1, r2] = [await h.user('r1'), await h.user('r2')];
+      const insert = async () => {
+        const revisionId = randomUUID();
+        const requestId = randomUUID();
+        await c.query(
+          `INSERT INTO document_revisions (id, document_id, title, content, metadata, author_id)
+           VALUES ($1, $2, 'Cím', 'javaslat', '{}', $3)`,
+          [revisionId, id, owner],
+        );
+        await c.query(
+          `INSERT INTO change_requests (id, document_id, kind, proposed_revision_id, proposed_review_due_at, initiator_id, state)
+           VALUES ($1, $2, 'update', $3, now() + interval '1 year', $4, 'pending')`,
+          [requestId, id, revisionId, owner],
+        );
+        for (const reviewer of [r1, r2]) {
+          await c.query(
+            'INSERT INTO change_request_reviewers (change_request_id, reviewer_id) VALUES ($1, $2)',
+            [requestId, reviewer],
+          );
+        }
+      };
+      const update = () =>
+        c.query("UPDATE documents SET review_state = 'pending' WHERE id = $1", [id]);
+      try {
+        await c.query('BEGIN');
+        if (order === 'insert_first') await insert();
+        else await update();
+        const discard = h.documents.discardDraft(h.actor(owner), id, NOW);
+        discard.catch(() => undefined);
+        await waitForLockWaiters(ctl, db, 1, 'az eldobás a beküldésre vár', 5_000);
+        if (order === 'insert_first') await update();
+        else await insert();
+        await c.query('COMMIT');
+        return { result: await discard, state: await h.inspect.document(id) };
+      } finally {
+        await c.query('ROLLBACK').catch(() => undefined);
+        c.release();
+        await ctl.end();
+      }
+    }
+
+    it.each(['insert_first', 'update_first'] as const)(
+      'beküldés egyidejű eldobással (%s): request_pending, a dokumentum nem törlődik',
+      async (order) => {
+        const { result, state } = await submissionRace(order);
+        expect(result).toMatchObject({ ok: false, code: 'request_pending' });
+        expect(state).toMatchObject({ deleted: false, reviewState: 'pending' });
+      },
+      30_000,
+    );
+
+    it('az egyidejű tulajdonjog-átadás után a volt tulajdonos nem dobhatja el (forbidden)', async () => {
+      const { h, owner, space } = await world();
+      const heir = await h.user('heir');
+      await h.member(space, heir);
+      const id = await h.document(space, owner, {});
+      const ctl = createControlPool(url as string, db);
+      const c = await ctl.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query('UPDATE documents SET owner_id = $2 WHERE id = $1', [id, heir]);
+        const discard = h.documents.discardDraft(h.actor(owner), id, NOW);
+        discard.catch(() => undefined);
+        await waitForLockWaiters(ctl, db, 1, 'az eldobás az átadásra vár', 5_000);
+        await c.query('COMMIT');
+        expect(await discard).toMatchObject({ ok: false, code: 'forbidden' });
+        expect((await h.inspect.document(id))?.deleted).toBe(false);
+      } finally {
+        await c.query('ROLLBACK').catch(() => undefined);
+        c.release();
+        await ctl.end();
+      }
+    }, 30_000);
 
     it('az egyidejű, azonos nevű címke-létrehozás egyetlen sort és egyetlen eseményt ad', async () => {
       const { h, owner } = await world();

@@ -122,6 +122,20 @@ export const VISIBILITY_CASES: Record<string, VisibilityCase> = {
         expect(JSON.stringify(denied.json())).not.toMatch(/Titkos terv|slug|content/);
       }
       expect((await get(ctx, url, alice)).statusCode).toBe(200);
+      // A Jóváhagyott pillanatkép kapcsolatának idegen színtérbeli célpontja rejtett: { hidden, spaceId }, azonosító nélkül.
+      const foreignSpace = randomUUID();
+      ctx.collab.addSpace(foreignSpace);
+      const foreignDoc = randomUUID();
+      ctx.collab.addDocument(foreignDoc, foreignSpace);
+      const linkedId = (
+        await post(ctx, '/api/v1/documents', alice, { spaceId, title: 'Kapcsolt', kind: 'prompt' })
+      ).json<DocumentDetail>().id;
+      ctx.documents.seed(linkedId, { approved: { content: 'x', linkTo: [foreignDoc] } });
+      const linked = (
+        await get(ctx, `/api/v1/documents/${linkedId}`, alice)
+      ).json<DocumentDetail>();
+      expect(linked.approvedMetadata?.links).toEqual([{ hidden: true, spaceId: foreignSpace }]);
+      expect(JSON.stringify(linked)).not.toContain(foreignDoc);
       expect((await get(ctx, `/api/v1/documents/${randomUUID()}`, bob)).statusCode).toBe(404);
       // Az eldobott piszkozat a tagnak is 404.
       const discard = await ctx.app.inject({

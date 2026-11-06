@@ -33,7 +33,14 @@ export interface DocumentHarness {
       kind?: string;
       tagIds?: string[];
       /** Volt Jóváhagyott revíziója (az élő tartalom eltérhet tőle). */
-      approved?: { content: string; title?: string; kind?: string; tagIds?: string[] };
+      approved?: {
+        content: string;
+        title?: string;
+        kind?: string;
+        tagIds?: string[];
+        /** A Jóváhagyott pillanatkép kimenő `származik` kapcsolatainak célpontjai. */
+        linkTo?: string[];
+      };
       /** Jóváhagyott törléssel archivált (a Jóváhagyott revízióval együtt). */
       archived?: boolean;
       /** Eldobott piszkozat (`deleted_at` beállítva, Jóváhagyott revízió nélkül). */
@@ -472,6 +479,26 @@ export function describeDocumentStoreContract(
           links: [],
         });
         expect(detail?.tags).toEqual([{ id: b, name: 'új' }]);
+      });
+    });
+
+    describe('approvedMetadata.links (D44)', () => {
+      it('a látható célpont azonosítóval, a nem látható (idegen színtér) { hidden, spaceId }-vel jön, azonosító nélkül', async () => {
+        const { h, owner, space } = await world();
+        const stranger = await h.user('stranger');
+        const foreign = await h.space();
+        await h.member(foreign, stranger);
+        const visibleTarget = await h.document(space, owner, {});
+        const hiddenTarget = await h.document(foreign, stranger, {});
+        const id = await h.document(space, owner, {
+          approved: { content: 'x', linkTo: [visibleTarget, hiddenTarget] },
+        });
+        const detail = await h.documents.getDocument(owner, id);
+        expect(detail?.approvedMetadata?.links).toEqual([
+          { toId: visibleTarget, type: 'szarmazik', anchor: null },
+          { hidden: true, spaceId: foreign },
+        ]);
+        expect(JSON.stringify(detail)).not.toContain(hiddenTarget);
       });
     });
 
