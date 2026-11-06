@@ -117,7 +117,7 @@ export function memoryDocumentHarness(): DocumentHarness {
             spaceId: 'spaceId' in e ? e.spaceId : null,
             documentId: 'documentId' in e ? e.documentId : null,
             actorId: e.actorId,
-            details: e.details as Record<string, unknown>,
+            details: e.details,
           })),
         ),
       collabStates: (id) => Promise.resolve(collab.document(id)?.state ? 1 : 0),
