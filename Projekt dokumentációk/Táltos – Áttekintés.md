@@ -64,6 +64,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 |---|---|---|---|
 | [[Szerkesztés/Markdown szerkesztő\|Markdown szerkesztő]] | élő előnézet (Obsidian-modell), helyi menü, Tulajdonság-panel | 4 | ✅ (osztott nézet) · 📘 D40 |
 | [[Szerkesztés/Zárolás\|Zárolás]] | lock + heartbeat — kivezetendő, lásd [[Kollaboráció/Valós idejű közös szerkesztés\|közös szerkesztés]] | — (csak prototípus) | ✅ (prototípus) |
+| [[Szerkesztés/Létrehozás és duplikálás – felület\|Létrehozás és duplikálás – felület]] | WP5b UX-spec: „Új dokumentum” (oldalsáv), létrehozó/duplikáló dialógus, címkeválasztó, dokumentumfejléc, eldobás, „Fajták” fül; jóváhagyva | 3 | 📘 D58, D59, D60 |
 | [[Szerkesztés/Létrehozás forrásból\|Létrehozás forrásból]] | üres, duplikálás (MVP) · sablonból, forrásból = fájlimport (2. ütem) | 3 | ✅ · 📘 D47, D58, D59 · üres + duplikálás backend kész (WP5a) |
 
 ## Nyomonkövetés és transzparencia
@@ -106,6 +107,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 - ✅ **D55 (2026-10-31, WP4 előtt):** tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket.
 - ✅ **D58 (2026-11-06, WP5 előtt):** a címkelista, a javaslat és a darabszám csak a látható dokumentumokra, a `tag_exists` 409 helyett csendes újrahasznosítás (NY12 lezárva); duplikálás a Jóváhagyott revízióból, ha van (az NY19 WP5-ös pontja lezárva); WP5a/WP5b bontás.
 - ✅ **D59 (2026-11-06, a WP5a terve):** `GET/POST /kinds`, `GET /documents/:id` `approvedMetadata`-val; első revízió és `származik` minden létrehozáskor; a forrás-oldali `duplicated_from` kitakarva (WP9); piszkozat-eldobás a tulajdonostól vagy a Színtérgazdától, `/collab`-bontással; címke-létrehozás bárkinek.
+- ✅ **D60 (2026-11-06, a WP5b UX-specje):** „Új dokumentum” az oldalsávban, „Fajták” fül, a kilenc alap-fajta adat-migrációval, duplikálás „(másolat)” címmel az aktuális térbe, kliensoldali eldobhatóság, azonnali címke-létrehozás.
 - ❓ **Nyitott a naplóban: NY11, NY13, NY14, NY16, NY17, NY19** (többek közt: említés-formátum, kapcsolat-típus tárolása, cross-space értesítés, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
 - Nyitott a naplóban: **NY8** (pilot összehasonlítási alapja), **NY9** (pilot hozzáférése és moderálása), ~~NY10~~ (lezárva: 8 óra / 60 perc).
 - ✅ A v10 részletdokumentumai: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-api-kontraktus-b5|B5 API]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomagok]] (WP0–WP23 + 6 második ütemes csomag).

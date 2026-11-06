@@ -24,6 +24,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-11-06, a WP5a terve): **D59** — a WP5a olvasó végpontjai (`GET/POST /kinds`, `GET /documents/:id` `approvedMetadata`-val), a forrás-oldali `duplicated_from` kitakarása, `származik` kapcsolat és első revízió minden létrehozáskor, piszkozat-eldobás (tulajdonos vagy Színtérgazda, kapcsolatbontással), címke-létrehozás bárkinek, kisebb szabályok.*
 
+*10. verzió kiegészítése (2026-11-06, a WP5b UX-specje): **D60** — „Új dokumentum” az oldalsávban, „Fajták” fül az Adminisztrációban, a kilenc alap-fajta adat-migrációval, duplikálás az aktuális térbe „(másolat)” címmel, kliensoldali eldobhatóság, azonnali címke-létrehozás, nem idempotens létrehozás vállalva.*
+
 *10. verzió kiegészítése (2026-10-31, a WP4 tervezése): **D56** — a WP4 részletszabályai (aktor nélküli visszavonás szűk kivétele, `GET /users`, taglista adminnak, lezárt tér admin-kivételei, `admin_handover` törzse, Általános tagsága, tag-eltávolítás, kérések, lezárás, név és típus) és a WP4a/WP4b bontás.*
 
 *10. verzió kiegészítése (2026-10-31, WP4 előtt): **D55** — tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (az NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket (az NY19 WP4-es pontja lezárva).*
@@ -636,6 +638,22 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 *Kiegészítés (2026-11-06, a WP5a appsec-review-ja, tulajdonos):* (1) a `POST /tags` válaszában a `name` a hívó saját írásmódja, ha a meglévő címkét egyetlen számára látható dokumentum sem használja (a tárolt név nem változik), így a válasz törzse nem árulja el az idegen címke létezését; az írás/olvasás időzítés-különbsége vállalt. (2) A címkenév normalizálása NFKC-val és a formázó karakterek (`\p{Cf}`: zéró-szélességű, bidi, BOM) eltávolításával kezdődik; a csak szóközből vagy formázó karakterből álló cím, címkenév és fajta-címke 400 `validation_error`.
 
 **Vállalt ár:** a `GET /documents/:id` `approvedMetadata` mezője kontraktus-bővítés; a forrás-oldali kitakarás a WP9 felelőssége (addig az esemény nem olvasható ki); egy szűk kapcsolatbontó varrat a `/collab`-ban már a WP6 előtt.
+
+### D60 — A WP5b felületének döntései: belépési pont, fajták felülete és alapkészlete, duplikálás, eldobás *(új, 2026-11-06 — a WP5b UX-specjének nyitott kérdéseire; kiegészíti a D34, D36, D47, D58, D59 pontot)*
+
+**Előzmény:** a WP5b UX-specje ([[Szerkesztés/Létrehozás és duplikálás – felület]]) nyolc nyitott kérdést talált (NK1–NK8).
+**Döntés (tulajdonos, pontonként):**
+- **Belépési pont (NK1):** az „Új dokumentum” az oldalsáv elsődleges gombja az aktuális színtérre (csak ha van nem lezárt tagsági tér); a duplikálás és az eldobás a dokumentumoldal fejlécének „Műveletek” menüjében.
+- **Fajták felülete (NK2):** az Adminisztráció új „Fajták” füle (lista, új fajta: kulcs + címke; átnevezés és törlés nincs, mert nincs rá végpont).
+- **Nincs fajta (NK3):** a létrehozó párbeszédablak figyelmeztetéssel blokkol, és megmondja a teendőt; a kilenc alap-fajta (a prototípus korábbi kategóriái, D34 V33) idempotens adat-migrációval kerül be, hogy élesben se induljon üres listával.
+- **Duplikátum-figyelmeztetés (NK4):** nem a WP5b része; a `GET /documents/similar` a keresési infrastruktúrával jön (WP11/WP19).
+- **Duplikálás alapértékei (NK5):** a célszíntér alapból az aktuális színtér (bármely saját, nem lezárt térre átállítható), a cím a Jóváhagyott cím „ (másolat)” utótaggal.
+- **Eldobhatóság (NK6):** kliensoldali szabály (Piszkozat, nincs `approvedRevisionId`, a hívó tulajdonos vagy Színtérgazda); a ritka 409-et az üzenet kezeli; kontraktus-változás nincs.
+- **Új címke (NK7):** a „Mégis új címke” kiválasztásakor azonnal `POST /tags`; az esetleg árván maradó címke rejtett (D34 V30).
+- **Idempotencia (NK8):** a `POST /documents` nem idempotens; hálózati hibánál a felület őszintén jelzi, hogy a dokumentum létrejöhetett.
+
+**Indoklás:** a felület a meglévő API-ra épül kontraktus-változás nélkül; a fajták felvétele ne igényeljen közvetlen API-hívást; az éles indulás ne akadjon el üres fajta-listán.
+**Vállalt ár:** egy adat-migráció; árva címkék a megszakított létrehozásokból; ritkán egy feleslegesen látszó „Eldobás” menüpont; hálózati hibánál esetleges kettős piszkozat.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 
