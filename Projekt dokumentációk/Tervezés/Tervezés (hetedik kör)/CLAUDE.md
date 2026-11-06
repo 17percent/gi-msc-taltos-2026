@@ -73,7 +73,7 @@ Webes, markdown-alapú tudásbázis ~200 fős szervezetnek, elsősorban AI-eszk�
 - A munka egysége a munkacsomag (`tudasbazis-munkacsomagok-h5.md`, 10. verzió: WP0–WP23, második ütem WP30–WP35). Tartsd a sorrendet és a függőségeket; a csomag „kész”-kritériuma a definíció.
 - A funkcionális elvárások forrása a munkacsomagok „kész”-kritériumai, a napló D-pontjai és a vault egységjegyzetei (pl. `Felhasználók/Szerepkörök`, `Dokumentumok/Státusz-workflow`). A jogosultsági mátrix minden cellája egy teszteset.
 - Csomag-zárás: CI zöld + az érintett naplópontok visszaellenőrizve + rövid összefoglaló (mi készült, milyen döntéseket hoztál a szabad sávban, mibe ütköztél).
-- Nyitott kérdést NE dönts el magad — jelenleg: **NY8** (a pilot összehasonlítási alapja), **NY9** (a pilot hozzáférése és moderálása), az MCP-olvasás naplózása (D38), valamint **NY11–NY14, NY16, NY17, NY19** (említés-formátum, címkék láthatósága, kapcsolatok tárolása és értesítése, e-mail-beállítások, Rendszeradmin audit-láthatósága, kisebb szabályok; lezárva: NY18 — D52, D53; NY15 és az NY19 WP4-es pontja — D55). Mindegyiknél a napló megnevezi, melyik munkacsomag előtt kell eldönteni.
+- Nyitott kérdést NE dönts el magad — jelenleg: **NY8** (a pilot összehasonlítási alapja), **NY9** (a pilot hozzáférése és moderálása), az MCP-olvasás naplózása (D38), valamint **NY11, NY13, NY14, NY16, NY17, NY19** (említés-formátum, kapcsolatok tárolása és értesítése, e-mail-beállítások, Rendszeradmin audit-láthatósága, kisebb szabályok; lezárva: NY18 — D52, D53; NY15 és az NY19 WP4-es pontja — D55; NY12 és az NY19 WP5-ös pontja — D58). Mindegyiknél a napló megnevezi, melyik munkacsomag előtt kell eldönteni.
 
 ## Stack-rögzítés (nem újratárgyalható a napló nélkül)
 
@@ -83,7 +83,7 @@ TypeScript end-to-end · Node.js + Fastify (JSON Schema → generált OpenAPI) �
 
 | Fájl | Szerep |
 |---|---|
-| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D57, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
+| `tudasbazis-architektura-dontesi-naplo.md` | A forrás-igazság (10. verzió): D1–D58, követelmények, 20 pontos MVP, NY-pontok. Ütközésnél EZ nyer. |
 | `tudasbazis-db-sema-b4.md` | Séma-referencia: Drizzle-kód, kézi SQL-migrációk, S1–S25 mikrodöntések (a D51-kiegészítéssel), DB-szerepek, retenció táblánként |
 | `tudasbazis-api-kontraktus-b5.md` | API-referencia: A1–A12 elvek, végpontlista szerepkörrel, hibakód-katalógus |
 | `tudasbazis-munkacsomagok-h5.md` | WP0–WP23 + WP30–WP35: sorrend, függőségek, kész-kritériumok, kiesési sorrend |

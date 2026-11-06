@@ -20,6 +20,8 @@ Egyedi fejlesztésű, webes tudásbázis-rendszer ~200 fős vállalat számára,
 
 *10. verzió kiegészítése (2026-10-31, a WP4b előtt): **D14 pontosítva** — a shadcn-komponensek mögötti Radix-primitívek a D14 részei (csak a ténylegesen bemásolt komponensekhez).*
 
+*10. verzió kiegészítése (2026-11-06, a WP5 előtt): **D58** — a címkelista, a javaslat és a darabszám csak a látható dokumentumokra szűrve, a `tag_exists` 409 helyett csendes újrahasznosítás (az NY12 lezárva); a duplikálás a Jóváhagyott revízióból, ha van (az NY19 WP5-ös pontja lezárva); a WP5 két szállításban (WP5a backend, WP5b felület).*
+
 *10. verzió kiegészítése (2026-10-31, a WP4 tervezése): **D56** — a WP4 részletszabályai (aktor nélküli visszavonás szűk kivétele, `GET /users`, taglista adminnak, lezárt tér admin-kivételei, `admin_handover` törzse, Általános tagsága, tag-eltávolítás, kérések, lezárás, név és típus) és a WP4a/WP4b bontás.*
 
 *10. verzió kiegészítése (2026-10-31, WP4 előtt): **D55** — tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (az NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket (az NY19 WP4-es pontja lezárva).*
@@ -322,7 +324,7 @@ Tárgytalan: nincs git-hívás a backendben. Az adatelérési réteget a Drizzle
 - Lezárás: „Még aktuális" (új esedékesség, revízió nélkül, `review_confirmed`; bárki, akinek Szerző joga van a színtérben, jóváhagyás nélkül), vagy szerkesztés → `draft` → újrapublikálás új esedékességgel.
 - Ütemezés: a D22 szerinti cron-alapú feladat, naponta.
 
-### D34 — Címkék és fajta *(új, 2026-10-19 — felülírja D19-et)*
+### D34 — Címkék és fajta *(új, 2026-10-19 — felülírja D19-et; **kiegészítve: D58** — a lista, a javaslat és a darabszám csak a látható dokumentumokra, a `tag_exists` 409 helyett csendes újrahasznosítás)*
 
 **Döntés:**
 - A **kategória** fogalma megszűnik, helyette **címke** (`tags`, `document_tags`). A készlet **globális**, minden színtér osztozik rajta (V23). Típusos metaadat nincs (V5).
@@ -605,6 +607,17 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 **Indoklás:** a szokásos shadcn-készlettel gyorsabb és megbízhatóbb az építés; a szerveroldali aktuális színtér eszközök között is megmarad; a felület a meglévő API-ra épül, és nem ígér olyat, ami még nincs kész.
 **Vállalt ár:** hat új futásidejű függőség; egy kis backend-bővítés (oszlop, végpont, `/me`-mező) a WP4b-ben; a pontatlan `validation_error` üzenetek a pilotig maradnak.
 
+### D58 — A WP5 előtti döntések: címkék láthatósága, a duplikálás forrása, kétlépcsős szállítás *(új, 2026-11-06 — lezárja az NY12-t és az NY19 WP5-ös pontját; kiegészíti a D34, D44, D47 pontot)*
+
+**Előzmény:** a D34 globális címkekészlete (lista darabszámmal, `tag_exists` 409) és a D44 zárt színterei ütköznek: a lista, a javaslat, a darabszám és a 409 elárulhatja, milyen címkék élnek más színterekben (NY12). A duplikálás forrása (élő vagy Jóváhagyott változat) nem volt rögzítve (NY19).
+**Döntés (tulajdonos):**
+- **Címkék láthatósága (NY12):** a `tags` tábla globális marad (D34, séma-változás nincs), de a `GET /tags` listája, a trigram-javaslat és a darabszám **csak a felhasználó számára látható dokumentumokon** használt címkéket veszi figyelembe (a „látható dokumentumok” lekérdezés-építőn át, D44); ami neki ilyen értelemben árva, az rejtve marad. A `POST /tags` normalizált ütközésnél **nem ad 409-et**: csendben a meglévő sort használja, és ugyanolyan formájú, ugyanolyan státuszú választ ad, mint új címkénél, így nem árul el idegen színtérben használt címkét. A `tag_exists` hibakód megszűnik. A fajta-lista (`GET /kinds`) a Rendszeradmin által karbantartott, darabszám nélküli lista, ezért nem érintett.
+- **Duplikálás forrása (NY19):** a forrás **legutóbbi Jóváhagyott revíziója** másolódik (tartalom; a párbeszédablak a cím, a fajta és a címkék kezdőértékét a revízió metaadat-pillanatképéből veszi, D51e). Ha a forrás még soha nem volt Jóváhagyott, az élő állapot másolódik.
+- **Szállítás:** a WP5 két részben készül, a WP4 mintájára (D56): **WP5a** — backend (létrehozás üresen és duplikálással, `kind`, címke-API a fenti láthatósággal, `tag_text`, piszkozat-eldobás, láthatósági tesztek); **WP5b** — felület (létrehozás- és duplikálás-párbeszédablak, címkeválasztó). A WP5 a kettő együttesével kész; a WP6 a WP5a-ra épülhet.
+
+**Indoklás:** a D44 „nem tag semmit nem lát” elve a címke-metaadatra is vonatkozzon, séma-változás nélkül; a duplikálás ellenőrzött tartalmat terjesszen, összhangban azzal, hogy az MCP, az export és a letöltés is a Jóváhagyottat adja; a backend-szerződés a felülettől függetlenül tesztelhető legyen.
+**Vállalt ár:** a címkelista felhasználónként számolódik (drágább lekérdezés, nem gyorsítótárazható globálisan); a csendes újrahasznosításkor a címke megjelenítési neve az elsőként létrehozó írásmódja (kis- és nagybetű, ékezet), ami csekély információ; a duplikált piszkozat nem tartalmazza a forrás még review-zatlan módosításait.
+
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*
 
 *Az érvényes séma a [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió, D51-kiegészítéssel)]]. Az alábbi alaplista a 8. verzió állapota, változástörténetként; az azóta történt változásokat a lenti „Változások” blokkok sorolják fel. A `categories`, `document_categories` és `locks` tábla megszűnt (D29, D34), a revízión nincs `iteration` (a jóváhagyott verziószám a `change_requests.iteration`-ben, D51).*
@@ -713,14 +726,14 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 *Új nyitott kérdések a B4 átvizsgálásából (2026-10-23). Egyik sem blokkolja a WP1-et; a zárójelben jelölt munkacsomag előtt kell eldönteni őket. A tárolásuk a sémában additív.*
 
 - **NY11 — Az @említés formátuma (D35; WP12 előtt):** a jelenlegi `@[név](user:uuid)` a megjelenítendő nevet a komment és a revízió szövegébe másolja, így a pszeudonimizálás (D48) nem éri el. Opciók: `@(user:uuid)`, a név megjelenítéskor a `users`-ből; vagy a névmaradás vállalása. Kell-e kinyert `comment_mentions` tábla?
-- **NY12 — A címkék láthatósága a zárt színterek között (D34, D44; WP5 előtt):** a globális címkelista, a darabszámok és a `tag_exists` 409 más színterek létezését árulhatják el. Opciók: a lista, a javaslat és a darabszám a látható dokumentumokra szűrve; vagy a kockázat dokumentált vállalása.
+- **NY12 — A címkék láthatósága: LEZÁRVA (D58)** — a lista, a javaslat és a darabszám a látható dokumentumokra szűrve, a `tag_exists` 409 helyett csendes újrahasznosítás. *Eredeti kérdés (D34, D44; WP5 előtt):* a globális címkelista, a darabszámok és a `tag_exists` 409 más színterek létezését árulhatják el. Opciók: a lista, a javaslat és a darabszám a látható dokumentumokra szűrve; vagy a kockázat dokumentált vállalása.
 - **NY13 — Kapcsolatok tárolása (D39; WP16 előtt):** a kapcsolattípus nem szerepel a szövegbeli linkben (`[cím](doc:uuid)`), így előfordulásonként nem párosítható; a „link eltűnik ⇒ kapcsolat megszűnik” szabály a `származik`-ot is törölné. A V50 (a `helyettesíti` cél általi törlése) review nélküli rendszer-revízió: kap-e `approved_revision_id`-t, `iteration`-t, és mi történik függő kérés vagy élő piszkozat mellett?
 - **NY14 — Kapcsolat-értesítés idegen színtérbe (D39 V36/V50, D44; WP16 előtt):** a cél tulajdonosa nem biztos, hogy tagja a forrás színterének. Kapjon csonk-értesítést és törlési jogot, vagy a V36/V50 csak közös tagságnál él?
 - **NY15 — Tulajdonjog-átadás: LEZÁRVA (D55)** — a tulajdonos és a Színtérgazda adhat át, review nélkül, `owner_changed` eseménnyel; az `admin_handover` végső esetként marad.
 - **NY16 — E-mail-beállítások és leiratkozás (D46; WP18 előtt):** a H5 WP18 említi, de nincs napló-pontja; D21 szerint addig nem épül.
 - **NY17 — A Rendszeradmin audit-láthatósága (D43; WP9 előtt):** a rendszerszintű audit és a retenciós előnézet címet és komment-szöveget adhat, holott a Rendszeradminnak nincs tartalmi joga. Mely mezőket láthatja?
 - **NY18 — Az első Rendszeradmin és a konfigurációból töltött allowlist: LEZÁRVA** — az első Rendszeradmin és az Általános kezdő Színtérgazdája: D52; a konfig-szinkron szemantikája: D53.
-- **NY19 — Kisebb szabályok:** a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); ~~a függő review sorsa a projekt-tér lezárásakor (WP4)~~ (lezárva: D55, automatikus visszavonás); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP6, WP14; a tulajdonos 2026-10-31-én a WP3-ból halasztotta, mert a spike nem használ `y-indexeddb`-t); a legal hold hatóköre (WP33).
+- **NY19 — Kisebb szabályok:** ~~a duplikálás forrása (élő piszkozat vagy Jóváhagyott; WP5)~~ (lezárva: D58, a Jóváhagyott, ha van); eldobható-e egy beküldött, majd elutasított új dokumentum (WP8); ~~a függő review sorsa a projekt-tér lezárásakor (WP4)~~ (lezárva: D55, automatikus visszavonás); munkanap-naptár a „3 munkanaphoz” (WP23); a Yjs-állapot generációja a visszaállítás utáni helyi gyorsítótárakhoz (WP6, WP14; a tulajdonos 2026-10-31-én a WP3-ból halasztotta, mert a spike nem használ `y-indexeddb`-t); a legal hold hatóköre (WP33).
 
 ## 8. Kapcsolódó dokumentumok — frissítés-igénnyel *(új, a Postgres-only pivot nyomán)*
 

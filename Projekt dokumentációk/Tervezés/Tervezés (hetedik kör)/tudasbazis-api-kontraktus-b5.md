@@ -1,6 +1,6 @@
 # Tudásbázis — API-kontraktus (B5, 10. verzió)
 
-*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51, a D55, a D56 és a D57 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
+*A [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] D26 pontjának kifejtése, a D29, a D42–D49, a D51, a D55, a D56, a D57 és a D58 változásaival. Adatmodell: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 (10. verzió)]]. A napló az elvi forrás: eltérés esetén a napló nyer.*
 
 *Változás a korábbi B5-höz képest ([[Tervezés/Tervezés (negyedik kör)/tudasbazis-api-kontraktus-b5|B5, napló v6 szerint]]): a Git-szemantika (commit hash, push, reindex), a lock (D7) és a kategóriák (D19) megszűntek. Új: közös szerkesztés WebSocketen (D29), színterek és szerepek (D43, D44), review-folyamat (D45), dashboard és értesítési csatorna (D46), címkék és fajta (D34), kapcsolatok (D39), felülvizsgálat (D33).*
 
@@ -59,7 +59,7 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 |---|---|---|
 | `GET /api/v1/documents` | belépett | Lista + keresés a saját színterekből. Query: `q` (FTS + trgm, snippettel), `spaceId`, `kind`, `tag`, `reviewState` (`draft`, `pending`, `changes_requested`, `approved`), `owner`, `favorites=true`, `template=true`, `archived=true`, `limit`, `offset`. A szűrők az URL-ben élnek (D49). A lista, a keresés és a facetek az élő (legutóbbi) metaadatot mutatják, állapotjelzővel (D51e). Az `archived=true` csak a valaha Jóváhagyott, archivált dokumentumokat adja, az eldobott piszkozatokat nem. |
 | `GET /api/v1/documents/similar?title=&spaceId=` | tag | Duplikátum-figyelmeztetés: legfeljebb 5 hasonló cím (D36, D49) |
-| `POST /api/v1/documents` | Szerző (a célszíntérben) | Létrehozás Piszkozatként: `{ spaceId, title, kind, tagIds?, sourceDocumentId? }`. Forrással = duplikálás bármely saját színtérből (D44); `szarmazik` kapcsolat, `duplicated_from` mindkét oldalon. Sablon forrásként: második ütem (D47). |
+| `POST /api/v1/documents` | Szerző (a célszíntérben) | Létrehozás Piszkozatként: `{ spaceId, title, kind, tagIds?, sourceDocumentId? }`. Forrással = duplikálás bármely saját színtérből (D44); a forrás legutóbbi Jóváhagyott revíziójának tartalma másolódik, ha még soha nem volt Jóváhagyott, az élő tartalom (D58); `szarmazik` kapcsolat, `duplicated_from` mindkét oldalon. Sablon forrásként: második ütem (D47). |
 | `GET /api/v1/documents/:id` | tag | Metaadat, a legutóbbi változat (függő is), `reviewState`, `approvedRevisionId`, `iteration`, a függő kérés, kedvenc és követés. Nem tagnak **403 `not_space_member`** (A10). |
 | `DELETE /api/v1/documents/:id/draft` | indítványozó | Soha be nem küldött piszkozat eldobása, review nélkül (D45) → `draft_discarded`; a revízióival együtt 1 év után véglegesen törlődik (D51i). Egyébként **409 `has_approved_revision`** |
 | `GET /api/v1/documents/:id/raw?frontmatter=true\|false` | tag | Nyers .md a legutóbbi Jóváhagyott revízióból (tartalom és a revízió `metadata`-pillanatképe, D51e); alapból frontmatter nélkül (D49) |
@@ -98,8 +98,8 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 ### Címkék, fajta, kapcsolatok (D34, D39)
 | Metódus + út | Ki | Leírás |
 |---|---|---|
-| `GET /api/v1/tags?q=` | belépett | Címkék darabszámmal; `q` esetén normalizált egyezés + legfeljebb 3 trigram-javaslat (D34) |
-| `POST /api/v1/tags` | Szerző | Új címke a felajánlás elutasítása után → `tag_created`; ütközésnél **409 `tag_exists`** a meglévővel |
+| `GET /api/v1/tags?q=` | belépett | Címkék darabszámmal; `q` esetén normalizált egyezés + legfeljebb 3 trigram-javaslat (D34). **Csak a felhasználó számára látható dokumentumokon használt címkék, a darabszám is ezekre számolva (D58, D44)** |
+| `POST /api/v1/tags` | Szerző | Új címke a felajánlás elutasítása után → `tag_created`. Normalizált ütközésnél nincs hiba: a meglévő sort adja vissza, ugyanolyan státusszal és formában, mint új címkénél (D58; a `tag_exists` megszűnt) |
 | `GET /api/v1/kinds` · `POST /api/v1/kinds` | belépett · Rendszeradmin | Fajta-lista; bővítés csak Rendszeradminnak |
 | `GET /api/v1/documents/:id/links` | tag | Kimenő kapcsolatok és visszahivatkozások; idegen színtérbe mutatónál `{ hidden: true, spaceId }`, cím nélkül (D44) |
 
@@ -162,7 +162,7 @@ Minden hiba `application/problem+json` (A2):
 | `last_admin` | 409 | Az utolsó Rendszeradmin visszaminősítése (V12) |
 | `owner_handover_required` | 409 | Tulajdonos eltávolítása tulajdonjog-átadás nélkül (V12) |
 | `has_approved_revision` | 409 | Piszkozat-eldobás egy már Jóváhagyott dokumentumon |
-| `tag_exists` | 409 | Normalizált ütközés; `details.tag` a meglévő |
+| ~~`tag_exists`~~ | ~~409~~ | **Megszűnt (D58):** normalizált ütközésnél a `POST /tags` a meglévő címkét adja vissza, hiba nélkül |
 | `stale_base_revision` | 412 | A `baseRevisionId` nem a legutóbbi Jóváhagyott (A4); `details.currentApprovedRevisionId` |
 | `invalid_reviewers` | 422 | Nem két különböző tag, vagy köztük az indítványozó |
 | `invalid_new_owner` | 422 | Tulajdonjog-átadás olyan felhasználóra, aki nem a színtér aktív tagja, vagy már most is a tulajdonos (D55) |

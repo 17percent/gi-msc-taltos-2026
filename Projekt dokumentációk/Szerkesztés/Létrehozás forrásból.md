@@ -38,13 +38,14 @@ mvp: 3
 
 ## Kapcsolódó döntések
 
-[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D17 (a sablon is tudásanyag; „létrehozás forrásból” egységes művelet).
+[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — D17 (a sablon is tudásanyag; „létrehozás forrásból” egységes művelet), D47 (létrehozási utak), D58 (a duplikálás forrása).
 
 ## Nyitott kérdések
 
 - **Duplikátum-figyelmeztetés ([[Versenytárs-elemzés]] V13, módosítva D49):** cím beírásakor és az első mentéskor **a cím** `pg_trgm`-hasonlósága alapján legfeljebb 5 hasonló, nem archivált dokumentumot ajánlunk fel a saját színtereken belül („Ezt kerested?”). Nem tilt.
 - ~~Tartalom-összevetés költsége?~~ **Tárgytalan (D49):** csak a cím kerül összevetésre.
 - ~~Melyik színtérbe kerül a másolat?~~ **Döntve (D44):** bármelyikbe, amelynek a felhasználó tagja; a másolat Piszkozatként indul, és a célszíntér két review-erével válik Jóváhagyottá.
+- ~~Mit másol a duplikálás: az élő vagy a Jóváhagyott változatot?~~ **Döntve (D58, 2026-11-06):** a forrás legutóbbi Jóváhagyott revízióját (a párbeszédablak a cím, a fajta és a címkék kezdőértékét is annak metaadat-pillanatképéből veszi); ha a forrás még soha nem volt Jóváhagyott, az élő állapotot.
 - ~~„Származik” kapcsolat?~~ **Döntve (D39):** igen, a Kapcsolatok része.
 - ~~Sablonok?~~ **Döntve (D47):** a sablonná jelölés metaadat-változás, két review-er hagyja jóvá; a Jóváhagyott sablonok globálisan használhatók (D44 kivétel).
 - ~~Fájlimport?~~ **Döntve (D47):** egyenként; az eredeti fájl nem tárolódik, az `imported_from` esemény rögzíti a nevét. Tömeges import: jövőbeli munka.

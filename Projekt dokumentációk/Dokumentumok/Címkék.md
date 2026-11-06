@@ -23,6 +23,7 @@ Lapos címkékkel lehessen csoportosítani a tudásanyagokat. Egy dokumentumnak 
 - **Fajta külön mezőben (V27):** a dokumentum fajtája (prompt, skill, agent-definíció, MCP-szerver …) nem címke, hanem kötelező, egyértékű `documents.kind` mező rögzített listából (a Rendszeradminisztrátor bővítheti, `kind_created` esemény). A címkék a témát jelölik.
 - **Nincs utólagos összevonás vagy átnevezés (V29):** a redundancia ellen kizárólag a beíráskori felajánlás véd.
 - **Árva címkék rejtve (V30):** a dokumentumhoz már nem kötött címke nem jelenik meg a listában és a facetben, de a rekord megmarad; újbóli beíráskor ugyanaz a címke tér vissza.
+- **Láthatóság zárt színterek mellett (D58):** a lista, a javaslat és a darabszám felhasználónként, csak a számára látható dokumentumokra számolódik; ami neki árva, az rejtve marad.
 - Adatmodell: `categories` → `tags` (`id`, `name`, `normalized_name UNIQUE`, `created_by`, `created_at`), `document_categories` → `document_tags`.
 
 ## Működés a prototípusban
@@ -33,11 +34,11 @@ Az Élő Atlaszon a kategória színt és szűrőt ad, helyet nem (5. kör). Tö
 
 ## Kapcsolódó döntések
 
-[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — **D34** (címkék és fajta; felülírja a D19-et), D28 (a címke szűrő, nem hely), D49 (a címke és a fajta kis súllyal a keresővektorban), D51j (a `document_tags` sorai fizikailag törölhetők; a címkék története a revízió-pillanatképben él). ~~D19 (lapos kategóriák, használatban lévő védett)~~ — felülírva.
+[[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-naplo|Döntési napló v10]] — **D34** (címkék és fajta; felülírja a D19-et), **D58** (láthatóság zárt színterek mellett), D28 (a címke szűrő, nem hely), D49 (a címke és a fajta kis súllyal a keresővektorban), D51j (a `document_tags` sorai fizikailag törölhetők; a címkék története a revízió-pillanatképben él). ~~D19 (lapos kategóriák, használatban lévő védett)~~ — felülírva.
 
 ## Nyitott kérdések
 
-- ❓ **Zárt színterek (D44) és a globális készlet (V23):** a címkenevek, a darabszámok és a „már létezik” (409 `tag_exists`) válasz színtereken át elárulhatja egy címke létezését; látható-e a címke más színterek felhasználóinak — nem döntött (NY11–NY19 a naplóban).
+- ~~Zárt színterek (D44) és a globális készlet (V23)?~~ **Döntve (D58, 2026-11-06):** a készlet globális marad, de a lista, a javaslat és a darabszám csak a felhasználó számára látható dokumentumokon használt címkéket veszi figyelembe; a szabad kézzel beírt, máshol már létező címke hiba (a korábbi 409 `tag_exists`) nélkül, csendben a meglévő sort kapja, így nem árul el idegen színteret.
 - Szükség lesz-e mégis hierarchiára vagy egy második dimenzióra (pl. téma vagy fajta)? Ma szándékosan egy dimenzió van. **[[Versenytárs-elemzés]] V5:** a lapos címke marad; a SharePoint-féle típusos metaadatokat és a BookStack-hierarchiát nem vesszük át.
 - ~~Színterenként saját készlet vagy globális?~~ **Döntve (V23):** globális.
 - ~~Utólagos összevonás?~~ **Döntve (V29):** senki. Ha mégis bekerül egy elírt címke, az a dokumentum szerkesztésével cserélhető, a régi alak pedig árvaként elrejtődik (V30).

@@ -23,7 +23,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
-| [[Dokumentumok/Címkék\|Címkék]] | globális, szabadon megadott címkék, duplikátumszűrés; fajta külön mező (D34) | 3 | ✅ (prototípus: kategóriák) · 📘 D34 · ❓ láthatóság színtereken át |
+| [[Dokumentumok/Címkék\|Címkék]] | globális, szabadon megadott címkék, duplikátumszűrés; fajta külön mező (D34) | 3 | ✅ (prototípus: kategóriák) · 📘 D34, D58 (láthatóság színtereken át) |
 | [[Dokumentumok/Verziózás\|Verziózás]] | történet, diff, visszaállítás régi revízióra (review-val) | 5 | ✅ · 📘 D45 |
 | [[Dokumentumok/Státusz-workflow\|Státusz-workflow]] | Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó, két review-er; Módosítás indítása, `unarchive` (D45, D51) | 6 | ✅ (régi 4 státusz) · 📘 D45, D51 |
 | [[Dokumentumok/Archívum\|Archívum]] | archiválás és `unarchive` review-val, soft delete | 11 | ✅ · 📘 D45, D51g |
@@ -104,6 +104,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 - ✅ **D54 (2026-10-23, a WP2 review-ja):** az első Rendszeradmin csak a `BOOTSTRAP_ADMIN_EMAIL` címmel (addig mások `setup_pending`); az archivált dokumentum tulajdonosa kivehető az allowlistből.
 - ✅ **D56 (2026-10-31, a WP4 tervezése):** a WP4 részletszabályai (felhasználókeresés, taglista adminnak, lezárt tér admin-kivételei, `admin_handover`, Általános tagsága, tag-eltávolítás, kérések, lezárás, név/típus) és a WP4a/WP4b bontás.
 - ✅ **D55 (2026-10-31, WP4 előtt):** tulajdonjog-átadás a tulajdonostól vagy a Színtérgazdától, review nélkül (NY15 lezárva); a projekt-tér lezárása visszavonja a függő review-kéréseket.
-- ❓ **Nyitott a naplóban: NY11–NY14, NY16, NY17, NY19** (többek közt: említés-formátum, címkék láthatósága színtereken át, kapcsolat-típus tárolása, cross-space értesítés, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
+- ✅ **D58 (2026-11-06, WP5 előtt):** a címkelista, a javaslat és a darabszám csak a látható dokumentumokra, a `tag_exists` 409 helyett csendes újrahasznosítás (NY12 lezárva); duplikálás a Jóváhagyott revízióból, ha van (az NY19 WP5-ös pontja lezárva); WP5a/WP5b bontás.
+- ❓ **Nyitott a naplóban: NY11, NY13, NY14, NY16, NY17, NY19** (többek közt: említés-formátum, kapcsolat-típus tárolása, cross-space értesítés, e-mail beállítások és leiratkozás, rendszer-audit láthatósága, legal hold, Yjs-generáció). Az érintett jegyzetekben ❓ jelöli őket; a jegyzetek nem döntik el.
 - Nyitott a naplóban: **NY8** (pilot összehasonlítási alapja), **NY9** (pilot hozzáférése és moderálása), ~~NY10~~ (lezárva: 8 óra / 60 perc).
 - ✅ A v10 részletdokumentumai: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-db-sema-b4|B4 séma]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-api-kontraktus-b5|B5 API]] · [[Tervezés/Tervezés (hetedik kör)/tudasbazis-munkacsomagok-h5|H5 munkacsomagok]] (WP0–WP23 + 6 második ütemes csomag).
