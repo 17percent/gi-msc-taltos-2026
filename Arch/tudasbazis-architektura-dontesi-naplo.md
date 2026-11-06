@@ -633,6 +633,8 @@ Részletek: [[Dokumentumok/Státusz-workflow]].
 - **Kisebb pontok (g–j):** a meglévő piszkozat címkéinek módosítása nem a WP5a része (a Tulajdonság-panellel, WP6); archivált forrás is duplikálható (a Jóváhagyott revíziójából); a címke-darabszám csak a nem törölt dokumentumokat számolja, a címkenév 1–64 karakter, a normalizálás közös (kisbetű, ékezetmentesítés, szóközök összevonása); a slug a címből készül, ütközésnél rövid utótaggal.
 
 **Indoklás:** a WP5b-nek legyen mire építenie, a D44 a forrás-oldali eseményen se sérüljön, a két létrehozási út egységes revízió-modellt adjon, és az eldobott dokumentum ne maradjon szerkeszthetőnek látszó kapcsolatban.
+*Kiegészítés (2026-11-06, a WP5a appsec-review-ja, tulajdonos):* (1) a `POST /tags` válaszában a `name` a hívó saját írásmódja, ha a meglévő címkét egyetlen számára látható dokumentum sem használja (a tárolt név nem változik), így a válasz törzse nem árulja el az idegen címke létezését; az írás/olvasás időzítés-különbsége vállalt. (2) A címkenév normalizálása NFKC-val és a formázó karakterek (`\p{Cf}`: zéró-szélességű, bidi, BOM) eltávolításával kezdődik; a csak szóközből vagy formázó karakterből álló cím, címkenév és fajta-címke 400 `validation_error`.
+
 **Vállalt ár:** a `GET /documents/:id` `approvedMetadata` mezője kontraktus-bővítés; a forrás-oldali kitakarás a WP9 felelőssége (addig az esemény nem olvasható ki); egy szűk kapcsolatbontó varrat a `/collab`-ban már a WP6 előtt.
 
 ## 4. Adatmodell-vázlat (PostgreSQL) *(módosítva — Postgres-only pivot)*

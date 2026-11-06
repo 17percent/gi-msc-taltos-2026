@@ -99,7 +99,7 @@ Minden `/api/v1/*` végpont (az ismeretlen útvonal is): munkamenet nélkül **4
 | Metódus + út | Ki | Leírás |
 |---|---|---|
 | `GET /api/v1/tags?q=` | belépett | Címkék darabszámmal; `q` esetén normalizált egyezés + legfeljebb 3 trigram-javaslat (D34). **Csak a felhasználó számára látható dokumentumokon használt címkék, a darabszám is ezekre számolva (D58, D44)** |
-| `POST /api/v1/tags` | belépett (D59) | Új címke a felajánlás elutasítása után → `tag_created` (csak valódi új címkénél). Normalizált ütközésnél nincs hiba és nincs esemény: a meglévő sort adja vissza; a válasz mindkét ágon **200 `{ id, name }`** (D58, D59; a `tag_exists` megszűnt). Név: 1–64 karakter; normalizálás: kisbetű, ékezetmentesítés, szóközök összevonása |
+| `POST /api/v1/tags` | belépett (D59) | Új címke a felajánlás elutasítása után → `tag_created` (csak valódi új címkénél). Normalizált ütközésnél nincs hiba és nincs esemény: a meglévő sort adja vissza; a válasz mindkét ágon **200 `{ id, name }`**; a `name` a tárolt írásmód, ha a címkét a hívó számára látható dokumentum használja, különben a hívó saját írásmódja (D58, D59; a `tag_exists` megszűnt). Név: 1–64 karakter; normalizálás: NFKC, formázó karakterek eltávolítása, kisbetű, ékezetmentesítés, szóközök összevonása (D59) |
 | `GET /api/v1/kinds` · `POST /api/v1/kinds` | belépett · Rendszeradmin | Fajta-lista; bővítés csak Rendszeradminnak |
 | `GET /api/v1/documents/:id/links` | tag | Kimenő kapcsolatok és visszahivatkozások; idegen színtérbe mutatónál `{ hidden: true, spaceId }`, cím nélkül (D44) |
 
