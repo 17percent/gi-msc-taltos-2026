@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { loadModule, parse, parsePlPgSQL } from 'libpg-query';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MIGRATIONS_FOLDER } from './migrator.js';
+import { buildSeedPlan } from './seed-data.js';
 
 /**
  * Adatbázis NÉLKÜLI ellenőrzés: minden migráció a Postgres saját parserén (libpg-query, WASM) átmegy, a PL/pgSQL
@@ -20,6 +21,7 @@ const EXPECTED = [
   '0007_system_bootstrapped_event',
   '0008_null_actor_event_exceptions',
   '0009_users_current_space',
+  '0010_default_document_kinds',
 ];
 
 const files = readdirSync(MIGRATIONS_FOLDER)
@@ -86,6 +88,41 @@ describe('migrációk (B4 3. szakasz) - szintaxis', () => {
       ['reviewer_removed', "COALESCE(details->>'reason', '') = 'allowlist_removed'"],
     ]);
     expect(current).not.toContain('member_removed'); // a member_removed okú visszavonásnak van aktora
+  });
+
+  it('a 0010 a kilenc alap-fajtát szúrja be a seed értékeivel, csak INSERT ... ON CONFLICT (key) DO NOTHING (D60 NK3)', async () => {
+    const raw = readFileSync(join(MIGRATIONS_FOLDER, '0010_default_document_kinds.sql'), 'utf8');
+    const sql = raw
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('--'))
+      .join('\n');
+    // Egyetlen utasítás: INSERT a document_kinds-be, DO NOTHING a kulcs ütközésekor (nincs UPDATE, DELETE, upsert).
+    const { stmts = [] } = await parse(sql);
+    expect(stmts).toHaveLength(1);
+    const insert = (
+      stmts[0]?.stmt as {
+        InsertStmt?: {
+          relation: { relname: string };
+          onConflictClause: {
+            action: string;
+            infer: { indexElems: { IndexElem: { name: string } }[] };
+          };
+        };
+      }
+    ).InsertStmt;
+    expect(insert?.relation.relname).toBe('document_kinds');
+    expect(insert?.onConflictClause.action).toBe('ONCONFLICT_NOTHING');
+    expect(insert?.onConflictClause.infer.indexElems.map((e) => e.IndexElem.name)).toEqual(['key']);
+    expect(sql).not.toMatch(/\b(UPDATE|DELETE|TRUNCATE)\b/i);
+
+    // Ugyanazok a kulcsok, címkék és sorrend, mint a seedben (a fajta-lista egyetlen forrása a KINDS).
+    const rows = [...sql.matchAll(/\('([^']+)', '([^']+)', (\d+)\)/g)].map((m) => ({
+      key: m[1],
+      label: m[2],
+      sortOrder: Number(m[3]),
+    }));
+    expect(rows).toHaveLength(9);
+    expect(rows).toEqual(buildSeedPlan().kinds);
   });
 
   it.each(EXPECTED)(

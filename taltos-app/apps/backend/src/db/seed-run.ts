@@ -141,7 +141,12 @@ export async function runSeed(
         });
       }
     }
-    await tx.insert(t.documentKinds).values(plan.kinds);
+    // A 0010 migráció már beszúrja a kilenc alap-fajtát (D60 NK3): a seed ugyanazokat a sorokat DO NOTHING-gal teszi
+    // hozzá, így a seed friss (migrált) adatbázison is lefut, és a kimenete nem változik.
+    await tx
+      .insert(t.documentKinds)
+      .values(plan.kinds)
+      .onConflictDoNothing({ target: t.documentKinds.key });
     await tx.insert(t.tags).values(plan.tags);
     for (const tag of plan.tags) {
       await addEvent(tx, {
