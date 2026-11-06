@@ -43,6 +43,20 @@ describe('Új dokumentum (oldalsáv + CreateDocumentDialog, üres mód)', () => 
     ).toBe(false);
   });
 
+  it('Esc és „Mégse” után a fókusz az oldalsáv „Új dokumentum” gombjára tér vissza', async () => {
+    documentApi();
+    renderApp('/');
+    const button = await screen.findByRole('button', { name: 'Új dokumentum' });
+    const dialog = await openBlank();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(button));
+    const again = await openBlank();
+    fireEvent.click(within(again).getByRole('button', { name: 'Mégse' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(button));
+  });
+
   it('nincs nem lezárt tagsági tér: nincs gomb (nem tag Rendszeradmin; csak lezárt tér)', async () => {
     documentApi({ me: makeMe({ systemRole: 'system_admin', spaces: [], currentSpaceId: null }) });
     renderApp('/');
@@ -163,6 +177,10 @@ describe('Új dokumentum (oldalsáv + CreateDocumentDialog, üres mód)', () => 
     fireEvent.click(busy);
     fireEvent.submit(dialog.querySelector('form') as HTMLFormElement);
     expect(api.callsTo('POST /api/v1/documents')).toHaveLength(1);
+    // A második (elutasított) beküldés nem oldhatja fel a zárat, amíg az első fut.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    fireEvent.click(screen.getByRole('button', { name: 'Bezárás' }));
+    expect(screen.getByRole('dialog', { name: 'Új dokumentum' })).toBeTruthy();
     // Beküldés közben az Esc és a „Mégse” sem zár.
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.getByRole('dialog', { name: 'Új dokumentum' })).toBeTruthy();

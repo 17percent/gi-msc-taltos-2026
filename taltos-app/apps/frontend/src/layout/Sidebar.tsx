@@ -63,6 +63,7 @@ export function SidebarContent({
       <SpaceSwitcher {...(onNavigate ? { onNavigate } : {})} />
       {canCreate ? (
         <Button
+          id="new-document-button"
           className="w-full"
           onClick={() => {
             onNavigate?.();

@@ -185,13 +185,15 @@ function CreateBody({
 
   async function submit() {
     onBusyChange(true);
+    const outcome = await create.run();
+    // `undefined`: a küldés már fut (a második hívást elutasítottuk); a zárat az első hívás oldja fel.
+    if (outcome === undefined) return;
     try {
-      const outcome = await create.run();
-      if (outcome?.ok && outcome.value) {
+      if (outcome.ok && outcome.value) {
         closedAfterCreate.current = true;
         onClose();
         void navigate(`/documents/${outcome.value.id}`);
-      } else if (outcome && !outcome.ok) {
+      } else if (!outcome.ok) {
         recover(outcome.error);
       }
     } finally {

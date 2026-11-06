@@ -25,7 +25,7 @@ describe('DocumentHeader', () => {
       await screen.findByRole('heading', { level: 1, name: 'Ügyfélszolgálati gyorsválaszok' }),
     ).toBeTruthy();
     expect(screen.getByText('Review-ra vár').querySelector('svg')).toBeTruthy();
-    expect(screen.getByText('Fajta: Prompt')).toBeTruthy();
+    expect(await screen.findByText('Fajta: Prompt')).toBeTruthy();
     const tags = screen.getByRole('list', { name: 'Címkék' });
     expect(within(tags).getAllByRole('listitem')).toHaveLength(1);
     expect(

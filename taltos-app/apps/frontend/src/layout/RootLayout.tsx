@@ -12,6 +12,19 @@ import { SpaceProvider } from '../spaces/SpaceProvider';
 import { SidebarContent } from './Sidebar';
 import { UserMenu } from './UserMenu';
 
+/**
+ * A dialógus nem `DialogTrigger`-ből nyílik, ezért a fókuszt mi adjuk vissza az indító gombra (spec 2.).
+ * Mobilon a gomb a bezárt Sheetben volt (és az asztali oldalsáv rejtett): a „Menü megnyitása” gomb a tartalék.
+ */
+function returnFocusToOpener(event: Event): void {
+  event.preventDefault();
+  const opener = document.getElementById('new-document-button');
+  opener?.focus();
+  if (!opener || document.activeElement !== opener) {
+    document.getElementById('open-menu-button')?.focus();
+  }
+}
+
 function Shell() {
   const { state, logoutFailed } = useAuth();
   const location = useLocation();
@@ -47,6 +60,7 @@ function Shell() {
                     variant="ghost"
                     size="icon"
                     aria-label="Menü megnyitása"
+                    id="open-menu-button"
                     className="lg:hidden"
                   >
                     <Menu aria-hidden="true" className="size-5" />
@@ -90,7 +104,12 @@ function Shell() {
         </main>
       </div>
       {signedIn ? (
-        <CreateDocumentDialog open={createOpen} onOpenChange={setCreateOpen} mode="blank" />
+        <CreateDocumentDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          mode="blank"
+          onCloseAutoFocus={returnFocusToOpener}
+        />
       ) : null}
       <Toaster />
     </div>

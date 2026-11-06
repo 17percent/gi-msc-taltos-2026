@@ -40,8 +40,8 @@ afterEach(() => {
 });
 
 describe('dokumentum-oldal', () => {
-  // A szerkesztő külön csomagja lusta betöltésű: terhelés alatt (párhuzamos tesztfájlok) a modul-fordítás
-  // lassú lehet, ezért az első megjelenésre hosszabb időkorlát jár (az alapértelmezett 1 s kevés).
+  // Ismert, terhelés alatt (párhuzamos tesztfájlok) időnként időtúllépő teszt. A gyökérok nem azonosított;
+  // az időkorlátot megemeltük, ez nem javítás, csak a hamis bukás valószínűségét csökkenti.
   it('kijelentkezve bejelentkezésre hív', async () => {
     renderAt('/documents/3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', false);
     expect(
