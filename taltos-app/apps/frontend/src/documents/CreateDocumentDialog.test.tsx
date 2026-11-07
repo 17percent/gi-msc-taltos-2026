@@ -591,6 +591,40 @@ describe('CreateDocumentDialog: mátrix- és hibaág-hézagok (QA 2. kör)', () 
     );
   });
 
+  it('403 space_closed: a színterek újratöltődnek, a lezárt cél helyett az első választható lép, a mezők megmaradnak', async () => {
+    let spaceCalls = 0;
+    const api = setup(makeDoc({ title: 'Forrás', kind: 'guide' }), {
+      routes: {
+        'GET /api/v1/spaces': () =>
+          Response.json(
+            ++spaceCalls === 1
+              ? summaries
+              : summaries.map((space) => (space.id === GENERAL ? { ...space, closed: true } : space)),
+          ),
+        'POST /api/v1/documents': () => problem(403, 'space_closed'),
+      },
+    });
+    const dialog = await openDuplicate();
+    expect(within(dialog).getByRole('combobox', { name: 'Színtér' }).textContent).toContain(
+      'Általános',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Másolat létrehozása' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'A(z) „Általános” projekt-tér közben lezárult, ezért nem hozható benne létre dokumentum.',
+    );
+    // Már csak a Fejlesztés választható (egy tér: nem Select); az Általános lezártként jelenik meg.
+    await waitFor(() =>
+      expect(within(dialog).getByText('A(z) „Általános” lezárt, ezért itt nem hozható létre dokumentum.')).toBeTruthy(),
+    );
+    expect(within(dialog).getByText('Fejlesztés')).toBeTruthy();
+    expect(spaceCalls).toBeGreaterThanOrEqual(2);
+    expect(api.callsTo('GET /api/v1/me').length).toBeGreaterThanOrEqual(2);
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Cím' }).value).toBe(
+      'Forrás (másolat)',
+    );
+    expect(screen.getByRole('dialog', { name: 'Dokumentum duplikálása' })).toBeTruthy();
+  });
+
   it.each([
     ['403 not_space_member', () => problem(403, 'not_space_member'), { me: 2, spaces: 2 }],
     ['404 not_found (üres mód)', () => problem(404, 'not_found'), { me: 2, spaces: 2 }],

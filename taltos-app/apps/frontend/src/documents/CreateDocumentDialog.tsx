@@ -143,6 +143,8 @@ function CreateBody({
   const [kindChoice, setKindChoice] = useState<string | null>(null);
   const [tags, setTags] = useState<TagRef[]>(initial.tags);
   const [errors, setErrors] = useState<Errors>({});
+  // A hibaüzenet a küldéskor választott térről szól: a frissített lista közben másik teret léptethet a helyére.
+  const [failedSpaceName, setFailedSpaceName] = useState<string | undefined>(undefined);
 
   const kindList = kinds.data;
   const initialKindAvailable =
@@ -194,6 +196,7 @@ function CreateBody({
         onClose();
         void navigate(`/documents/${outcome.value.id}`);
       } else if (!outcome.ok) {
+        setFailedSpaceName(selectedSpace?.name);
         recover(outcome.error);
       }
     } finally {
@@ -227,7 +230,11 @@ function CreateBody({
 
   const context: ErrorContext = {
     action,
-    ...(selectedSpace ? { spaceName: selectedSpace.name } : {}),
+    ...(create.failed && failedSpaceName
+      ? { spaceName: failedSpaceName }
+      : selectedSpace
+        ? { spaceName: selectedSpace.name }
+        : {}),
   };
 
   const spaceField = !spacesReady ? (
