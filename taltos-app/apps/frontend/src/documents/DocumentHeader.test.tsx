@@ -399,7 +399,9 @@ describe('Piszkozat eldobása: hibaágak és az oldal frissülése (QA 2. kör)'
     fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
     await within(dialog).findByRole('alert');
     // A színtérváltó is kiírja a „Lezárt” szót: a fejlécet (main) külön vizsgáljuk.
-    await waitFor(() => expect(within(screen.getByRole('main', { hidden: true })).getByText('Lezárt')).toBeTruthy());
+    await waitFor(() =>
+      expect(within(screen.getByRole('main', { hidden: true })).getByText('Lezárt')).toBeTruthy(),
+    );
     fireEvent.click(within(dialog).getByRole('button', { name: 'Bezár' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     await open();
@@ -470,7 +472,9 @@ describe('Piszkozat eldobása: hibaágak és az oldal frissülése (QA 2. kör)'
     renderApp(`/documents/${DOC_ID}`);
     await screen.findByRole('heading', { name: 'Nincs hozzáférésed ehhez a dokumentumhoz' });
     // Az oldalsáv saját „Színtér beállításai” linkje nem számít: a tartalomban nincs ilyen.
-    expect(within(screen.getByRole('main')).queryByRole('link', { name: 'Színtér beállításai' })).toBeNull();
+    expect(
+      within(screen.getByRole('main')).queryByRole('link', { name: 'Színtér beállításai' }),
+    ).toBeNull();
     expect(screen.getByText(/Rendszeradminisztrátorhoz/)).toBeTruthy();
     expect(screen.queryByTestId('editor')).toBeNull();
   });

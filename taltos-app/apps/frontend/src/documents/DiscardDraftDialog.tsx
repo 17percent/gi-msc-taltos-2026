@@ -52,9 +52,7 @@ export function DiscardDraftDialog({
             'space_closed',
             'not_found',
             'not_space_member',
-          ].includes(
-            caught.code,
-          )
+          ].includes(caught.code)
         ) {
           onChanged();
         }

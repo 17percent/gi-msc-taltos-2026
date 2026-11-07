@@ -545,7 +545,12 @@ describe('CreateDocumentDialog: mátrix- és hibaág-hézagok (QA 2. kör)', () 
       }),
     );
     const dialog = await openDuplicate();
-    for (const leaked of ['sp-secret-space', 'doc-visible-target', 'LÁTHATÓ-HORGONY', 'doc-origin']) {
+    for (const leaked of [
+      'sp-secret-space',
+      'doc-visible-target',
+      'LÁTHATÓ-HORGONY',
+      'doc-origin',
+    ]) {
       expect(dialog.textContent, leaked).not.toContain(leaked);
     }
     expect(within(dialog).queryByRole('list', { name: 'Kiválasztott címkék' })).toBeNull();
@@ -599,7 +604,9 @@ describe('CreateDocumentDialog: mátrix- és hibaág-hézagok (QA 2. kör)', () 
           Response.json(
             ++spaceCalls === 1
               ? summaries
-              : summaries.map((space) => (space.id === GENERAL ? { ...space, closed: true } : space)),
+              : summaries.map((space) =>
+                  space.id === GENERAL ? { ...space, closed: true } : space,
+                ),
           ),
         'POST /api/v1/documents': () => problem(403, 'space_closed'),
       },
@@ -614,7 +621,11 @@ describe('CreateDocumentDialog: mátrix- és hibaág-hézagok (QA 2. kör)', () 
     );
     // Már csak a Fejlesztés választható (egy tér: nem Select); az Általános lezártként jelenik meg.
     await waitFor(() =>
-      expect(within(dialog).getByText('A(z) „Általános” lezárt, ezért itt nem hozható létre dokumentum.')).toBeTruthy(),
+      expect(
+        within(dialog).getByText(
+          'A(z) „Általános” lezárt, ezért itt nem hozható létre dokumentum.',
+        ),
+      ).toBeTruthy(),
     );
     expect(within(dialog).getByText('Fejlesztés')).toBeTruthy();
     expect(spaceCalls).toBeGreaterThanOrEqual(2);
@@ -663,7 +674,9 @@ describe('CreateDocumentDialog: mátrix- és hibaág-hézagok (QA 2. kör)', () 
         routes: {
           'POST /api/v1/documents': () => {
             if (++attempts === 1) throw new TypeError('Failed to fetch');
-            return Response.json(makeDoc({ id: NEW_DOC_ID, title: 'Szerkesztett cím' }), { status: 201 });
+            return Response.json(makeDoc({ id: NEW_DOC_ID, title: 'Szerkesztett cím' }), {
+              status: 201,
+            });
           },
           [`GET /api/v1/documents/${NEW_DOC_ID}`]: json(
             makeDoc({ id: NEW_DOC_ID, title: 'Szerkesztett cím' }),

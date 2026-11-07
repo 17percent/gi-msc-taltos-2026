@@ -469,7 +469,7 @@ describe('TagPicker: robusztusság', () => {
       routes: { 'POST /api/v1/tags': json({ id: 'tag-new', name: 'Valami új' }) },
     });
     type(input, '  Valami​   új‍ ');
-    const row = await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
+    await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
     await waitFor(() => expect(rowOf(dialog, 'Új címke: „Valami új”')).not.toBe('true'));
     expect(queries(api).some((call) => call.query === '?q=Valami%20%C3%BAj')).toBe(true);
     fireEvent.click(within(dialog).getByRole('option', { name: 'Új címke: „Valami új”' }));
@@ -488,7 +488,7 @@ describe('TagPicker: robusztusság', () => {
       },
     });
     type(input, 'Valami új');
-    const row = await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
+    await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
     await waitFor(() => expect(rowOf(dialog, 'Új címke: „Valami új”')).not.toBe('true'));
     fireEvent.click(within(dialog).getByRole('option', { name: 'Új címke: „Valami új”' }));
     const alert = await within(dialog).findByRole('alert');
@@ -508,7 +508,7 @@ describe('TagPicker: robusztusság', () => {
       },
     });
     type(input, 'Valami új');
-    const row = await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
+    await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
     await waitFor(() => expect(rowOf(dialog, 'Új címke: „Valami új”')).not.toBe('true'));
     fireEvent.click(within(dialog).getByRole('option', { name: 'Új címke: „Valami új”' }));
     await within(dialog).findByRole('alert');
@@ -518,7 +518,11 @@ describe('TagPicker: robusztusság', () => {
   });
 
   it('a helyi találatok legfeljebb 5 sort adnak', async () => {
-    const many = Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, name: `Közös ${i}`, count: i }));
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `m${i}`,
+      name: `Közös ${i}`,
+      count: i,
+    }));
     const { dialog, input } = await openPicker({
       routes: {
         'GET /api/v1/tags': ({ url }) =>
@@ -577,7 +581,16 @@ describe('TagPicker: robusztusság', () => {
       type(input, 'promtp');
       await within(dialog).findByRole('group', { name: 'Ezt kerested?' });
       await check(input);
-      const keys = ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowUp', 'End', 'Home', 'End'];
+      const keys = [
+        'ArrowDown',
+        'ArrowDown',
+        'ArrowDown',
+        'ArrowDown',
+        'ArrowUp',
+        'End',
+        'Home',
+        'End',
+      ];
       for (const key of keys) {
         fireEvent.keyDown(input, { key });
         await check(input);
@@ -637,7 +650,9 @@ describe('TagPicker: robusztusság', () => {
       vi.stubGlobal('MutationObserver', Spy);
       const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const search = deferredSearch();
-      const { dialog, input } = await openPicker({ routes: { 'GET /api/v1/tags': search.handler } });
+      const { dialog, input } = await openPicker({
+        routes: { 'GET /api/v1/tags': search.handler },
+      });
       const ours = watchers.filter((w) => w.filter);
       expect(ours.length).toBe(1);
       expect(ours[0]?.disconnected).toBe(false);

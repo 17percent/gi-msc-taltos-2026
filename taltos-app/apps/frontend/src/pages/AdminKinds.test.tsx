@@ -18,9 +18,13 @@ describe('Adminisztráció › Fajták', () => {
   });
 
   it('nem Rendszeradmin nem éri el', async () => {
-    documentApi();
+    const api = documentApi();
     renderApp('/admin/kinds');
     expect(await screen.findByRole('heading', { name: 'Nincs jogosultságod' })).toBeTruthy();
+    // Sem a fül, sem az „Új fajta” gomb, és a lista lekérése sem fut le.
+    expect(screen.queryByRole('link', { name: 'Fajták' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Új fajta' })).toBeNull();
+    expect(api.callsTo('GET /api/v1/kinds')).toHaveLength(0);
   });
 
   it('a kulcs ékezetmentesen adódik a névből, szerkeszthető; a kérés törzse helyes', async () => {
@@ -90,5 +94,13 @@ describe('Adminisztráció › Fajták', () => {
     expect(kindKeyFromLabel('1. Árvíztűrő tükörfúrógép')).toBe('arvizturo_tukorfurogep');
     expect(kindKeyFromLabel('x'.repeat(50))).toHaveLength(32);
     expect(kindKeyFromLabel('123')).toBe('');
+    // Magyar ékezetek (ő, ű, hosszú ékezetek), írásjelek, zárójel, nagybetűk.
+    expect(kindKeyFromLabel('Őrségi Űrlap')).toBe('orsegi_urlap');
+    expect(kindKeyFromLabel('Fájl-import (v2)')).toBe('fajl_import_v2');
+    // A 32 karakteres vágás után nem maradhat záró alávonás.
+    expect(kindKeyFromLabel('a'.repeat(31) + ' b')).toBe('a'.repeat(31));
+    // Ékezet nélkül nem képezhető (csak szám/írásjel): üres, a kulcs-validáció kezeli.
+    expect(kindKeyFromLabel('  --  ')).toBe('');
+    expect(kindKeyFromLabel('')).toBe('');
   });
 });

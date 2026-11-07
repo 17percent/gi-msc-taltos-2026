@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { routes } from '../routes';
 
 const me = {
@@ -33,6 +33,13 @@ function renderAt(path: string, signedIn: boolean) {
   render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: [path] })} />);
   return socket;
 }
+
+// A route `lazy()` importja az első rendereléskor transzformálja a szerkesztő teljes modulgráfját (tiptap, yjs).
+// Terhelés alatt (párhuzamos tesztfájlok) ez az első teszt időkeretét emésztheti fel: előmelegítjük, a teszt
+// időzítésén kívül. (Hipotézis: izoláltan az első teszt ~400 ms, a többi ~40 ms; terhelés alatt nem mértük.)
+beforeAll(async () => {
+  await import('./DocumentPage');
+}, 60_000);
 
 afterEach(() => {
   cleanup();
