@@ -1,7 +1,8 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { problem, renderApp } from '../test/helpers';
-import { DOC_ID, documentApi, json, makeDoc } from '../test/documents';
+import { DOC_ID, documentApi, json, makeDoc, tagList } from '../test/documents';
+import type { TagSearchResponse } from '@taltos/shared';
 
 vi.mock('../editor/CollabEditor', () => ({ CollabEditor: () => <div data-testid="editor" /> }));
 
@@ -371,5 +372,285 @@ describe('TagPicker', () => {
     await waitFor(() => expect(target()?.textContent).toMatch(/Mégis új címke/));
     fireEvent.keyDown(input, { key: 'Home' });
     await waitFor(() => expect(target()?.textContent).toBe('Nincs kijelölt címke'));
+  });
+});
+
+/** A `?q=` kéréseket a teszt oldja fel, tetszőleges sorrendben (versenyhelyzet vizsgálata). */
+function deferredSearch() {
+  const pending = new Map<string, (response: Response) => void>();
+  const handler = ({ url }: { url: URL }) => {
+    if (!url.searchParams.has('q')) return Promise.resolve(Response.json(tagList));
+    const q = url.searchParams.get('q') ?? '';
+    return new Promise<Response>((resolve) => pending.set(q, resolve));
+  };
+  const answer = (q: string, body: TagSearchResponse | Response) => {
+    const resolve = pending.get(q);
+    if (!resolve) throw new Error(`nincs függő kérés: ${q}`);
+    resolve(body instanceof Response ? body : Response.json(body));
+  };
+  return { handler, pending, answer };
+}
+/** A sor a `key` miatt újra létrejön, ha az állapota változik: mindig újra lekérdezzük. */
+const rowOf = (dialog: HTMLElement, name: string) =>
+  within(dialog).getByRole('option', { name }).getAttribute('aria-disabled');
+const flush = () => new Promise((resolve) => setTimeout(resolve, 30));
+const queries = (api: ReturnType<typeof documentApi>) =>
+  api.callsTo('GET /api/v1/tags').filter((call) => call.query.startsWith('?q='));
+
+describe('TagPicker: robusztusság', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('elavult ?q= válasz (később érkezik) nem írja felül a frissebbet, és a hibája sem látszik', async () => {
+    const search = deferredSearch();
+    const { dialog, input } = await openPicker({
+      routes: { 'GET /api/v1/tags': search.handler },
+    });
+    type(input, 'qx');
+    await waitFor(() => expect(search.pending.has('qx')).toBe(true));
+    type(input, 'qxz');
+    await waitFor(() => expect(search.pending.has('qxz')).toBe(true));
+    search.answer('qxz', { exact: null, similar: [{ id: 'n1', name: 'Újabb találat', count: 1 }] });
+    await within(dialog).findByRole('option', { name: 'Újabb találat' });
+    // A régi kérés sikere elavult: nem változtathat a listán.
+    search.answer('qx', { exact: null, similar: [{ id: 'o1', name: 'Régi találat', count: 1 }] });
+    await flush();
+    expect(within(dialog).queryByRole('option', { name: 'Régi találat' })).toBeNull();
+    expect(within(dialog).getByRole('option', { name: 'Újabb találat' })).toBeTruthy();
+    expect(within(dialog).getByRole('option', { name: 'Mégis új címke: „qxz”' })).toBeTruthy();
+  });
+
+  it('elavult ?q= hiba (korábban érkezik): az új címke sor az aktuális szövegre várva tiltott marad', async () => {
+    const search = deferredSearch();
+    const { api, dialog, input } = await openPicker({
+      routes: {
+        'GET /api/v1/tags': search.handler,
+        'POST /api/v1/tags': json({ id: 'tag-new', name: 'qxz' }),
+      },
+    });
+    type(input, 'qx');
+    await waitFor(() => expect(search.pending.has('qx')).toBe(true));
+    type(input, 'qxz');
+    await waitFor(() => expect(search.pending.has('qxz')).toBe(true));
+    // A „qx” szövegre érkező hibás válasz nem nyithatja meg a kaput a „qxz” szövegre, és nem hiba-állapot.
+    search.answer('qx', problem(500, 'internal_error'));
+    await flush();
+    const row = await within(dialog).findByRole('option', { name: 'Új címke: „qxz”' });
+    expect(row.getAttribute('aria-disabled')).toBe('true');
+    expect(within(dialog).queryByText('A javaslatok nem töltődtek be.')).toBeNull();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.click(row);
+    expect(api.callsTo('POST /api/v1/tags')).toHaveLength(0);
+    search.answer('qxz', { exact: null, similar: [] });
+    await waitFor(() => expect(rowOf(dialog, 'Új címke: „qxz”')).not.toBe('true'));
+  });
+
+  it('vezérlőkarakter (NUL): hiba, nincs keresés és nincs új címke sor', async () => {
+    const { api, dialog, input } = await openPicker();
+    type(input, 'a\u0000b');
+    expect(
+      await within(dialog).findByText('A címke nem tartalmazhat vezérlőkaraktert.'),
+    ).toBeTruthy();
+    expect(within(dialog).queryByRole('option')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(queries(api)).toHaveLength(0);
+  });
+
+  it('csak kombináló jel (normalizálva üres): látható karaktert kér, nem keres', async () => {
+    const { api, dialog, input } = await openPicker();
+    type(input, '́');
+    expect(await within(dialog).findByText('Adj meg legalább egy látható karaktert.')).toBeTruthy();
+    expect(within(dialog).queryByRole('option')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(queries(api)).toHaveLength(0);
+  });
+
+  it('láthatatlan karakterek a szövegben: a keresés és a POST a tisztított, szóközösszevont szöveget kapja', async () => {
+    const { api, dialog, input } = await openPicker({
+      routes: { 'POST /api/v1/tags': json({ id: 'tag-new', name: 'Valami új' }) },
+    });
+    type(input, '  Valami​   új‍ ');
+    const row = await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
+    await waitFor(() => expect(rowOf(dialog, 'Új címke: „Valami új”')).not.toBe('true'));
+    expect(queries(api).some((call) => call.query === '?q=Valami%20%C3%BAj')).toBe(true);
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Új címke: „Valami új”' }));
+    await waitFor(() => expect(chips(dialog)).toEqual(['Valami új']));
+    expect(api.callsTo('POST /api/v1/tags')[0]?.body).toEqual({ name: 'Valami új' });
+  });
+
+  it('POST /tags 500: újrapróbálható, a szöveg megmarad; a második próba sikerrel jár', async () => {
+    let calls = 0;
+    const { dialog, input } = await openPicker({
+      routes: {
+        'POST /api/v1/tags': () =>
+          ++calls === 1
+            ? problem(500, 'internal_error')
+            : Response.json({ id: 't9', name: 'Valami új' }),
+      },
+    });
+    type(input, 'Valami új');
+    const row = await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
+    await waitFor(() => expect(rowOf(dialog, 'Új címke: „Valami új”')).not.toBe('true'));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Új címke: „Valami új”' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert.textContent).toContain('Valami félresikerült nálunk');
+    expect(input.value).toBe('Valami új');
+    fireEvent.click(within(alert).getByRole('button', { name: 'Újrapróbálás' }));
+    await waitFor(() => expect(chips(dialog)).toEqual(['Valami új']));
+    expect(calls).toBe(2);
+  });
+
+  it('POST /tags hálózati hiba: nem lesz chip, a hiba új gépelésre eltűnik', async () => {
+    const { dialog, input } = await openPicker({
+      routes: {
+        'POST /api/v1/tags': () => {
+          throw new TypeError('Failed to fetch');
+        },
+      },
+    });
+    type(input, 'Valami új');
+    const row = await within(dialog).findByRole('option', { name: 'Új címke: „Valami új”' });
+    await waitFor(() => expect(rowOf(dialog, 'Új címke: „Valami új”')).not.toBe('true'));
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Új címke: „Valami új”' }));
+    await within(dialog).findByRole('alert');
+    expect(chips(dialog)).toEqual([]);
+    type(input, 'Valami újabb');
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
+  });
+
+  it('a helyi találatok legfeljebb 5 sort adnak', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, name: `Közös ${i}`, count: i }));
+    const { dialog, input } = await openPicker({
+      routes: {
+        'GET /api/v1/tags': ({ url }) =>
+          url.searchParams.has('q')
+            ? Response.json({ exact: null, similar: [] })
+            : Response.json({ tags: many }),
+      },
+    });
+    type(input, 'kozos');
+    const group = await within(dialog).findByRole('group', { name: 'Meglévő címkék' });
+    expect(within(group).getAllByRole('option')).toHaveLength(5);
+  });
+
+  describe('aria-activedescendant', () => {
+    /** Az invariáns: nyitott listánál az aktív elem létezik, `option`, kijelölt, nem rejtett és címkézett. */
+    function expectValidActive(input: HTMLElement) {
+      const id = input.getAttribute('aria-activedescendant');
+      const options = document.querySelectorAll('[role="option"]');
+      if (options.length === 0) {
+        if (id) {
+          expect(document.getElementById(id), 'a lista zárva, de az azonosító árva').not.toBeNull();
+        }
+        return;
+      }
+      expect(id, 'nyitott listánál kell aktív elem').toBeTruthy();
+      const el = document.getElementById(id ?? '');
+      expect(el, `nincs elem: ${id}`).not.toBeNull();
+      expect(el?.getAttribute('role')).toBe('option');
+      expect(el?.getAttribute('aria-selected')).toBe('true');
+      expect(el?.closest('[aria-hidden="true"]')).toBeNull();
+      expect((el?.textContent ?? '').trim()).not.toBe('');
+    }
+    const check = (input: HTMLElement) => waitFor(() => expectValidActive(input));
+
+    it('nyilak, Home/End, újrarajzolás (a találatok megváltoznak), Esc és újranyitás után is érvényes', async () => {
+      const results: Record<string, TagSearchResponse> = {
+        promtp: {
+          exact: null,
+          similar: [
+            { id: 's1', name: 'Prompt', count: 9 },
+            { id: 's2', name: 'Promptok', count: 9 },
+          ],
+        },
+        prompt: { exact: { id: 'tag-prompt', name: 'Prompt', count: 3 }, similar: [] },
+      };
+      const { dialog, input } = await openPicker({
+        routes: {
+          'GET /api/v1/tags': ({ url }) =>
+            url.searchParams.has('q')
+              ? Response.json(
+                  results[url.searchParams.get('q') ?? ''] ?? { exact: null, similar: [] },
+                )
+              : Response.json(tagList),
+        },
+      });
+      type(input, 'promtp');
+      await within(dialog).findByRole('group', { name: 'Ezt kerested?' });
+      await check(input);
+      const keys = ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowUp', 'End', 'Home', 'End'];
+      for (const key of keys) {
+        fireEvent.keyDown(input, { key });
+        await check(input);
+      }
+      // Újrarajzolás: a találatlista kicserélődik (pontos egyezés, majd csak az új sor).
+      type(input, 'prompt');
+      await waitFor(() =>
+        expect(within(dialog).queryByRole('group', { name: 'Ezt kerested?' })).toBeNull(),
+      );
+      await check(input);
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      await check(input);
+      type(input, 'zzz');
+      await within(dialog).findByRole('option', { name: 'Új címke: „zzz”' });
+      await check(input);
+      // Esc: a lista bezárul, nem maradhat árva azonosító.
+      fireEvent.keyDown(input, { key: 'Escape' });
+      await waitFor(() => expect(within(dialog).queryByRole('option')).toBeNull());
+      await check(input);
+      // Újranyitás ↓-re.
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      await within(dialog).findByRole('option', { name: 'Új címke: „zzz”' });
+      await check(input);
+    });
+
+    it('választás után (a lista bezárul) nincs árva aria-activedescendant', async () => {
+      const { dialog, input } = await openPicker({
+        search: { exact: null, similar: [{ id: 's2', name: 'Promptok', count: 9 }] },
+      });
+      type(input, 'promtp');
+      fireEvent.click(await within(dialog).findByRole('option', { name: 'Promptok' }));
+      await waitFor(() => expect(chips(dialog)).toEqual(['Promptok']));
+      await check(input);
+      expect(within(dialog).queryByRole('option')).toBeNull();
+    });
+  });
+
+  describe('MutationObserver életciklus', () => {
+    it('a lista-megfigyelő a dialógus zárásakor leválik, a későn érkező válasz nem hibázik', async () => {
+      const Real = MutationObserver;
+      const watchers: { disconnected: boolean; filter: boolean }[] = [];
+      class Spy extends Real {
+        record = { disconnected: false, filter: false };
+        constructor(callback: MutationCallback) {
+          super(callback);
+          watchers.push(this.record);
+        }
+        override observe(target: Node, options?: MutationObserverInit) {
+          if (options?.attributeFilter?.includes('aria-selected')) this.record.filter = true;
+          super.observe(target, options);
+        }
+        override disconnect() {
+          this.record.disconnected = true;
+          super.disconnect();
+        }
+      }
+      vi.stubGlobal('MutationObserver', Spy);
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const search = deferredSearch();
+      const { dialog, input } = await openPicker({ routes: { 'GET /api/v1/tags': search.handler } });
+      const ours = watchers.filter((w) => w.filter);
+      expect(ours.length).toBe(1);
+      expect(ours[0]?.disconnected).toBe(false);
+      type(input, 'qxz');
+      await waitFor(() => expect(search.pending.has('qxz')).toBe(true));
+      fireEvent.keyDown(input, { key: 'Escape' });
+      fireEvent.keyDown(input, { key: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(dialog.isConnected).toBe(false);
+      expect(ours.every((w) => w.disconnected)).toBe(true);
+      search.answer('qxz', { exact: null, similar: [{ id: 'a', name: 'Késő', count: 1 }] });
+      await flush();
+      expect(errors).not.toHaveBeenCalled();
+    });
   });
 });
