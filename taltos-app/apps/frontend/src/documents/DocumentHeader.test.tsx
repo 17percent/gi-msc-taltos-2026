@@ -278,3 +278,181 @@ describe('szerep × állapot mátrix (spec 7.)', () => {
     expect(screen.getByText('Lezárt')).toBeTruthy();
   });
 });
+
+describe('Piszkozat eldobása: hibaágak és az oldal frissülése (QA 2. kör)', () => {
+  const DELETE_KEY = `DELETE /api/v1/documents/${DOC_ID}/draft`;
+  const GET_KEY = `GET /api/v1/documents/${DOC_ID}`;
+
+  /** Az első `GET` a Piszkozatot adja, a további hívások a megadott választ (az eldobás közben megváltozott állapot). */
+  function sequence(after: () => Response, extra: Parameters<typeof documentApi>[0] = {}) {
+    let calls = 0;
+    return documentApi({
+      ...extra,
+      routes: {
+        [GET_KEY]: () => (++calls === 1 ? Response.json(makeDoc()) : after()),
+        ...extra.routes,
+      },
+    });
+  }
+
+  async function openDiscard() {
+    renderApp(`/documents/${DOC_ID}`);
+    await open();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Piszkozat eldobása' }));
+    return screen.findByRole('alertdialog');
+  }
+
+  it.each([
+    ['request_pending', { reviewState: 'pending' as const }],
+    ['has_approved_revision', { approvedRevisionId: 'rev-1' }],
+  ])('409 %s: a frissült állapot miatt a menüből az eldobás eltűnik', async (code, change) => {
+    sequence(() => Response.json(makeDoc(change)), {
+      routes: { [DELETE_KEY]: () => problem(409, code) },
+    });
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
+    await within(dialog).findByRole('alert');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bezár' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await open();
+    expect(await screen.findByRole('menuitem', { name: 'Duplikálás' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Piszkozat eldobása' })).toBeNull();
+  });
+
+  it('404: az üzenet után az oldal „A dokumentum nem található” állapotba kerül', async () => {
+    sequence(() => problem(404, 'not_found'), {
+      routes: { [DELETE_KEY]: () => problem(404, 'not_found') },
+    });
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'A dokumentum már nem található. Lehet, hogy közben valaki eldobta.',
+    );
+    expect(within(dialog).queryByRole('button', { name: 'Újrapróbálás' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'A dokumentum nem található' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Vissza a Kezdőlapra' })).toBeTruthy();
+  });
+
+  it('hálózati hiba: az újrapróbálás elérhető, a második próba sikerrel jár és a Kezdőlapra visz', async () => {
+    let attempts = 0;
+    const api = setup(
+      {},
+      {
+        routes: {
+          [DELETE_KEY]: () => {
+            if (++attempts === 1) throw new TypeError('Failed to fetch');
+            return noContent();
+          },
+        },
+      },
+    );
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'a Piszkozat még nem lett eldobva',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Újrapróbálás' }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Az alkalmazás váza fut' }),
+    ).toBeTruthy();
+    expect(api.callsTo(DELETE_KEY)).toHaveLength(2);
+  });
+
+  it('403 space_closed: a színterek frissülnek, a fejléc „Lezárt” jelölést kap, az eldobás eltűnik', async () => {
+    let spaceCalls = 0;
+    setup(
+      {},
+      {
+        routes: {
+          [DELETE_KEY]: () => problem(403, 'space_closed'),
+          'GET /api/v1/spaces': () =>
+            Response.json(
+              ++spaceCalls === 1
+                ? summaries
+                : summaries.map((space) =>
+                    space.id === GENERAL ? { ...space, closed: true } : space,
+                  ),
+            ),
+        },
+      },
+    );
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
+    await within(dialog).findByRole('alert');
+    // A színtérváltó is kiírja a „Lezárt” szót: a fejlécet (main) külön vizsgáljuk.
+    await waitFor(() => expect(within(screen.getByRole('main', { hidden: true })).getByText('Lezárt')).toBeTruthy());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bezár' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await open();
+    expect(screen.queryByRole('menuitem', { name: 'Piszkozat eldobása' })).toBeNull();
+  });
+
+  it('403 forbidden: a szerep frissül (GET /me), az eldobás eltűnik a menüből', async () => {
+    let meCalls = 0;
+    const asManager = makeMe({
+      spaces: [
+        { id: GENERAL, name: 'Általános', type: 'general', role: 'space_manager' },
+        { id: TEAM, name: 'Fejlesztés', type: 'team', role: 'space_manager' },
+      ],
+    });
+    setup(
+      { owner: { ...owner, id: 'u-x' } },
+      {
+        routes: {
+          [DELETE_KEY]: () => problem(403, 'forbidden'),
+          'GET /api/v1/me': () => Response.json(++meCalls === 1 ? asManager : makeMe()),
+        },
+      },
+    );
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
+    await within(dialog).findByRole('alert');
+    await waitFor(() => expect(meCalls).toBeGreaterThanOrEqual(2));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bezár' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await open();
+    expect(await screen.findByRole('menuitem', { name: 'Duplikálás' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Piszkozat eldobása' })).toBeNull();
+  });
+
+  it('a „Mégse” bezárja a megerősítést, a fókusz a Műveletek gombra tér vissza, kérés nem megy', async () => {
+    const api = setup({}, { routes: { [DELETE_KEY]: noContent } });
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mégse' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Dokumentum műveletei' }),
+      ),
+    );
+    expect(api.callsTo(DELETE_KEY)).toHaveLength(0);
+  });
+
+  it('archivált dokumentum: „Archivált” jelvény, Duplikálás igen, eldobás nem', async () => {
+    setup({ archived: true });
+    renderApp(`/documents/${DOC_ID}`);
+    expect(await screen.findByText('Archivált')).toBeTruthy();
+    await open();
+    expect(await screen.findByRole('menuitem', { name: 'Duplikálás' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Piszkozat eldobása' })).toBeNull();
+  });
+
+  it('nem Rendszeradmin a 403 állapotban nem kap beállítás-linket és nem lát dokumentumcímet', async () => {
+    documentApi({
+      routes: {
+        [GET_KEY]: () =>
+          problem(403, 'not_space_member', {
+            space: { id: 'sp-x', name: 'Titkos tér' },
+            managers: [],
+            canRequestMembership: false,
+          }),
+      },
+    });
+    renderApp(`/documents/${DOC_ID}`);
+    await screen.findByRole('heading', { name: 'Nincs hozzáférésed ehhez a dokumentumhoz' });
+    // Az oldalsáv saját „Színtér beállításai” linkje nem számít: a tartalomban nincs ilyen.
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: 'Színtér beállításai' })).toBeNull();
+    expect(screen.getByText(/Rendszeradminisztrátorhoz/)).toBeTruthy();
+    expect(screen.queryByTestId('editor')).toBeNull();
+  });
+});
