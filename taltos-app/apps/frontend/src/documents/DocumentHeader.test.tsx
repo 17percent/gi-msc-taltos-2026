@@ -333,6 +333,25 @@ describe('Piszkozat eldobása: hibaágak és az oldal frissülése (QA 2. kör)'
     expect(screen.getByRole('link', { name: 'Vissza a Kezdőlapra' })).toBeTruthy();
   });
 
+  it('403 not_space_member (a tagság közben megszűnt): oldalszintű hozzáférés-állapot (spec 5.3)', async () => {
+    sequence(
+      () =>
+        problem(403, 'not_space_member', {
+          space: { id: 'sp-x', name: 'Elhagyott tér' },
+          managers: [],
+          canRequestMembership: false,
+        }),
+      { routes: { [DELETE_KEY]: () => problem(403, 'not_space_member') } },
+    );
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Piszkozat eldobása' }));
+    await within(dialog).findByRole('alert');
+    expect(
+      await screen.findByRole('heading', { name: 'Nincs hozzáférésed ehhez a dokumentumhoz' }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Ügyfélszolgálati gyorsválaszok' })).toBeNull();
+  });
+
   it('hálózati hiba: az újrapróbálás elérhető, a második próba sikerrel jár és a Kezdőlapra visz', async () => {
     let attempts = 0;
     const api = setup(

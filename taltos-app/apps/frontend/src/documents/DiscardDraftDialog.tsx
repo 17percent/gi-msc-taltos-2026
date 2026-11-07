@@ -46,7 +46,13 @@ export function DiscardDraftDialog({
         else if (caught.code === 'space_closed') void spaces.refreshMembership();
         // A dokumentum állapota megváltozott: az oldal frissül (a menüelem eltűnik, vagy a 404 állapot jön).
         if (
-          ['request_pending', 'has_approved_revision', 'space_closed', 'not_found'].includes(
+          [
+            'request_pending',
+            'has_approved_revision',
+            'space_closed',
+            'not_found',
+            'not_space_member',
+          ].includes(
             caught.code,
           )
         ) {
