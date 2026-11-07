@@ -463,3 +463,219 @@ describe('Duplikálás (CreateDocumentDialog, duplikálás mód)', () => {
     );
   });
 });
+
+describe('CreateDocumentDialog: mátrix- és hibaág-hézagok (QA 2. kör)', () => {
+  const tagsOf = (dialog: HTMLElement) =>
+    within(within(dialog).getByRole('list', { name: 'Kiválasztott címkék' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent);
+
+  function setup(doc: ReturnType<typeof makeDoc>, extra: Parameters<typeof documentApi>[0] = {}) {
+    return documentApi({
+      ...extra,
+      routes: {
+        [`GET /api/v1/documents/${DOC_ID}`]: json(doc),
+        'POST /api/v1/documents': created('Másolat'),
+        ...extra.routes,
+      },
+    });
+  }
+
+  async function openDuplicate() {
+    renderApp(`/documents/${DOC_ID}`);
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Dokumentum műveletei' }), {
+      key: 'Enter',
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Duplikálás' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Dokumentum duplikálása' });
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: 'Fajta' }).textContent).not.toContain(
+        'Válassz fajtát',
+      ),
+    );
+    return dialog;
+  }
+
+  it('approvedMetadata nélkül a cím, a fajta ÉS a címkék is az élő állapotból jönnek, és úgy mennek a kérésbe', async () => {
+    const api = setup(
+      makeDoc({
+        title: 'Élő',
+        kind: 'guide',
+        approvedMetadata: null,
+        tags: [
+          { id: 'tag-prompt', name: 'Prompt' },
+          { id: 'tag-quick', name: 'Gyorsindítás' },
+        ],
+      }),
+    );
+    const dialog = await openDuplicate();
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Cím' }).value).toBe(
+      'Élő (másolat)',
+    );
+    expect(tagsOf(dialog)).toEqual(['Prompt', 'Gyorsindítás']);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Másolat létrehozása' }));
+    await waitFor(() => expect(api.callsTo('POST /api/v1/documents')).toHaveLength(1));
+    expect(api.callsTo('POST /api/v1/documents')[0]?.body).toEqual({
+      spaceId: GENERAL,
+      title: 'Élő (másolat)',
+      kind: 'guide',
+      tagIds: ['tag-prompt', 'tag-quick'],
+      sourceDocumentId: DOC_ID,
+    });
+  });
+
+  it('a Jóváhagyott metaadat kapcsolatai (köztük a rejtettek) nem jelennek meg és nem mennek a kérésbe', async () => {
+    const api = setup(
+      makeDoc({
+        title: 'Élő',
+        reviewState: 'approved',
+        approvedRevisionId: 'rev-1',
+        iteration: 1,
+        approvedMetadata: {
+          revisionId: 'rev-1',
+          title: 'Jóváhagyott',
+          kind: 'guide',
+          tags: [],
+          links: [
+            { hidden: true, spaceId: 'sp-secret-space' },
+            { toId: 'doc-visible-target', type: 'hivatkozik', anchor: 'LÁTHATÓ-HORGONY' },
+            { toId: 'doc-origin', type: 'szarmazik', anchor: null },
+          ],
+        },
+      }),
+    );
+    const dialog = await openDuplicate();
+    for (const leaked of ['sp-secret-space', 'doc-visible-target', 'LÁTHATÓ-HORGONY', 'doc-origin']) {
+      expect(dialog.textContent, leaked).not.toContain(leaked);
+    }
+    expect(within(dialog).queryByRole('list', { name: 'Kiválasztott címkék' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Másolat létrehozása' }));
+    await waitFor(() => expect(api.callsTo('POST /api/v1/documents')).toHaveLength(1));
+    const body = api.callsTo('POST /api/v1/documents')[0]?.body as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(
+      ['kind', 'sourceDocumentId', 'spaceId', 'tagIds', 'title'].sort(),
+    );
+    expect(JSON.stringify(body)).not.toContain('sp-secret-space');
+  });
+
+  it('lezárt forrás-színtér és lezárt aktuális tér: a másolat az első nem lezárt térbe megy, a magyarázat látszik', async () => {
+    const api = setup(makeDoc({ spaceId: PROJECT, title: 'Lezárt térben' }), {
+      me: makeMe({
+        spaces: [
+          { id: GENERAL, name: 'Általános', type: 'general', role: 'author' },
+          { id: TEAM, name: 'Fejlesztés', type: 'team', role: 'space_manager' },
+          { id: PROJECT, name: 'Atlasz-pilot', type: 'project', role: 'author' },
+        ],
+        currentSpaceId: PROJECT,
+      }),
+      spaces: summaries.map((space) => (space.id === PROJECT ? { ...space, closed: true } : space)),
+    });
+    const dialog = await openDuplicate();
+    expect(within(dialog).getByRole('combobox', { name: 'Színtér' }).textContent).toContain(
+      'Általános',
+    );
+    expect(
+      within(dialog).getByText(
+        'A(z) „Atlasz-pilot” lezárt, ezért itt nem hozható létre dokumentum.',
+      ),
+    ).toBeTruthy();
+    openSelect(within(dialog).getByRole('combobox', { name: 'Színtér' }));
+    expect(
+      (await screen.findByRole('option', { name: /Atlasz-pilot/ })).getAttribute('aria-disabled'),
+    ).toBe('true');
+    fireEvent.keyDown(screen.getByRole('option', { name: /Általános/ }), { key: 'Escape' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Másolat létrehozása' }));
+    await waitFor(() => expect(api.callsTo('POST /api/v1/documents')).toHaveLength(1));
+    expect((api.callsTo('POST /api/v1/documents')[0]?.body as { spaceId: string }).spaceId).toBe(
+      GENERAL,
+    );
+  });
+
+  it.each([
+    ['403 not_space_member', () => problem(403, 'not_space_member'), { me: 2, spaces: 2 }],
+    ['404 not_found (üres mód)', () => problem(404, 'not_found'), { me: 2, spaces: 2 }],
+    ['403 forbidden', () => problem(403, 'forbidden'), { me: 2, spaces: 1 }],
+  ])('%s: a tagság/szerep frissül, a dialógus nyitva marad', async (_name, response, expected) => {
+    const api = documentApi({ routes: { 'POST /api/v1/documents': response } });
+    renderApp('/');
+    const dialog = await openBlank();
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Cím' }), {
+      target: { value: 'Megmaradó cím' },
+    });
+    await pickKind(dialog, 'Prompt');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Dokumentum létrehozása' }));
+    await within(dialog).findByRole('alert');
+    await waitFor(() => {
+      expect(api.callsTo('GET /api/v1/me').length).toBeGreaterThanOrEqual(expected.me);
+      expect(api.callsTo('GET /api/v1/spaces').length).toBeGreaterThanOrEqual(expected.spaces);
+    });
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Cím' }).value).toBe(
+      'Megmaradó cím',
+    );
+  });
+
+  it('hálózati hiba duplikálásnál: a cím, a fajta és a címkék megmaradnak, az újrapróbálás ugyanazt a kérést küldi', async () => {
+    let attempts = 0;
+    const api = setup(
+      makeDoc({
+        title: 'Forrás',
+        kind: 'guide',
+        tags: [
+          { id: 'tag-prompt', name: 'Prompt' },
+          { id: 'tag-quick', name: 'Gyorsindítás' },
+        ],
+      }),
+      {
+        routes: {
+          'POST /api/v1/documents': () => {
+            if (++attempts === 1) throw new TypeError('Failed to fetch');
+            return Response.json(makeDoc({ id: NEW_DOC_ID, title: 'Szerkesztett cím' }), { status: 201 });
+          },
+          [`GET /api/v1/documents/${NEW_DOC_ID}`]: json(
+            makeDoc({ id: NEW_DOC_ID, title: 'Szerkesztett cím' }),
+          ),
+        },
+      },
+    );
+    const dialog = await openDuplicate();
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Cím' }), {
+      target: { value: 'Szerkesztett cím' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Másolat létrehozása' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert.textContent).toContain('nem tudjuk, létrejött-e a dokumentum');
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Cím' }).value).toBe(
+      'Szerkesztett cím',
+    );
+    expect(within(dialog).getByRole('combobox', { name: 'Fajta' }).textContent).toContain(
+      'Útmutató',
+    );
+    expect(tagsOf(dialog)).toEqual(['Prompt', 'Gyorsindítás']);
+    expect(
+      within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Másolat létrehozása' })
+        .disabled,
+    ).toBe(false);
+    fireEvent.click(within(alert).getByRole('button', { name: 'Újrapróbálás' }));
+    await waitFor(() => expect(api.callsTo('POST /api/v1/documents')).toHaveLength(2));
+    const [first, second] = api.callsTo('POST /api/v1/documents');
+    expect(second?.body).toEqual(first?.body);
+    // Siker után: navigáció az új dokumentumra, fókusz a h1-en.
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Szerkesztett cím' });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('üres fajta-lista, Rendszeradmin tagként: link az Adminisztráció › Fajták oldalra, a dialógus bezárul', async () => {
+    documentApi({ me: makeMe({ systemRole: 'system_admin' }), kinds: [] });
+    renderApp('/');
+    const dialog = await openBlank();
+    const link = await within(dialog).findByRole('link', {
+      name: 'Fajta felvétele az Adminisztrációban',
+    });
+    expect(link.getAttribute('href')).toBe('/admin/kinds');
+    expect(within(dialog).queryByText(/Kérd meg a Rendszeradminisztrátort/)).toBeNull();
+    fireEvent.click(link);
+    expect(await screen.findByText('Még nincs felvéve fajta.')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Új dokumentum' })).toBeNull();
+  });
+});
