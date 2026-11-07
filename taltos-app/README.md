@@ -2,8 +2,8 @@
 
 A Táltos tudásbázis alkalmazása: pnpm monorepo, TypeScript end-to-end. Kész: WP0 (skeleton, Compose,
 CI), WP1 (adatbázis-séma, migrációk, seed), WP2 (bejelentkezés, munkamenet, allowlist), WP3 (közös
-szerkesztés spike), WP4 (szerepkörök, zárt színterek, láthatóság: WP4a backend, WP4b felület) és WP5a (dokumentum-mag,
-backend; a WP5b felülete hátravan). A terv és a szabályok a repó gyökerében:
+szerkesztés spike), WP4 (szerepkörök, zárt színterek, láthatóság: WP4a backend, WP4b felület) és WP5 (dokumentum-mag:
+WP5a backend, WP5b felület). A terv és a szabályok a repó gyökerében:
 [`Arch/CLAUDE.md`](../Arch/CLAUDE.md), a munkacsomagok: [H5](../Arch/tudasbazis-munkacsomagok-h5.md).
 
 ## Szerkezet
@@ -298,4 +298,27 @@ A következő csomagoknak (a review-k nyomán):
 - **WP8:** a beküldés ugyanabban a sorrendben zároljon, mint az eldobás (színtér, majd dokumentum `FOR UPDATE`), lásd B4 nyitott pontjai.
 - **WP9:** a forrás-oldali `duplicated_from` célját (`targetDocumentId`, `targetSpaceId`) olvasáskor a néző láthatósága
   szerint kell kitakarni (D59), külön láthatósági teszttel.
-- **Éles induló fajta-készlet:** a `kind` kötelező, de élesben a `document_kinds` üres, amíg egy Rendszeradmin nem vesz fel fajtát.
+- **Éles induló fajta-készlet:** a `0010_default_document_kinds` adat-migráció a kilenc alap-fajtát idempotensen
+  betölti (D60; esemény nélkül, a seed is `DO NOTHING`-gal szúr).
+
+## Felület: létrehozás, duplikálás, címkék, fajták (WP5b)
+
+A jóváhagyott UX-spec szerint:
+[Létrehozás és duplikálás – felület](../Projekt%20dokumentációk/Szerkesztés/Létrehozás%20és%20duplikálás%20–%20felület.md)
+(D60). Új runtime-csomag nincs; csak a Táltos DS tokenjei.
+
+- **Belépés:** „Új dokumentum” az oldalsávban (mobilon a Sheetben) az aktuális színtérre; a duplikálás és az eldobás a
+  dokumentumfejléc „Dokumentum műveletei” menüjében. Bezáráskor a fókusz az indító gombra (mobilon a Menü gombra) tér vissza.
+- **`CreateDocumentDialog`** (`apps/frontend/src/documents/`): üres és duplikálás mód; duplikálásnál az `approvedMetadata`-ból
+  (ha nincs, az élő állapotból) „ (másolat)” címmel, és egy mondat kimondja a forrást. Fajta nélkül blokkol. Hálózati
+  hibánál őszintén jelzi, hogy a dokumentum létrejöhetett.
+- **`TagPicker`** (cmdk): normalizált pontos egyezés automatikus cseréje, legfeljebb 3 javaslat, „Mégis új címke” csak a
+  `?q=` keresés lezárulta után; azonnali `POST /tags`, a chip a visszaadott nevet mutatja. Élőrégió (`role=status`) a
+  találatszámmal és a hozzáadással; az `aria-activedescendant`-et egy `MutationObserver` tartja a kijelölt sorhoz (a cmdk
+  1.1.1 belső jelölésére épül, frissítéskor a tesztek jeleznek).
+- **`DocumentHeader`**: színtér, cím, állapotjelvény (ikon + felirat), fajta, címkék, tulajdonos; 404 és 403
+  (`NoAccessState`, cím nélkül). **Eldobás**: `AlertDialog`, a fókusz a „Mégse”-n, siker után a Kezdőlap.
+- **Adminisztráció → Fajták** (`/admin/kinds`): lista és új fajta (a kulcs a névből, ékezetmentesítve); csak Rendszeradminnak.
+- **Ellenőrzés:** jsdom-tesztek (frontend 300); böngészőben a tulajdonos fiókjával (Szerző): létrehozás, címke-felajánlás,
+  duplikálás, szerkesztés, eldobás, 404, 375 px világos és asztali nézet, fókusz-visszatérés. Nem ellenőrzött: valódi
+  képernyőolvasó, a „Fajták” fül Rendszeradminként, a lezárt tér sora a színtérválasztóban.

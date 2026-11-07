@@ -2,7 +2,7 @@
 tags:
   - taltos/egyseg
   - taltos/ux-spec
-allapot: jóváhagyva (2026-11-06, a D60 döntéseivel)
+allapot: jóváhagyva (2026-11-06, a D60 döntéseivel), megvalósítva (WP5b, 2026-11-07)
 mvp: 3
 munkacsomag: WP5b
 szerzo: ux-ui-designer

@@ -23,7 +23,7 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 
 | Egység | Lényeg | MVP (v10) | Állapot |
 |---|---|---|---|
-| [[Dokumentumok/Címkék\|Címkék]] | globális, szabadon megadott címkék, duplikátumszűrés; fajta külön mező (D34) | 3 | ✅ (prototípus: kategóriák) · 📘 D34, D58 (láthatóság színtereken át), D59 · backend kész (WP5a) |
+| [[Dokumentumok/Címkék\|Címkék]] | globális, szabadon megadott címkék, duplikátumszűrés; fajta külön mező (D34) | 3 | ✅ (prototípus: kategóriák) · 📘 D34, D58 (láthatóság színtereken át), D59 · kész: WP5 (WP5a backend, WP5b felület) |
 | [[Dokumentumok/Verziózás\|Verziózás]] | történet, diff, visszaállítás régi revízióra (review-val) | 5 | ✅ · 📘 D45 |
 | [[Dokumentumok/Státusz-workflow\|Státusz-workflow]] | Piszkozat → Review-ra vár → Jóváhagyott / Átdolgozandó, két review-er; Módosítás indítása, `unarchive` (D45, D51) | 6 | ✅ (régi 4 státusz) · 📘 D45, D51 |
 | [[Dokumentumok/Archívum\|Archívum]] | archiválás és `unarchive` review-val, soft delete | 11 | ✅ · 📘 D45, D51g |
@@ -64,8 +64,8 @@ Források: [[Tervezés/Tervezés (hetedik kör)/tudasbazis-architektura-dontesi-
 |---|---|---|---|
 | [[Szerkesztés/Markdown szerkesztő\|Markdown szerkesztő]] | élő előnézet (Obsidian-modell), helyi menü, Tulajdonság-panel | 4 | ✅ (osztott nézet) · 📘 D40 |
 | [[Szerkesztés/Zárolás\|Zárolás]] | lock + heartbeat — kivezetendő, lásd [[Kollaboráció/Valós idejű közös szerkesztés\|közös szerkesztés]] | — (csak prototípus) | ✅ (prototípus) |
-| [[Szerkesztés/Létrehozás és duplikálás – felület\|Létrehozás és duplikálás – felület]] | WP5b UX-spec: „Új dokumentum” (oldalsáv), létrehozó/duplikáló dialógus, címkeválasztó, dokumentumfejléc, eldobás, „Fajták” fül; jóváhagyva | 3 | 📘 D58, D59, D60 |
-| [[Szerkesztés/Létrehozás forrásból\|Létrehozás forrásból]] | üres, duplikálás (MVP) · sablonból, forrásból = fájlimport (2. ütem) | 3 | ✅ · 📘 D47, D58, D59 · üres + duplikálás backend kész (WP5a) |
+| [[Szerkesztés/Létrehozás és duplikálás – felület\|Létrehozás és duplikálás – felület]] | WP5b UX-spec: „Új dokumentum” (oldalsáv), létrehozó/duplikáló dialógus, címkeválasztó, dokumentumfejléc, eldobás, „Fajták” fül; jóváhagyva, megvalósítva (WP5b) | 3 | ✅ · 📘 D58, D59, D60 |
+| [[Szerkesztés/Létrehozás forrásból\|Létrehozás forrásból]] | üres, duplikálás (MVP) · sablonból, forrásból = fájlimport (2. ütem) | 3 | ✅ · 📘 D47, D58, D59, D60 · üres + duplikálás kész (WP5) |
 
 ## Nyomonkövetés és transzparencia
 
